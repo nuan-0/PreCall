@@ -1,0 +1,115 @@
+{
+  "entities": {
+    "Subject": {
+      "title": "Subject",
+      "description": "A UPSC subject module",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "The name of the subject" },
+        "slug": { "type": "string", "description": "The URL-friendly slug for the subject" },
+        "description": { "type": "string", "description": "A short description of the subject" },
+        "status": { "type": "string", "enum": ["live", "coming_soon"], "description": "Whether the subject is live or coming soon" },
+        "order": { "type": "integer", "description": "The order in which to display the subject" },
+        "pdfTitle": { "type": "string", "description": "The title of the PDF" },
+        "pdfUrl": { "type": "string", "description": "The URL of the PDF" },
+        "pdfVisible": { "type": "boolean", "description": "Whether the PDF is visible" },
+        "pdfAccessType": { "type": "string", "enum": ["free", "premium"], "description": "Access level for the PDF" }
+      },
+      "required": ["title", "slug", "status", "order"]
+    },
+    "Topic": {
+      "title": "Topic",
+      "description": "A high-yield revision topic",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "The name of the topic" },
+        "slug": { "type": "string", "description": "The URL-friendly slug for the topic" },
+        "subjectSlug": { "type": "string", "description": "The slug of the parent subject" },
+        "status": { "type": "string", "enum": ["free", "premium", "coming_soon"], "description": "Access level for the topic" },
+        "order": { "type": "integer", "description": "The order in which to display the topic" },
+        "teaser": { "type": "string", "description": "A short teaser for the topic list" },
+        "coreRecall": { "type": "string", "description": "The core content of the topic" },
+        "whyUpscAsksThis": { "type": "string", "description": "Context on why UPSC asks this" },
+        "trapZone": { "type": "string", "description": "Common traps for this topic" },
+        "deepLink": { "type": "string", "description": "Link to further reading" },
+        "pyqPattern": { "type": "string", "description": "Previous Year Question patterns" },
+        "quickEliminationLogic": { "type": "string", "description": "Logic for quick elimination" },
+        "miniMcqQuestion": { "type": "string", "description": "A mini MCQ question" },
+        "miniMcqAnswer": { "type": "string", "description": "The answer to the mini MCQ" },
+        "infographicUrl": { "type": "string", "description": "URL of the topic infographic" }
+      },
+      "required": ["title", "slug", "subjectSlug", "status", "order"]
+    },
+    "AppSettings": {
+      "title": "AppSettings",
+      "description": "Global application settings",
+      "type": "object",
+      "properties": {
+        "appName": { "type": "string" },
+        "heroTagline": { "type": "string" },
+        "sponsorName": { "type": "string" },
+        "sponsorText": { "type": "string" },
+        "pricingText": { "type": "string" },
+        "premiumCtaLine": { "type": "string" },
+        "footerText": { "type": "string" },
+        "price": { "type": "string" },
+        "originalPrice": { "type": "string" }
+      },
+      "required": ["appName", "heroTagline", "sponsorName", "premiumCtaLine", "footerText", "price", "originalPrice"]
+    },
+    "User": {
+      "title": "User",
+      "description": "A user profile",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The unique ID of the user" },
+        "email": { "type": "string", "description": "The email of the user" },
+        "displayName": { "type": "string", "description": "The display name of the user" },
+        "photoURL": { "type": "string", "description": "The photo URL of the user" },
+        "gender": { "type": "string", "enum": ["male", "female", "other"], "description": "The gender of the user" },
+        "avatarUrl": { "type": "string", "description": "The avatar URL of the user" },
+        "role": { "type": "string", "enum": ["admin", "user"], "description": "The role of the user" },
+        "isPremium": { "type": "boolean", "description": "Whether the user has premium access" },
+        "premiumExpiry": { "type": "string", "format": "date-time", "description": "The expiry date of premium access" },
+        "completedTopics": { "type": "array", "items": { "type": "string" }, "description": "List of completed topic IDs" },
+        "lastLogin": { "type": "string", "format": "date-time", "description": "The last login time of the user" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "A global notification message",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "type": { "type": "string", "enum": ["update", "alert", "welcome"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "message", "type", "createdAt"]
+    }
+  },
+  "firestore": {
+    "subjects": {
+      "schema": "Subject",
+      "description": "Collection of subjects"
+    },
+    "topics": {
+      "schema": "Topic",
+      "description": "Collection of topics"
+    },
+    "settings": {
+      "schema": "AppSettings",
+      "description": "Global settings document"
+    },
+    "users": {
+      "schema": "User",
+      "description": "Collection of user profiles"
+    },
+    "notifications": {
+      "schema": "Notification",
+      "description": "Collection of global notifications"
+    }
+  }
+}

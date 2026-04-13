@@ -1,0 +1,149 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: subjects
+    // Document ID: auto-generated
+    // Fields:
+    //   - title: string (required)
+    //   - slug: string (required)
+    //   - description: string (optional)
+    //   - status: string (required, 'live' | 'coming_soon')
+    //   - order: number (required)
+    //   - pdfTitle: string (optional)
+    //   - pdfUrl: string (optional)
+    //   - pdfVisible: bool (optional)
+    //   - pdfAccessType: string (optional, 'free' | 'premium')
+    //
+    // Collection: topics
+    // Document ID: auto-generated
+    // Fields:
+    //   - title: string (required)
+    //   - slug: string (required)
+    //   - subjectSlug: string (required)
+    //   - status: string (required, 'free' | 'premium' | 'coming_soon')
+    //   - order: number (required)
+    //   - teaser: string (optional)
+    //   - coreRecall: string (optional)
+    //   - whyUpscAsksThis: string (optional)
+    //   - trapZone: string (optional)
+    //   - deepLink: string (optional)
+    //   - pyqPattern: string (optional)
+    //   - quickEliminationLogic: string (optional)
+    //   - miniMcqQuestion: string (optional)
+    //   - miniMcqAnswer: string (optional)
+    //
+    // Collection: settings
+    // Document ID: global
+    // Fields:
+    //   - appName: string (optional)
+    //   - heroTagline: string (optional)
+    //   - sponsorName: string (optional)
+    //   - sponsorText: string (optional)
+    //   - pricingText: string (optional)
+    //   - premiumCtaLine: string (optional)
+    //   - footerText: string (optional)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      let founderEmail = "precall.admin@gmail.com";
+      let hasDynamicAdmins = exists(/databases/$(database)/documents/settings/admins);
+      let dynamicAdmins = hasDynamicAdmins ? get(/databases/$(database)/documents/settings/admins).data.emails : [];
+      return isAuthenticated() &&
+        request.auth.token.email_verified == true &&
+        (request.auth.token.email == founderEmail || request.auth.token.email in dynamicAdmins);
+    }
+
+    function isPremium() {
+      return isAdmin() || (isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isPremium == true);
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function isValidSubject(data) {
+      return data.title is string && data.title.size() > 0 && data.title.size() < 100 &&
+             data.slug is string && data.slug.size() > 0 && data.slug.size() < 100 &&
+             data.status in ['live', 'coming_soon'] &&
+             data.order is number;
+    }
+
+    function isValidTopic(data) {
+      return data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.slug is string && data.slug.size() > 0 && data.slug.size() < 100 &&
+             data.subjectSlug is string &&
+             data.status in ['free', 'premium', 'coming_soon'] &&
+             data.order is number;
+    }
+
+    function isValidSettings(data) {
+      return (!('appName' in data) || (data.appName is string && data.appName.size() < 100)) &&
+             (!('heroTagline' in data) || (data.heroTagline is string && data.heroTagline.size() < 500)) &&
+             (!('sponsorName' in data) || (data.sponsorName is string && data.sponsorName.size() < 100)) &&
+             (!('sponsorText' in data) || (data.sponsorText is string && data.sponsorText.size() < 500)) &&
+             (!('pricingText' in data) || (data.pricingText is string && data.pricingText.size() < 500)) &&
+             (!('premiumCtaLine' in data) || (data.premiumCtaLine is string && data.premiumCtaLine.size() < 500)) &&
+             (!('footerText' in data) || (data.footerText is string && data.footerText.size() < 500)) &&
+             (!('price' in data) || (data.price is string && data.price.size() < 20)) &&
+             (!('originalPrice' in data) || (data.originalPrice is string && data.originalPrice.size() < 20));
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /subjects/{subjectId} {
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidSubject(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /topics/{topicId} {
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidTopic(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /settings/global {
+      allow read: if true;
+      allow write: if isAdmin() && isValidSettings(request.resource.data);
+    }
+
+    match /settings/admins {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow create, update: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid || 
+        resource.data.userId == 'all' || 
+        isAdmin()
+      );
+      allow create: if isAdmin() || (
+        isAuthenticated() && 
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.type in ['welcome', 'premium']
+      );
+      allow update, delete: if isAdmin();
+    }
+  }
+}

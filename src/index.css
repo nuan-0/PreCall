@@ -1,0 +1,91 @@
+@import "tailwindcss";
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased selection:bg-violet-100 selection:text-violet-900;
+  }
+}
+
+@layer components {
+  .container-wide {
+    @apply mx-auto max-w-7xl px-4 sm:px-6 lg:px-8;
+  }
+  
+  .container-narrow {
+    @apply mx-auto max-w-4xl px-4 sm:px-6 lg:px-8;
+  }
+  
+  .section-padding {
+    @apply py-16 md:py-24 lg:py-32;
+  }
+}
+
+/* Custom scrollbar for desktop */
+@media (min-width: 1024px) {
+  ::-webkit-scrollbar {
+    width: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #f8fafc;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #e2e8f0;
+    border-radius: 10px;
+    border: 2px solid #f8fafc;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #cbd5e1;
+  }
+}
+
+/* Typography refinements */
+h1, h2, h3, h4 {
+  @apply tracking-tight font-black;
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+
+/* Markdown Content Styling */
+.markdown-body {
+  @apply w-full;
+}
+
+.markdown-body p {
+  @apply mb-4 last:mb-0 leading-relaxed;
+}
+
+.markdown-body ul, .markdown-body ol {
+  @apply pl-6 mb-4 space-y-2;
+}
+
+.markdown-body ul {
+  @apply list-disc;
+}
+
+.markdown-body ol {
+  @apply list-decimal;
+}
+
+.markdown-body strong {
+  @apply font-black text-slate-900;
+}
+
+.markdown-body blockquote {
+  @apply border-l-4 border-violet-200 pl-4 italic text-slate-500 my-6;
+}
+
+.markdown-body code {
+  @apply bg-slate-100 px-1.5 py-0.5 rounded text-violet-600 font-mono text-[0.9em];
+}
+
+/* Selection color */
+::selection {
+  @apply bg-violet-100 text-violet-900;
+}
