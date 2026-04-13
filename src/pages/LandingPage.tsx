@@ -1,4 +1,4 @@
-import { ArrowRight, BookOpen, CheckCircle2, FileText, Lock, ShieldCheck, Target, Zap, ChevronRight, Star } from 'lucide-react';
+import { ArrowRight, BookOpen, CheckCircle2, FileText, Lock, ShieldCheck, Target, Zap, ChevronRight, Star, Download, Share } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Badge, Button, Card } from '../components/UI';
 import { useSubjects, useSettings } from '../hooks/useData';
@@ -208,6 +208,48 @@ export function LandingPage() {
                 <p className="text-slate-400 font-bold uppercase tracking-widest">No subjects available yet.</p>
               </div>
             )}
+          </div>
+        </div>
+      </section>
+
+      {/* PWA Installation Section */}
+      <section className="section-padding bg-slate-50 border-y border-slate-100">
+        <div className="container-wide">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-black text-violet-950 mb-4 tracking-tight">Install PreCall App</h2>
+            <p className="text-lg text-slate-500 font-medium max-w-2xl mx-auto">
+              Get the full app experience on your phone or laptop. No Play Store needed.
+            </p>
+          </div>
+          
+          <div className="grid gap-8 sm:grid-cols-2 max-w-4xl mx-auto">
+            <div className="p-10 rounded-[2.5rem] bg-white border border-slate-100 shadow-xl shadow-slate-200/20">
+              <div className="h-12 w-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mb-6 border border-blue-100">
+                <Download className="h-6 w-6" />
+              </div>
+              <h4 className="text-2xl font-black text-slate-900 mb-4">Android / Chrome</h4>
+              <p className="text-slate-500 font-medium leading-relaxed mb-6">
+                Look for the <strong>"Install App"</strong> button in the top menu or wait for the prompt at the bottom of the screen.
+              </p>
+              <div className="flex items-center gap-2 text-blue-600 font-bold text-sm">
+                <CheckCircle2 className="h-4 w-4" />
+                Works on all Android devices
+              </div>
+            </div>
+            
+            <div className="p-10 rounded-[2.5rem] bg-white border border-slate-100 shadow-xl shadow-slate-200/20">
+              <div className="h-12 w-12 rounded-2xl bg-violet-50 text-violet-600 flex items-center justify-center mb-6 border border-violet-100">
+                <Share className="h-6 w-6" />
+              </div>
+              <h4 className="text-2xl font-black text-slate-900 mb-4">iPhone / iOS</h4>
+              <p className="text-slate-500 font-medium leading-relaxed mb-6">
+                Tap the <strong>Share</strong> icon (square with arrow) in Safari and select <strong>'Add to Home Screen'</strong>.
+              </p>
+              <div className="flex items-center gap-2 text-violet-600 font-bold text-sm">
+                <CheckCircle2 className="h-4 w-4" />
+                Native iOS experience
+              </div>
+            </div>
           </div>
         </div>
       </section>

@@ -232,3 +232,17 @@ export function useNotifications(uid?: string, isAdmin?: boolean) {
 
   return { notifications, loading };
 }
+
+export function useAvatarUnlock(uid?: string) {
+  const cacheKey = `avatar_unlocked_${uid || 'guest'}`;
+  const [isUnlocked, setIsUnlocked] = useState(() => {
+    return localStorage.getItem(cacheKey) === 'true';
+  });
+
+  const unlockAvatar = () => {
+    setIsUnlocked(true);
+    localStorage.setItem(cacheKey, 'true');
+  };
+
+  return { isUnlocked, unlockAvatar };
+}

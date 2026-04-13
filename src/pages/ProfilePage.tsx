@@ -1,16 +1,18 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useUserProfile } from '../hooks/useData';
+import { useUserProfile, useAvatarUnlock } from '../hooks/useData';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { toast } from 'sonner';
 import { Button, Card, Badge } from '../components/UI';
-import { User, Mail, ShieldCheck, Crown, Save, RefreshCw, UserCircle, Venus, Mars, Transgender, Image as ImageIcon } from 'lucide-react';
+import { User, Mail, ShieldCheck, Crown, Save, RefreshCw, UserCircle, Venus, Mars, Transgender, Image as ImageIcon, Lock as LockIcon } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { ShareToUnlock } from '../components/ShareToUnlock';
 
 export function ProfilePage() {
   const { user } = useAuth();
   const { profile, loading } = useUserProfile(user?.uid);
+  const { isUnlocked } = useAvatarUnlock(user?.uid);
   const [isSaving, setIsSaving] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
   const [formData, setFormData] = useState({
@@ -24,17 +26,21 @@ export function ProfilePage() {
       setFormData({
         displayName: profile.displayName || '',
         gender: profile.gender || '',
-        avatarUrl: profile.avatarUrl || profile.photoURL || ''
+        avatarUrl: isUnlocked ? (profile.avatarUrl || profile.photoURL || '') : ''
       });
       setAvatarError(false);
     }
-  }, [profile]);
+  }, [profile, isUnlocked]);
 
   useEffect(() => {
     setAvatarError(false);
   }, [formData.avatarUrl]);
 
   const generateAvatar = (gender: string) => {
+    if (!isUnlocked) {
+      toast.error('Please share the app to unlock avatar generation!');
+      return;
+    }
     const seed = Math.random().toString(36).substring(7);
     let url = `https://api.dicebear.com/9.x/avataaars/svg?seed=${seed}`;
     
@@ -51,7 +57,7 @@ export function ProfilePage() {
       await setDoc(userRef, {
         displayName: formData.displayName,
         gender: formData.gender,
-        avatarUrl: formData.avatarUrl
+        avatarUrl: isUnlocked ? formData.avatarUrl : ''
       }, { merge: true });
       toast.success('Profile updated successfully!');
     } catch (error) {
@@ -70,7 +76,7 @@ export function ProfilePage() {
     );
   }
 
-  const defaultAvatar = user?.photoURL || (user?.uid ? `https://api.dicebear.com/9.x/avataaars/svg?seed=${user.uid}` : '');
+  const defaultAvatar = isUnlocked ? (user?.photoURL || (user?.uid ? `https://api.dicebear.com/9.x/avataaars/svg?seed=${user.uid}` : '')) : '';
   const displayAvatar = formData.avatarUrl || defaultAvatar;
 
   return (
@@ -88,8 +94,13 @@ export function ProfilePage() {
             
             <div className="relative z-10">
               <div className="mb-6 inline-block p-1.5 rounded-full bg-white shadow-lg">
-                <div className="h-32 w-32 rounded-full bg-slate-100 overflow-hidden border-4 border-white">
-                  {!avatarError && displayAvatar ? (
+                <div className="h-32 w-32 rounded-full bg-slate-100 overflow-hidden border-4 border-white relative">
+                  {!isUnlocked ? (
+                    <div className="h-full w-full flex flex-col items-center justify-center bg-slate-50 text-slate-300">
+                      <LockIcon className="h-8 w-8 mb-1" />
+                      <span className="text-[8px] font-black uppercase tracking-widest">Locked</span>
+                    </div>
+                  ) : !avatarError && displayAvatar ? (
                     <img 
                       src={displayAvatar} 
                       alt="Avatar" 
@@ -136,21 +147,31 @@ export function ProfilePage() {
                 )}
               </div>
 
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="w-full rounded-xl"
-                onClick={() => generateAvatar(formData.gender)}
-              >
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Randomize Avatar
-              </Button>
+              {isUnlocked ? (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-full rounded-xl"
+                  onClick={() => generateAvatar(formData.gender)}
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Randomize Avatar
+                </Button>
+              ) : (
+                <div className="text-xs font-bold text-violet-600 bg-violet-50 p-3 rounded-xl border border-violet-100">
+                  Share to unlock avatar generation
+                </div>
+              )}
             </div>
           </Card>
         </div>
 
         {/* Edit Form */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-8">
+          {!isUnlocked && (
+            <ShareToUnlock uid={user?.uid} />
+          )}
+
           <Card className="p-10 border-slate-200 shadow-xl shadow-slate-100/50">
             <form onSubmit={handleSave} className="space-y-8">
               <div className="space-y-6">
@@ -196,7 +217,7 @@ export function ProfilePage() {
                         type="button"
                         onClick={() => {
                           setFormData(prev => ({ ...prev, gender: g.id as any }));
-                          if (!formData.avatarUrl || formData.avatarUrl.includes('dicebear')) {
+                          if (isUnlocked && (!formData.avatarUrl || formData.avatarUrl.includes('dicebear'))) {
                             generateAvatar(g.id);
                           }
                         }}
@@ -220,13 +241,19 @@ export function ProfilePage() {
                     <ImageIcon className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
                     <input 
                       type="text" 
-                      className="w-full h-14 pl-12 rounded-2xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500"
+                      className="w-full h-14 pl-12 rounded-2xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500 disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
                       value={formData.avatarUrl}
                       onChange={e => setFormData(prev => ({ ...prev, avatarUrl: e.target.value }))}
-                      placeholder="https://example.com/avatar.png"
+                      placeholder={isUnlocked ? "https://example.com/avatar.png" : "Share to unlock"}
+                      disabled={!isUnlocked}
                     />
+                    {!isUnlocked && <LockIcon className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300" />}
                   </div>
-                  <p className="text-[10px] font-medium text-slate-400 italic">Paste a link to an image or use the "Randomize Avatar" button on the left.</p>
+                  <p className="text-[10px] font-medium text-slate-400 italic">
+                    {isUnlocked 
+                      ? "Paste a link to an image or use the \"Randomize Avatar\" button on the left."
+                      : "Avatar editing is locked until you share the app."}
+                  </p>
                 </div>
               </div>
 

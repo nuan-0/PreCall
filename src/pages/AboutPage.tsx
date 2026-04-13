@@ -70,34 +70,6 @@ export default function AboutPage() {
         </section>
 
         <section className="text-center py-12">
-          <h2 className="text-2xl font-black text-violet-950 mb-4">Install PreCall App</h2>
-          <p className="text-slate-500 font-medium mb-8 max-w-xl mx-auto">
-            Get the full app experience on your phone or laptop. No Play Store needed.
-          </p>
-          
-          <div className="grid gap-6 sm:grid-cols-2 max-w-3xl mx-auto text-left">
-            <div className="p-6 rounded-3xl bg-slate-50 border border-slate-100">
-              <h4 className="font-black text-slate-900 mb-2 flex items-center gap-2">
-                <div className="h-6 w-6 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center text-[10px]">A</div>
-                Android / Chrome
-              </h4>
-              <p className="text-xs text-slate-500 font-medium leading-relaxed">
-                Look for the "Install App" button in the menu or wait for the prompt at the bottom of the screen.
-              </p>
-            </div>
-            <div className="p-6 rounded-3xl bg-slate-50 border border-slate-100">
-              <h4 className="font-black text-slate-900 mb-2 flex items-center gap-2">
-                <div className="h-6 w-6 rounded-lg bg-violet-100 text-violet-600 flex items-center justify-center text-[10px]">i</div>
-                iPhone / iOS
-              </h4>
-              <p className="text-xs text-slate-500 font-medium leading-relaxed">
-                Tap the <strong>Share</strong> icon (square with arrow) and select <strong>'Add to Home Screen'</strong>.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section className="text-center py-12 border-t border-slate-100">
           <h2 className="text-2xl font-black text-violet-950 mb-4">Join the Community</h2>
           <p className="text-slate-500 font-medium mb-8">
             Thousands of aspirants are already using PreCall to sharpen their revision. It's time to move from "reading" to "mastering".

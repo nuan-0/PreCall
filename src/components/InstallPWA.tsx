@@ -1,11 +1,15 @@
 import { Download, X, Share, PlusSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useEffect, useState } from 'react';
+import { usePWAInstall } from '../hooks/usePWAInstall';
 
 export function InstallPWA() {
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const { isInstallable, installApp } = usePWAInstall();
   const [isVisible, setIsVisible] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
+  const [isDismissed, setIsDismissed] = useState(() => {
+    return localStorage.getItem('pwa_prompt_dismissed') === 'true';
+  });
 
   useEffect(() => {
     // Check if it's iOS
@@ -14,33 +18,34 @@ export function InstallPWA() {
 
     // Check if already installed
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
-    if (isStandalone) return;
+    
+    if (isStandalone || isDismissed) {
+      setIsVisible(false);
+      return;
+    }
 
-    const handler = (e: any) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-      setIsVisible(true);
-    };
-
-    window.addEventListener('beforeinstallprompt', handler);
-
-    // For iOS, we show the prompt after a short delay if not standalone
-    if (isIOSDevice && !isStandalone) {
-      const timer = setTimeout(() => setIsVisible(true), 3000);
+    // Show for iOS after a delay
+    if (isIOSDevice) {
+      const timer = setTimeout(() => setIsVisible(true), 5000);
       return () => clearTimeout(timer);
     }
 
-    return () => window.removeEventListener('beforeinstallprompt', handler);
-  }, []);
+    // Show for Android/Desktop when installable
+    if (isInstallable) {
+      setIsVisible(true);
+    }
+  }, [isInstallable, isDismissed]);
+
+  const handleDismiss = () => {
+    setIsVisible(false);
+    setIsDismissed(true);
+    localStorage.setItem('pwa_prompt_dismissed', 'true');
+  };
 
   const handleInstall = async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      setDeferredPrompt(null);
-      setIsVisible(false);
-    }
+    await installApp();
+    // The hook handles the rest, but we can hide the prompt
+    setIsVisible(false);
   };
 
   if (!isVisible) return null;
@@ -58,7 +63,7 @@ export function InstallPWA() {
           <div className="absolute top-0 right-0 w-32 h-32 bg-violet-600/20 rounded-full blur-3xl -mr-16 -mt-16" />
           
           <button 
-            onClick={() => setIsVisible(false)}
+            onClick={handleDismiss}
             className="absolute top-4 right-4 p-1 text-slate-400 hover:text-white transition-colors"
           >
             <X className="h-5 w-5" />

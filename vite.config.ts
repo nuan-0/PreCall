@@ -13,11 +13,17 @@ export default defineConfig(({mode}) => {
       VitePWA({
         registerType: 'autoUpdate',
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+        devOptions: {
+          enabled: true
+        },
         manifest: {
           name: 'PreCall - UPSC Prelims Revision',
           short_name: 'PreCall',
           description: 'Master UPSC Prelims with focused daily revision.',
           theme_color: '#7c3aed',
+          background_color: '#ffffff',
+          display: 'standalone',
+          start_url: '/',
           icons: [
             {
               src: 'icon.svg',

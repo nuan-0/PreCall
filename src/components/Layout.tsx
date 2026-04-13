@@ -4,7 +4,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { Button, Badge } from './UI';
-import { useSettings, useUserProfile, useNotifications } from '../hooks/useData';
+import { useSettings, useUserProfile, useNotifications, useAvatarUnlock } from '../hooks/useData';
 import { useAuth } from '../contexts/AuthContext';
 import { AuthModal } from './AuthModal';
 import { usePWAInstall } from '../hooks/usePWAInstall';
@@ -19,9 +19,10 @@ export function Navbar() {
   const { profile } = useUserProfile(user?.uid);
   const { notifications } = useNotifications(user?.uid);
   const { isInstallable, installApp } = usePWAInstall();
+  const { isUnlocked } = useAvatarUnlock(user?.uid);
   const [avatarError, setAvatarError] = useState(false);
 
-  const userAvatar = !avatarError ? (profile?.avatarUrl || user?.photoURL || (user?.uid ? `https://api.dicebear.com/9.x/avataaars/svg?seed=${user.uid}` : null)) : null;
+  const userAvatar = (isUnlocked && !avatarError) ? (profile?.avatarUrl || user?.photoURL || (user?.uid ? `https://api.dicebear.com/9.x/avataaars/svg?seed=${user.uid}` : null)) : null;
   const userDisplayName = profile?.displayName || user?.displayName || 'Aspirant';
 
   useEffect(() => {
