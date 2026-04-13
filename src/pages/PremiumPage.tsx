@@ -1,4 +1,4 @@
-import { Check, Crown, ShieldCheck, Zap, Sparkles, FileText, Smartphone, Users, ArrowRight, HelpCircle, MessageCircle } from 'lucide-react';
+import { Check, Crown, ShieldCheck, Zap, Sparkles, FileText, Smartphone, Users, ArrowRight, HelpCircle, MessageCircle, PartyPopper } from 'lucide-react';
 import { useState } from 'react';
 import { Button, Card, Badge } from '../components/UI';
 import { useSettings } from '../hooks/useData';
@@ -6,6 +6,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { doc, setDoc, addDoc, collection } from 'firebase/firestore';
 import { db } from '../firebase';
 import { toast } from 'sonner';
+import confetti from 'canvas-confetti';
+import { motion, AnimatePresence } from 'motion/react';
 
 declare global {
   interface Window {
@@ -17,6 +19,7 @@ export function PremiumPage() {
   const { settings } = useSettings();
   const { user, isPremium, openAuthModal } = useAuth();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
   
   const price = settings?.price || '999';
   const originalPrice = settings?.originalPrice || '2,499';
@@ -52,13 +55,13 @@ export function PremiumPage() {
       handler: async function (response: any) {
         try {
           // In a production app, you MUST verify the payment on the server
-          // For this MVP, we'll trust the client-side success and update Firestore
           const userRef = doc(db, 'users', user.uid);
           await setDoc(userRef, { 
             isPremium: true,
             premiumPaymentId: response.razorpay_payment_id,
             premiumOrderId: response.razorpay_order_id,
-            premiumSignature: response.razorpay_signature
+            premiumSignature: response.razorpay_signature,
+            premiumActivatedAt: new Date().toISOString()
           }, { merge: true });
           
           // Add premium notification
@@ -70,13 +73,16 @@ export function PremiumPage() {
             createdAt: new Date().toISOString()
           });
 
-          toast.success("Welcome to PreCall Premium! Access granted.");
+          // Trigger Confetti
+          confetti({
+            particleCount: 150,
+            spread: 70,
+            origin: { y: 0.6 },
+            colors: ['#7c3aed', '#f59e0b', '#10b981']
+          });
+
+          setShowSuccessModal(true);
           setIsProcessing(false);
-          
-          // Reload to refresh all states
-          setTimeout(() => {
-            window.location.reload();
-          }, 1500);
         } catch (error) {
           console.error("Error updating premium status:", error);
           toast.error("Payment successful but failed to update status. Please contact support.");
@@ -256,12 +262,58 @@ export function PremiumPage() {
             Join hundreds of aspirants who are refining their revision strategy with PreCall.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Button variant="ghost" className="text-slate-400 hover:text-white w-full sm:w-auto px-8 h-12">
-              Email Support
-            </Button>
+            <a 
+              href="mailto:support@precall.app" 
+              className="w-full sm:w-auto"
+            >
+              <Button variant="ghost" className="text-slate-400 hover:text-white w-full px-8 h-12">
+                Email Support
+              </Button>
+            </a>
+            <a 
+              href="https://wa.me/your_number" 
+              target="_blank" 
+              rel="noreferrer"
+              className="w-full sm:w-auto"
+            >
+              <Button variant="ghost" className="text-slate-400 hover:text-white w-full px-8 h-12 flex items-center gap-2">
+                <MessageCircle className="h-4 w-4" />
+                WhatsApp Support
+              </Button>
+            </a>
           </div>
         </div>
       </div>
+
+      <AnimatePresence>
+        {showSuccessModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-white rounded-[3rem] p-10 max-w-md w-full text-center shadow-2xl relative overflow-hidden"
+            >
+              <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-violet-600 via-amber-400 to-emerald-500" />
+              
+              <div className="mb-8 inline-flex h-20 w-20 items-center justify-center rounded-3xl bg-emerald-50 text-emerald-600 shadow-inner">
+                <PartyPopper className="h-10 w-10" />
+              </div>
+              
+              <h2 className="text-3xl font-black text-violet-950 mb-4 tracking-tight">Welcome to Premium!</h2>
+              <p className="text-slate-600 font-medium mb-10 leading-relaxed">
+                Your payment was successful. You now have full access to all high-yield topics and premium downloads.
+              </p>
+              
+              <Button 
+                className="w-full h-14 text-lg rounded-2xl shadow-xl shadow-violet-200"
+                onClick={() => window.location.reload()}
+              >
+                Start Learning Now
+              </Button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
