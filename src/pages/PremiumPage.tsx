@@ -270,17 +270,6 @@ export function PremiumPage() {
                 Email Support
               </Button>
             </a>
-            <a 
-              href="https://wa.me/your_number" 
-              target="_blank" 
-              rel="noreferrer"
-              className="w-full sm:w-auto"
-            >
-              <Button variant="ghost" className="text-slate-400 hover:text-white w-full px-8 h-12 flex items-center gap-2">
-                <MessageCircle className="h-4 w-4" />
-                WhatsApp Support
-              </Button>
-            </a>
           </div>
         </div>
       </div>
