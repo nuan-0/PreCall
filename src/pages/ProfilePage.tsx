@@ -4,16 +4,20 @@ import { useUserProfile, useAvatarUnlock } from '../hooks/useData';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { toast } from 'sonner';
-import { Button, Card, Badge } from '../components/UI';
-import { User, Mail, ShieldCheck, Crown, Save, RefreshCw, UserCircle, Venus, Mars, Transgender, Image as ImageIcon, Lock as LockIcon } from 'lucide-react';
+import { Button, Card, Badge, Modal } from '../components/UI';
+import { User, Mail, ShieldCheck, Crown, Save, RefreshCw, UserCircle, Venus, Mars, Transgender, Image as ImageIcon, Lock as LockIcon, Trash2, AlertTriangle } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { ShareToUnlock } from '../components/ShareToUnlock';
+import { useNavigate } from 'react-router-dom';
 
 export function ProfilePage() {
-  const { user } = useAuth();
+  const { user, deleteAccount } = useAuth();
+  const navigate = useNavigate();
   const { profile, loading } = useUserProfile(user?.uid);
   const { isUnlocked } = useAvatarUnlock(user?.uid);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
   const [formData, setFormData] = useState({
     displayName: '',
@@ -65,6 +69,25 @@ export function ProfilePage() {
       toast.error('Failed to update profile');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    setIsDeleting(true);
+    try {
+      await deleteAccount();
+      toast.success('Your account has been permanently deleted.');
+      navigate('/');
+    } catch (error: any) {
+      console.error('Delete error:', error);
+      if (error.code === 'auth/requires-recent-login') {
+        toast.error('For security, please sign out and sign back in before deleting your account.');
+      } else {
+        toast.error('Failed to delete account. Please try again later.');
+      }
+    } finally {
+      setIsDeleting(false);
+      setIsDeleteModalOpen(false);
     }
   };
 
@@ -269,8 +292,70 @@ export function ProfilePage() {
               </div>
             </form>
           </Card>
+
+          {/* Danger Zone */}
+          <Card className="p-10 border-rose-100 bg-rose-50/30 shadow-sm">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
+              <div>
+                <h3 className="text-xl font-black text-rose-950 mb-2 tracking-tight flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-rose-600" />
+                  Danger Zone
+                </h3>
+                <p className="text-sm font-medium text-rose-700 max-w-md">
+                  Once you delete your account, there is no going back. All your progress, bookmarks, and premium access will be permanently removed.
+                </p>
+              </div>
+              <Button 
+                variant="outline" 
+                className="border-rose-200 text-rose-600 hover:bg-rose-100 hover:border-rose-300 h-12 px-6"
+                onClick={() => setIsDeleteModalOpen(true)}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete Account
+              </Button>
+            </div>
+          </Card>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        isOpen={isDeleteModalOpen}
+        onClose={() => !isDeleting && setIsDeleteModalOpen(false)}
+        title="Delete your account?"
+        footer={
+          <>
+            <Button 
+              variant="ghost" 
+              onClick={() => setIsDeleteModalOpen(false)}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button 
+              className="bg-rose-600 hover:bg-rose-700 text-white"
+              onClick={handleDeleteAccount}
+              loading={isDeleting}
+            >
+              Yes, Delete Permanently
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-slate-600 font-medium leading-relaxed">
+            This action is irreversible. You will lose:
+          </p>
+          <ul className="list-disc pl-5 space-y-2 text-sm font-bold text-slate-700">
+            <li>All your study progress and completed topics</li>
+            <li>Your premium subscription (if active)</li>
+            <li>Your custom avatar and profile settings</li>
+          </ul>
+          <p className="text-xs font-black text-rose-600 uppercase tracking-widest pt-2">
+            Are you absolutely sure you want to proceed?
+          </p>
+        </div>
+      </Modal>
     </div>
   );
 }

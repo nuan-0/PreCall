@@ -12,6 +12,7 @@ import { NotificationsPage } from './pages/NotificationsPage';
 import AboutPage from './pages/AboutPage';
 import ContactPage from './pages/ContactPage';
 import TermsPage from './pages/TermsPage';
+import PrivacyPage from './pages/PrivacyPage';
 import { useSettings } from './hooks/useData';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AuthProvider } from './contexts/AuthContext';
@@ -54,6 +55,7 @@ function AppContent({ settings }: { settings: any }) {
           <Route path="/about" element={<AboutPage />} />
           <Route path="/contact" element={<ContactPage />} />
           <Route path="/terms" element={<TermsPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
           <Route 
             path="/profile" 
             element={

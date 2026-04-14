@@ -376,6 +376,7 @@ export function Footer({ settings }: { settings?: any }) {
                 <li><Link to="/about" className="text-sm font-bold text-slate-600 hover:text-violet-600 transition-colors">About Us</Link></li>
                 <li><Link to="/contact" className="text-sm font-bold text-slate-600 hover:text-violet-600 transition-colors">Contact</Link></li>
                 <li><Link to="/terms" className="text-sm font-bold text-slate-600 hover:text-violet-600 transition-colors">Terms</Link></li>
+                <li><Link to="/privacy" className="text-sm font-bold text-slate-600 hover:text-violet-600 transition-colors">Privacy Policy</Link></li>
               </ul>
             </div>
           </div>

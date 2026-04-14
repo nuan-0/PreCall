@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { onAuthStateChanged, User, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
-import { doc, setDoc, onSnapshot, getDoc, collection, addDoc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { onAuthStateChanged, User, signInWithPopup, GoogleAuthProvider, signOut, deleteUser } from 'firebase/auth';
+import { doc, setDoc, onSnapshot, getDoc, collection, addDoc, updateDoc, arrayUnion, arrayRemove, deleteDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { isEmailAdmin, FOUNDER_EMAIL } from '../config/admins';
 import { UserProfile } from '../types';
@@ -17,6 +17,7 @@ interface AuthContextType {
   closeAuthModal: () => void;
   login: () => Promise<void>;
   logout: () => Promise<void>;
+  deleteAccount: () => Promise<void>;
   toggleTopicCompletion: (topicId: string) => Promise<void>;
 }
 
@@ -187,6 +188,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const deleteAccount = async () => {
+    if (!user) return;
+    
+    try {
+      const uid = user.uid;
+      // 1. Delete user document from Firestore
+      await deleteDoc(doc(db, 'users', uid));
+      
+      // 2. Delete user from Firebase Auth
+      await deleteUser(user);
+      
+      console.log('Account deleted successfully');
+    } catch (error: any) {
+      console.error('Account deletion failed:', error);
+      throw error;
+    }
+  };
+
   return (
     <AuthContext.Provider value={{ 
       user, 
@@ -200,6 +219,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       closeAuthModal, 
       login, 
       logout,
+      deleteAccount,
       toggleTopicCompletion
     }}>
       {children}
