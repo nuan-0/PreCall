@@ -12,9 +12,27 @@ import fs from 'fs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Helper to check Razorpay keys
+const checkRazorpayConfig = () => {
+  const keyId = process.env.VITE_RAZORPAY_KEY_ID;
+  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+  
+  if (!keyId || !keySecret) {
+    console.warn('⚠️ RAZORPAY CONFIGURATION MISSING:');
+    if (!keyId) console.warn(' - VITE_RAZORPAY_KEY_ID is not set');
+    if (!keySecret) console.warn(' - RAZORPAY_KEY_SECRET is not set');
+    console.warn('Payments will fail until these are added to environment variables.');
+    return false;
+  }
+  console.log('✅ Razorpay configuration detected');
+  return true;
+};
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
+
+  checkRazorpayConfig();
 
   // Initialize Firebase Admin
   try {
@@ -108,26 +126,36 @@ async function startServer() {
     const keyId = process.env.VITE_RAZORPAY_KEY_ID;
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
+    console.log(`[Payment] Attempting to create order for amount: ${amount}`);
+
     if (!keyId || !keySecret) {
-      console.error('Razorpay keys missing');
-      return res.status(500).json({ error: 'Payment system not configured' });
+      console.error('[Payment] Razorpay keys missing in environment');
+      return res.status(500).json({ error: 'Payment system not configured on server' });
     }
 
-    const razorpay = new Razorpay({
-      key_id: keyId,
-      key_secret: keySecret,
-    });
-
     try {
+      const razorpay = new Razorpay({
+        key_id: keyId,
+        key_secret: keySecret,
+      });
+
+      console.log('[Payment] Razorpay instance initialized. Calling razorpay.orders.create...');
+
       const order = await razorpay.orders.create({
         amount: amount, // already in paise
         currency: "INR",
         receipt: `receipt_${Date.now()}`,
       });
+
+      console.log(`[Payment] Order created successfully: ${order.id}`);
       res.json(order);
-    } catch (error) {
-      console.error('Error creating Razorpay order:', error);
-      res.status(500).json({ error: 'Failed to create order' });
+    } catch (error: any) {
+      console.error('[Payment] Error creating Razorpay order:', error);
+      res.status(500).json({ 
+        error: 'Failed to create order', 
+        details: error.message,
+        code: error.code 
+      });
     }
   });
 

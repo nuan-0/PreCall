@@ -24,6 +24,21 @@ export function PremiumPage() {
   const price = settings?.price || '999';
   const originalPrice = settings?.originalPrice || '2,499';
 
+  const loadRazorpayScript = () => {
+    return new Promise((resolve) => {
+      if (window.Razorpay) {
+        resolve(true);
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.async = true;
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
   const handleUpgrade = async () => {
     if (!user) {
       openAuthModal();
@@ -37,22 +52,37 @@ export function PremiumPage() {
 
     setIsProcessing(true);
     
+    // 1. Ensure Razorpay script is loaded
+    const isScriptLoaded = await loadRazorpayScript();
+    if (!isScriptLoaded) {
+      toast.error("Failed to load payment gateway. Please check your internet connection.");
+      setIsProcessing(false);
+      return;
+    }
+
     const razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID;
     
     if (!razorpayKey) {
-      toast.error("Payment system is not configured. Please contact support.");
+      toast.error("Payment configuration missing. Please ensure VITE_RAZORPAY_KEY_ID is set.");
       setIsProcessing(false);
       return;
     }
 
     try {
-      // 1. Create Order on Server
+      // 2. Create Order on Server
       const amountInPaise = parseInt(price.replace(/,/g, '')) * 100;
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
       const orderRes = await fetch('/api/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: amountInPaise })
+        body: JSON.stringify({ amount: amountInPaise }),
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId);
 
       if (!orderRes.ok) {
         const err = await orderRes.json();
@@ -61,7 +91,7 @@ export function PremiumPage() {
 
       const orderData = await orderRes.json();
 
-      // 2. Open Razorpay Checkout
+      // 3. Open Razorpay Checkout
       const options = {
         key: razorpayKey,
         amount: orderData.amount,
@@ -72,7 +102,9 @@ export function PremiumPage() {
         order_id: orderData.id,
         handler: async function (response: any) {
           try {
-            // 3. Verify the payment on our backend
+            toast.loading("Verifying payment...", { id: 'payment-verify' });
+            
+            // 4. Verify the payment on our backend
             const verifyRes = await fetch('/api/verify-payment', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -89,6 +121,8 @@ export function PremiumPage() {
               throw new Error(errData.error || 'Verification failed');
             }
             
+            toast.success("Payment verified! Welcome to Premium.", { id: 'payment-verify' });
+            
             // Trigger Confetti
             confetti({
               particleCount: 150,
@@ -101,7 +135,7 @@ export function PremiumPage() {
             setIsProcessing(false);
           } catch (error: any) {
             console.error("Error verifying payment:", error);
-            toast.error(error.message || "Payment successful but failed to update status. Please contact support.");
+            toast.error(error.message || "Payment successful but failed to update status. Please contact support.", { id: 'payment-verify' });
             setIsProcessing(false);
           }
         },
@@ -120,10 +154,21 @@ export function PremiumPage() {
       };
 
       const rzp = new window.Razorpay(options);
+      
+      rzp.on('payment.failed', function (response: any) {
+        console.error("Payment failed:", response.error);
+        toast.error(`Payment failed: ${response.error.description}`);
+        setIsProcessing(false);
+      });
+
       rzp.open();
     } catch (error: any) {
       console.error("Payment initialization failed:", error);
-      toast.error(error.message || "Failed to load payment gateway. Please check your internet connection.");
+      const errorMsg = error.name === 'AbortError' 
+        ? "Request timed out. Please try again." 
+        : (error.message || "Failed to load payment gateway.");
+      
+      toast.error(errorMsg);
       setIsProcessing(false);
     }
   };
