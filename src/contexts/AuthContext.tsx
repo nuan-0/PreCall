@@ -1,5 +1,15 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { onAuthStateChanged, User, signInWithPopup, GoogleAuthProvider, signOut, deleteUser } from 'firebase/auth';
+import { 
+  onAuthStateChanged, 
+  User, 
+  signInWithPopup, 
+  GoogleAuthProvider, 
+  signOut, 
+  deleteUser,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  sendEmailVerification
+} from 'firebase/auth';
 import { doc, setDoc, onSnapshot, getDoc, collection, addDoc, updateDoc, arrayUnion, arrayRemove, deleteDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { isEmailAdmin, FOUNDER_EMAIL } from '../config/admins';
@@ -16,6 +26,8 @@ interface AuthContextType {
   openAuthModal: () => void;
   closeAuthModal: () => void;
   login: () => Promise<void>;
+  loginWithEmail: (email: string, pass: string) => Promise<void>;
+  signup: (email: string, pass: string) => Promise<void>;
   logout: () => Promise<void>;
   deleteAccount: () => Promise<void>;
   toggleTopicCompletion: (topicId: string) => Promise<void>;
@@ -179,6 +191,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const signup = async (email: string, pass: string) => {
+    try {
+      const result = await createUserWithEmailAndPassword(auth, email, pass);
+      await sendEmailVerification(result.user);
+      console.log('Signup success, verification email sent');
+    } catch (error: any) {
+      console.error('Signup failed:', error);
+      throw error;
+    }
+  };
+
+  const loginWithEmail = async (email: string, pass: string) => {
+    try {
+      await signInWithEmailAndPassword(auth, email, pass);
+      console.log('Email login success');
+    } catch (error: any) {
+      console.error('Email login failed:', error);
+      throw error;
+    }
+  };
+
   const logout = async () => {
     try {
       await signOut(auth);
@@ -218,6 +251,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       openAuthModal, 
       closeAuthModal, 
       login, 
+      loginWithEmail,
+      signup,
       logout,
       deleteAccount,
       toggleTopicCompletion

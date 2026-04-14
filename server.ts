@@ -40,7 +40,96 @@ async function startServer() {
 
   const db = admin.firestore();
 
+  // Seed Razorpay Test Account
+  const seedRazorpayTestAccount = async () => {
+    const testEmail = 'razorpaytest.precall@gmail.com';
+    const testPassword = 'razorpay999';
+    const logPath = path.join(__dirname, 'seed-log.txt');
+    
+    const log = (msg: string) => {
+      const entry = `${new Date().toISOString()}: ${msg}\n`;
+      fs.appendFileSync(logPath, entry);
+      console.log(msg);
+    };
+
+    try {
+      log('Starting Razorpay test account seeding...');
+      // Check if user exists
+      try {
+        const user = await admin.auth().getUserByEmail(testEmail);
+        log(`User found: ${user.uid}. Updating password...`);
+        // Always update password to ensure it matches
+        await admin.auth().updateUser(user.uid, {
+          password: testPassword,
+          emailVerified: true
+        });
+        log('Razorpay test account updated with correct password');
+      } catch (error: any) {
+        if (error.code === 'auth/user-not-found') {
+          log('User not found. Creating new user...');
+          // Create user
+          const userRecord = await admin.auth().createUser({
+            email: testEmail,
+            password: testPassword,
+            emailVerified: true,
+            displayName: 'Razorpay Tester'
+          });
+          
+          log(`User created: ${userRecord.uid}. Creating Firestore profile...`);
+          // Create profile in Firestore
+          await db.collection('users').doc(userRecord.uid).set({
+            uid: userRecord.uid,
+            email: testEmail,
+            displayName: 'Razorpay Tester',
+            role: 'user',
+            isPremium: false,
+            createdAt: new Date().toISOString()
+          }, { merge: true });
+          
+          log('Razorpay test account seeded successfully');
+        } else {
+          log(`Auth error: ${error.code} - ${error.message}`);
+          throw error;
+        }
+      }
+    } catch (error: any) {
+      log(`Seeding failed: ${error.message}`);
+      console.error('Error seeding Razorpay test account:', error);
+    }
+  };
+
+  seedRazorpayTestAccount();
+
   app.use(express.json());
+
+  // API: Create Order
+  app.post('/api/create-order', async (req, res) => {
+    const { amount } = req.body;
+    const keyId = process.env.VITE_RAZORPAY_KEY_ID;
+    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+
+    if (!keyId || !keySecret) {
+      console.error('Razorpay keys missing');
+      return res.status(500).json({ error: 'Payment system not configured' });
+    }
+
+    const razorpay = new Razorpay({
+      key_id: keyId,
+      key_secret: keySecret,
+    });
+
+    try {
+      const order = await razorpay.orders.create({
+        amount: amount, // already in paise
+        currency: "INR",
+        receipt: `receipt_${Date.now()}`,
+      });
+      res.json(order);
+    } catch (error) {
+      console.error('Error creating Razorpay order:', error);
+      res.status(500).json({ error: 'Failed to create order' });
+    }
+  });
 
   // API: Verify Payment
   app.post('/api/verify-payment', async (req, res) => {

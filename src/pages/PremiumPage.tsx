@@ -45,68 +45,85 @@ export function PremiumPage() {
       return;
     }
 
-    const options = {
-      key: razorpayKey,
-      amount: parseInt(price.replace(/,/g, '')) * 100, // Amount in paise
-      currency: "INR",
-      name: settings?.appName || "PreCall",
-      description: "Premium One Season Access",
-      image: "/icon.svg",
-      handler: async function (response: any) {
-        try {
-          // Verify the payment on our backend
-          const verifyRes = await fetch('/api/verify-payment', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_signature: response.razorpay_signature,
-              userId: user.uid
-            })
-          });
-
-          if (!verifyRes.ok) {
-            const errData = await verifyRes.json();
-            throw new Error(errData.error || 'Verification failed');
-          }
-          
-          // Trigger Confetti
-          confetti({
-            particleCount: 150,
-            spread: 70,
-            origin: { y: 0.6 },
-            colors: ['#7c3aed', '#f59e0b', '#10b981']
-          });
-
-          setShowSuccessModal(true);
-          setIsProcessing(false);
-        } catch (error: any) {
-          console.error("Error verifying payment:", error);
-          toast.error(error.message || "Payment successful but failed to update status. Please contact support.");
-          setIsProcessing(false);
-        }
-      },
-      prefill: {
-        name: user.displayName || "",
-        email: user.email || "",
-      },
-      theme: {
-        color: "#7c3aed",
-      },
-      modal: {
-        ondismiss: function() {
-          setIsProcessing(false);
-        }
-      }
-    };
-
     try {
+      // 1. Create Order on Server
+      const amountInPaise = parseInt(price.replace(/,/g, '')) * 100;
+      const orderRes = await fetch('/api/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: amountInPaise })
+      });
+
+      if (!orderRes.ok) {
+        const err = await orderRes.json();
+        throw new Error(err.error || 'Failed to initialize payment');
+      }
+
+      const orderData = await orderRes.json();
+
+      // 2. Open Razorpay Checkout
+      const options = {
+        key: razorpayKey,
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: settings?.appName || "PreCall",
+        description: "Premium One Season Access",
+        image: "/icon.svg",
+        order_id: orderData.id,
+        handler: async function (response: any) {
+          try {
+            // 3. Verify the payment on our backend
+            const verifyRes = await fetch('/api/verify-payment', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_signature: response.razorpay_signature,
+                userId: user.uid
+              })
+            });
+
+            if (!verifyRes.ok) {
+              const errData = await verifyRes.json();
+              throw new Error(errData.error || 'Verification failed');
+            }
+            
+            // Trigger Confetti
+            confetti({
+              particleCount: 150,
+              spread: 70,
+              origin: { y: 0.6 },
+              colors: ['#7c3aed', '#f59e0b', '#10b981']
+            });
+
+            setShowSuccessModal(true);
+            setIsProcessing(false);
+          } catch (error: any) {
+            console.error("Error verifying payment:", error);
+            toast.error(error.message || "Payment successful but failed to update status. Please contact support.");
+            setIsProcessing(false);
+          }
+        },
+        prefill: {
+          name: user.displayName || "",
+          email: user.email || "",
+        },
+        theme: {
+          color: "#7c3aed",
+        },
+        modal: {
+          ondismiss: function() {
+            setIsProcessing(false);
+          }
+        }
+      };
+
       const rzp = new window.Razorpay(options);
       rzp.open();
-    } catch (error) {
-      console.error("Razorpay failed to load:", error);
-      toast.error("Failed to load payment gateway. Please check your internet connection.");
+    } catch (error: any) {
+      console.error("Payment initialization failed:", error);
+      toast.error(error.message || "Failed to load payment gateway. Please check your internet connection.");
       setIsProcessing(false);
     }
   };
