@@ -1,13 +1,12 @@
 import { AlertCircle, ArrowRight, BookOpen, FileText, Lock, Sparkles, ChevronRight, Target, CheckCircle2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Badge, Card, Skeleton, Button } from '../components/UI';
-import { useSubjects, useTopics } from '../hooks/useData';
+import { useDashboardData } from '../hooks/useData';
 import { useAuth } from '../contexts/AuthContext';
 import { cn } from '../lib/utils';
 
 export function Dashboard() {
-  const { subjects, loading: subjectsLoading } = useSubjects();
-  const { topics } = useTopics();
+  const { subjects, topics, loading: dataLoading } = useDashboardData();
   const { isAdmin, isPremium, profile } = useAuth();
   const navigate = useNavigate();
 
@@ -108,7 +107,7 @@ export function Dashboard() {
         </div>
 
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {subjectsLoading ? (
+          {dataLoading ? (
             Array.from({ length: 8 }).map((_, i) => (
               <Card key={i} className="h-64 flex flex-col justify-between p-6">
                 <div>

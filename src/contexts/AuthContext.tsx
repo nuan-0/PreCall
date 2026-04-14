@@ -62,43 +62,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Close modal on successful login
         setIsAuthModalOpen(false);
 
-        // Sync user profile to Firestore
-        try {
-          const userRef = doc(db, 'users', firebaseUser.uid);
-          const isAdminUser = (isEmailAdmin(firebaseUser.email) || dynamicAdmins.includes(firebaseUser.email?.toLowerCase() || '')) && (firebaseUser.emailVerified || firebaseUser.email === FOUNDER_EMAIL);
-          
-          // Fetch existing profile to check premium status
-          const userSnap = await getDoc(userRef);
-          const isNewUser = !userSnap.exists();
-          const existingData = userSnap.exists() ? userSnap.data() : {};
-          const isPremiumUser = existingData.isPremium || false;
-          
-          setIsPremium(isPremiumUser || isAdminUser);
+        // Sync user profile to Firestore - Optimized to reduce waterfalls
+        const syncProfile = async () => {
+          try {
+            const userRef = doc(db, 'users', firebaseUser.uid);
+            
+            // Fetch existing profile to check premium status and avoid overwriting custom data
+            const userSnap = await getDoc(userRef);
+            const existingData = userSnap.exists() ? userSnap.data() : {};
+            const isNewUser = !userSnap.exists();
+            
+            const isAdminUser = (isEmailAdmin(firebaseUser.email) || dynamicAdmins.includes(firebaseUser.email?.toLowerCase() || '')) && (firebaseUser.emailVerified || firebaseUser.email === FOUNDER_EMAIL);
+            const isPremiumUser = existingData.isPremium || false;
+            
+            setIsPremium(isPremiumUser || isAdminUser);
 
-          // If it's a new user, send a welcome notification
-          if (isNewUser) {
-            await addDoc(collection(db, 'notifications'), {
-              userId: firebaseUser.uid,
-              title: 'Welcome to PreCall!',
-              message: `Hi ${firebaseUser.displayName?.split(' ')[0] || 'Aspirant'}, we're excited to help you master UPSC Prelims. Start by exploring the Polity topics!`,
-              type: 'welcome',
-              createdAt: new Date().toISOString()
-            });
+            // Parallelize notification and profile update
+            const updates: Promise<any>[] = [];
+
+            if (isNewUser) {
+              updates.push(addDoc(collection(db, 'notifications'), {
+                userId: firebaseUser.uid,
+                title: 'Welcome to PreCall!',
+                message: `Hi ${firebaseUser.displayName?.split(' ')[0] || 'Aspirant'}, we're excited to help you master UPSC Prelims. Start by exploring the Polity topics!`,
+                type: 'welcome',
+                createdAt: new Date().toISOString()
+              }));
+            }
+
+            updates.push(setDoc(userRef, {
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              displayName: existingData.displayName || firebaseUser.displayName,
+              photoURL: existingData.photoURL || firebaseUser.photoURL,
+              lastLogin: new Date().toISOString(),
+              role: isAdminUser ? 'admin' : 'user',
+              isPremium: isPremiumUser || isAdminUser,
+              premiumExpiry: isAdminUser ? '2099-12-31' : (existingData.premiumExpiry || null)
+            }, { merge: true }));
+
+            await Promise.all(updates);
+          } catch (error: any) {
+            console.error("Error syncing user profile:", error);
           }
+        };
 
-          await setDoc(userRef, {
-            uid: firebaseUser.uid,
-            email: firebaseUser.email,
-            displayName: existingData.displayName || firebaseUser.displayName,
-            photoURL: existingData.photoURL || firebaseUser.photoURL,
-            lastLogin: new Date().toISOString(),
-            role: isAdminUser ? 'admin' : 'user',
-            isPremium: isPremiumUser || isAdminUser,
-            premiumExpiry: isAdminUser ? '2099-12-31' : (existingData.premiumExpiry || null)
-          }, { merge: true });
-        } catch (error) {
-          console.error("Error syncing user profile:", error);
-        }
+        syncProfile();
       } else {
         setIsPremium(false);
       }
@@ -155,10 +164,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async () => {
     const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
     try {
-      await signInWithPopup(auth, provider);
-    } catch (error) {
-      console.error('Login failed:', error);
+      const result = await signInWithPopup(auth, provider);
+      console.log('Login success:', result.user.email);
+    } catch (error: any) {
+      console.error('Login failed details:', {
+        code: error.code,
+        message: error.message,
+        customData: error.customData
+      });
       throw error;
     }
   };

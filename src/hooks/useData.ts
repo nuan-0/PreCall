@@ -1,21 +1,26 @@
-import { collection, doc, onSnapshot, query, where, orderBy, or } from 'firebase/firestore';
-import { useEffect, useState } from 'react';
+import { collection, doc, onSnapshot, query, where, orderBy, getDocs, getDoc } from 'firebase/firestore';
+import { useEffect, useState, useCallback } from 'react';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { Subject, Topic, AppSettings, UserProfile, AppNotification } from '../types';
 
 const CACHE_PREFIX = 'precall_cache_';
+const memoryCache: Record<string, any> = {};
 
 function getCache<T>(key: string): T | null {
+  if (memoryCache[key]) return memoryCache[key];
   const cached = localStorage.getItem(CACHE_PREFIX + key);
   if (!cached) return null;
   try {
-    return JSON.parse(cached);
+    const parsed = JSON.parse(cached);
+    memoryCache[key] = parsed;
+    return parsed;
   } catch {
     return null;
   }
 }
 
 function setCache<T>(key: string, data: T) {
+  memoryCache[key] = data;
   localStorage.setItem(CACHE_PREFIX + key, JSON.stringify(data));
 }
 
@@ -26,6 +31,8 @@ export function useSubjects() {
   useEffect(() => {
     const path = 'subjects';
     const q = query(collection(db, path), orderBy('order', 'asc'));
+    
+    // SWR: Initial fetch using Promise.all if needed, but onSnapshot is already async
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (snapshot.empty) {
         const defaultSubjects = [{
@@ -53,6 +60,63 @@ export function useSubjects() {
   }, []);
 
   return { subjects, loading };
+}
+
+export function useDashboardData() {
+  const [data, setData] = useState<{ subjects: Subject[], topics: Topic[] }>(() => ({
+    subjects: getCache<Subject[]>('subjects') || [],
+    topics: getCache<Topic[]>('topics_all') || []
+  }));
+  const [loading, setLoading] = useState(!data.subjects.length || !data.topics.length);
+
+  useEffect(() => {
+    const fetchAll = async () => {
+      try {
+        const subjectsQuery = query(collection(db, 'subjects'), orderBy('order', 'asc'));
+        const topicsQuery = query(collection(db, 'topics'), orderBy('order', 'asc'));
+
+        // Combine fetches into a single Promise.all() call for speed
+        const [subjectsSnap, topicsSnap] = await Promise.all([
+          getDocs(subjectsQuery),
+          getDocs(topicsQuery)
+        ]);
+
+        const subjectsData = subjectsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Subject));
+        const topicsData = topicsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Topic));
+
+        const newData = { subjects: subjectsData, topics: topicsData };
+        setData(newData);
+        setCache('subjects', subjectsData);
+        setCache('topics_all', topicsData);
+        setLoading(false);
+      } catch (error) {
+        console.error("Error fetching dashboard data:", error);
+        setLoading(false);
+      }
+    };
+
+    fetchAll();
+
+    // Still use listeners for "seamless" real-time updates
+    const subjectsUnsub = onSnapshot(query(collection(db, 'subjects'), orderBy('order', 'asc')), (snap) => {
+      const d = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Subject));
+      setData(prev => ({ ...prev, subjects: d }));
+      setCache('subjects', d);
+    });
+
+    const topicsUnsub = onSnapshot(query(collection(db, 'topics'), orderBy('order', 'asc')), (snap) => {
+      const d = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Topic));
+      setData(prev => ({ ...prev, topics: d }));
+      setCache('topics_all', d);
+    });
+
+    return () => {
+      subjectsUnsub();
+      topicsUnsub();
+    };
+  }, []);
+
+  return { ...data, loading };
 }
 
 export function useTopics(subjectSlug?: string) {

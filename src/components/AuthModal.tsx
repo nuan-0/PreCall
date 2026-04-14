@@ -13,9 +13,21 @@ export function AuthModal() {
     try {
       await login();
       toast.success('Welcome to PreCall!');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Login error:', error);
-      toast.error('Failed to sign in. Please try again.');
+      let errorMessage = 'Failed to sign in. Please try again.';
+      
+      if (error.code === 'auth/popup-blocked') {
+        errorMessage = 'Popup blocked! Please allow popups for this site in your browser settings.';
+      } else if (error.code === 'auth/unauthorized-domain') {
+        errorMessage = 'This domain is not authorized for sign-in. Please contact support.';
+      } else if (error.code === 'auth/cancelled-popup-request') {
+        errorMessage = 'Sign-in was cancelled. Please try again.';
+      } else if (error.code) {
+        errorMessage = `Sign-in error: ${error.code}. Please try again.`;
+      }
+      
+      toast.error(errorMessage);
     } finally {
       setIsLoggingIn(false);
     }
