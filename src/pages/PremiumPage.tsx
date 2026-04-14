@@ -54,25 +54,23 @@ export function PremiumPage() {
       image: "/icon.svg",
       handler: async function (response: any) {
         try {
-          // In a production app, you MUST verify the payment on the server
-          const userRef = doc(db, 'users', user.uid);
-          await setDoc(userRef, { 
-            isPremium: true,
-            premiumPaymentId: response.razorpay_payment_id,
-            premiumOrderId: response.razorpay_order_id,
-            premiumSignature: response.razorpay_signature,
-            premiumActivatedAt: new Date().toISOString()
-          }, { merge: true });
-          
-          // Add premium notification
-          await addDoc(collection(db, 'notifications'), {
-            userId: user.uid,
-            title: 'Premium Activated! 👑',
-            message: 'You now have full access to all high-yield topics and premium PDF downloads. Happy studying!',
-            type: 'premium',
-            createdAt: new Date().toISOString()
+          // Verify the payment on our backend
+          const verifyRes = await fetch('/api/verify-payment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_signature: response.razorpay_signature,
+              userId: user.uid
+            })
           });
 
+          if (!verifyRes.ok) {
+            const errData = await verifyRes.json();
+            throw new Error(errData.error || 'Verification failed');
+          }
+          
           // Trigger Confetti
           confetti({
             particleCount: 150,
@@ -83,9 +81,9 @@ export function PremiumPage() {
 
           setShowSuccessModal(true);
           setIsProcessing(false);
-        } catch (error) {
-          console.error("Error updating premium status:", error);
-          toast.error("Payment successful but failed to update status. Please contact support.");
+        } catch (error: any) {
+          console.error("Error verifying payment:", error);
+          toast.error(error.message || "Payment successful but failed to update status. Please contact support.");
           setIsProcessing(false);
         }
       },
