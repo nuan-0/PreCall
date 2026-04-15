@@ -72,6 +72,11 @@ async function startServer() {
 
   // Seed Razorpay Test Account
   const seedRazorpayTestAccount = async () => {
+    // Skip seeding on Vercel/Production to prevent timeouts and unnecessary writes
+    if (process.env.NODE_ENV === 'production' || !process.env.VITE) {
+      return;
+    }
+    
     const testEmail = 'razorpaytest.precall@gmail.com';
     const testPassword = 'razorpay999';
     const logPath = path.join(__dirname, 'seed-log.txt');
@@ -129,6 +134,11 @@ async function startServer() {
   seedRazorpayTestAccount();
 
   app.use(express.json());
+
+  // API: Health Check
+  app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', env: process.env.NODE_ENV });
+  });
 
   // API: Config
   app.get('/api/config', (req, res) => {
@@ -263,8 +273,12 @@ async function startServer() {
   return app;
 }
 
-const appPromise = startServer();
+// For Vercel, we need to export the app directly if possible, 
+// but since we have async setup, we use this wrapper.
+let cachedApp: any;
 export default async (req: any, res: any) => {
-  const app = await appPromise;
-  app(req, res);
+  if (!cachedApp) {
+    cachedApp = await startServer();
+  }
+  return cachedApp(req, res);
 };
