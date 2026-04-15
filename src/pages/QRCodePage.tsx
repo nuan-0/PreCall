@@ -158,22 +158,6 @@ export default function QRCodePage() {
             </button>
           </div>
         </motion.div>
-
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="mt-8 p-8 bg-gradient-to-br from-violet-600 to-indigo-700 rounded-[2.5rem] text-white shadow-2xl shadow-violet-200 relative overflow-hidden"
-        >
-          <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-16 -mt-16" />
-          <h3 className="font-black text-xl mb-3 flex items-center gap-2">
-            Marketing Tip 💡
-          </h3>
-          <p className="text-violet-100 text-sm leading-relaxed font-medium">
-            Print this QR code on your study materials or share it in UPSC telegram groups. 
-            The branded logo builds trust and makes your app look professional!
-          </p>
-        </motion.div>
       </div>
     </div>
   );
