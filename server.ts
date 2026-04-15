@@ -14,17 +14,17 @@ const __dirname = path.dirname(__filename);
 
 // Helper to check Razorpay keys
 const checkRazorpayConfig = () => {
-  const keyId = process.env.VITE_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID;
-  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+  const keyId = process.env.VITE_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID || process.env.RAZORPAY_LIVE_KEY_ID;
+  const keySecret = process.env.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_LIVE_KEY_SECRET;
   
   if (!keyId || !keySecret) {
     console.warn('⚠️ RAZORPAY CONFIGURATION MISSING:');
-    if (!keyId) console.warn(' - VITE_RAZORPAY_KEY_ID or RAZORPAY_KEY_ID is not set');
-    if (!keySecret) console.warn(' - RAZORPAY_KEY_SECRET is not set');
+    if (!keyId) console.warn(' - Key ID (VITE_RAZORPAY_KEY_ID, RAZORPAY_KEY_ID, or RAZORPAY_LIVE_KEY_ID) is not set');
+    if (!keySecret) console.warn(' - Key Secret (RAZORPAY_KEY_SECRET or RAZORPAY_LIVE_KEY_SECRET) is not set');
     console.warn('Payments will fail until these are added to environment variables.');
     return false;
   }
-  console.log('✅ Razorpay configuration detected');
+  console.log(`✅ Razorpay configuration detected (Key ID starts with: ${keyId.substring(0, 8)}...)`);
   return true;
 };
 
@@ -122,16 +122,18 @@ async function startServer() {
 
   // API: Config
   app.get('/api/config', (req, res) => {
+    const keyId = process.env.VITE_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID || process.env.RAZORPAY_LIVE_KEY_ID;
+    console.log(`[Config] Serving Razorpay Key ID: ${keyId ? keyId.substring(0, 8) + '...' : 'MISSING'}`);
     res.json({
-      razorpayKeyId: process.env.VITE_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID
+      razorpayKeyId: keyId
     });
   });
 
   // API: Create Order
   app.post('/api/create-order', async (req, res) => {
     const { amount } = req.body;
-    const keyId = process.env.VITE_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID;
-    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+    const keyId = process.env.VITE_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID || process.env.RAZORPAY_LIVE_KEY_ID;
+    const keySecret = process.env.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_LIVE_KEY_SECRET;
 
     console.log(`[Payment] Attempting to create order for amount: ${amount}`);
 

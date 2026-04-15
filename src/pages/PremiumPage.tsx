@@ -67,27 +67,30 @@ export function PremiumPage() {
 
     let razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID;
     
-    // Fallback: Fetch key from server if env var is missing
-    if (!razorpayKey) {
-      try {
-        const configRes = await fetch('/api/config');
-        if (configRes.ok) {
-          const configData = await configRes.json();
+    // Fallback: Fetch key from server if env var is missing or not exposed to client
+    try {
+      const configRes = await fetch('/api/config');
+      if (configRes.ok) {
+        const configData = await configRes.json();
+        if (configData.razorpayKeyId) {
           razorpayKey = configData.razorpayKeyId;
         }
-      } catch (err) {
-        console.error("Failed to fetch config from server:", err);
       }
+    } catch (err) {
+      console.error("Failed to fetch config from server:", err);
     }
     
     if (!razorpayKey) {
       toast.error(
         <div className="flex flex-col gap-2">
           <span className="font-bold">Payment Configuration Missing</span>
-          <span className="text-xs">Please ensure VITE_RAZORPAY_KEY_ID is set in the platform settings.</span>
-          <span className="text-[10px] opacity-70">Note: If you just added it, try restarting the dev server.</span>
+          <span className="text-xs">The app couldn't find your Razorpay Key ID.</span>
+          <div className="bg-slate-900/10 p-2 rounded text-[10px] font-mono">
+            Key Name: VITE_RAZORPAY_KEY_ID
+          </div>
+          <span className="text-[10px] opacity-70">If you just added it in Settings, please wait 10 seconds and try again.</span>
         </div>,
-        { duration: 6000 }
+        { duration: 8000 }
       );
       setIsProcessing(false);
       processingRef.current = false;
