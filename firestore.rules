@@ -129,7 +129,11 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
-      allow create, update: if isAuthenticated() && request.auth.uid == userId;
+      allow create: if isAuthenticated() && request.auth.uid == userId && 
+                    !('role' in request.resource.data) && 
+                    !('isPremium' in request.resource.data);
+      allow update: if isAuthenticated() && request.auth.uid == userId && 
+                    (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'isPremium', 'premiumExpiry', 'premiumPaymentId', 'premiumOrderId', 'premiumActivatedAt']) || isAdmin());
     }
 
     match /notifications/{notificationId} {

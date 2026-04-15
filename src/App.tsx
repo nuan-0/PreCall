@@ -18,16 +18,17 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { AuthProvider } from './contexts/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { InstallPWA } from './components/InstallPWA';
+import { ScrollToTop } from './components/ScrollToTop';
 import { cn } from './lib/utils';
 
 export default function App() {
   const { settings } = useSettings();
-  const isAdminRoute = window.location.pathname.startsWith('/admin');
 
   return (
     <ErrorBoundary>
       <AuthProvider>
         <BrowserRouter>
+          <ScrollToTop />
           <AppContent settings={settings} />
         </BrowserRouter>
       </AuthProvider>

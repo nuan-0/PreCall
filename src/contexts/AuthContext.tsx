@@ -103,16 +103,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               }));
             }
 
-            updates.push(setDoc(userRef, {
+            const userData: any = {
               uid: firebaseUser.uid,
               email: firebaseUser.email,
               displayName: existingData.displayName || firebaseUser.displayName,
               photoURL: existingData.photoURL || firebaseUser.photoURL,
               lastLogin: new Date().toISOString(),
-              role: isAdminUser ? 'admin' : 'user',
-              isPremium: isPremiumUser || isAdminUser,
-              premiumExpiry: isAdminUser ? '2099-12-31' : (existingData.premiumExpiry || null)
-            }, { merge: true }));
+            };
+
+            // Only include protected fields if user is admin or if it's a new user (though new users can't set them either)
+            // Actually, for new users, we should let the backend handle these or set defaults that rules allow.
+            // But rules say !('role' in data), so we MUST NOT include them.
+            if (isAdminUser) {
+              userData.role = 'admin';
+              userData.isPremium = true;
+              userData.premiumExpiry = '2099-12-31';
+            }
+
+            updates.push(setDoc(userRef, userData, { merge: true }));
 
             await Promise.all(updates);
           } catch (error: any) {
@@ -139,9 +147,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const unsubscribe = onSnapshot(doc(db, 'users', user.uid), (snapshot) => {
       if (snapshot.exists()) {
-        setProfile(snapshot.data() as UserProfile);
+        const data = snapshot.data() as UserProfile;
+        setProfile(data);
+        setIsPremium(data.isPremium || isAdmin);
       } else {
         setProfile(null);
+        setIsPremium(isAdmin);
       }
     }, (error) => {
       console.error("Error fetching user profile:", error);
