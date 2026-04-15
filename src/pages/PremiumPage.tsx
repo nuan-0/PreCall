@@ -1,5 +1,5 @@
 import { Check, Crown, ShieldCheck, Zap, Sparkles, FileText, Smartphone, Users, ArrowRight, HelpCircle, MessageCircle, PartyPopper } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Button, Card, Badge } from '../components/UI';
 import { useSettings } from '../hooks/useData';
 import { useAuth } from '../contexts/AuthContext';
@@ -20,6 +20,7 @@ export function PremiumPage() {
   const { user, isPremium, openAuthModal } = useAuth();
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const processingRef = useRef(false);
   
   const price = settings?.price || '999';
   const originalPrice = settings?.originalPrice || '2,499';
@@ -40,6 +41,8 @@ export function PremiumPage() {
   };
 
   const handleUpgrade = async () => {
+    if (processingRef.current) return;
+    
     if (!user) {
       openAuthModal();
       return;
@@ -50,6 +53,7 @@ export function PremiumPage() {
       return;
     }
 
+    processingRef.current = true;
     setIsProcessing(true);
     
     // 1. Ensure Razorpay script is loaded
@@ -57,6 +61,7 @@ export function PremiumPage() {
     if (!isScriptLoaded) {
       toast.error("Failed to load payment gateway. Please check your internet connection.");
       setIsProcessing(false);
+      processingRef.current = false;
       return;
     }
 
@@ -80,10 +85,12 @@ export function PremiumPage() {
         <div className="flex flex-col gap-2">
           <span className="font-bold">Payment Configuration Missing</span>
           <span className="text-xs">Please ensure VITE_RAZORPAY_KEY_ID is set in the platform settings.</span>
+          <span className="text-[10px] opacity-70">Note: If you just added it, try restarting the dev server.</span>
         </div>,
-        { duration: 5000 }
+        { duration: 6000 }
       );
       setIsProcessing(false);
+      processingRef.current = false;
       return;
     }
 
@@ -152,10 +159,12 @@ export function PremiumPage() {
 
             setShowSuccessModal(true);
             setIsProcessing(false);
+            processingRef.current = false;
           } catch (error: any) {
             console.error("Error verifying payment:", error);
             toast.error(error.message || "Payment successful but failed to update status. Please contact support.", { id: 'payment-verify' });
             setIsProcessing(false);
+            processingRef.current = false;
           }
         },
         prefill: {
@@ -168,6 +177,7 @@ export function PremiumPage() {
         modal: {
           ondismiss: function() {
             setIsProcessing(false);
+            processingRef.current = false;
           }
         }
       };
@@ -178,6 +188,7 @@ export function PremiumPage() {
         console.error("Payment failed:", response.error);
         toast.error(`Payment failed: ${response.error.description}`);
         setIsProcessing(false);
+        processingRef.current = false;
       });
 
       rzp.open();
@@ -189,6 +200,7 @@ export function PremiumPage() {
       
       toast.error(errorMsg);
       setIsProcessing(false);
+      processingRef.current = false;
     }
   };
 

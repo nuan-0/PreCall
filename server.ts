@@ -14,12 +14,12 @@ const __dirname = path.dirname(__filename);
 
 // Helper to check Razorpay keys
 const checkRazorpayConfig = () => {
-  const keyId = process.env.VITE_RAZORPAY_KEY_ID;
+  const keyId = process.env.VITE_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID;
   const keySecret = process.env.RAZORPAY_KEY_SECRET;
   
   if (!keyId || !keySecret) {
     console.warn('⚠️ RAZORPAY CONFIGURATION MISSING:');
-    if (!keyId) console.warn(' - VITE_RAZORPAY_KEY_ID is not set');
+    if (!keyId) console.warn(' - VITE_RAZORPAY_KEY_ID or RAZORPAY_KEY_ID is not set');
     if (!keySecret) console.warn(' - RAZORPAY_KEY_SECRET is not set');
     console.warn('Payments will fail until these are added to environment variables.');
     return false;
@@ -123,14 +123,14 @@ async function startServer() {
   // API: Config
   app.get('/api/config', (req, res) => {
     res.json({
-      razorpayKeyId: process.env.VITE_RAZORPAY_KEY_ID
+      razorpayKeyId: process.env.VITE_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID
     });
   });
 
   // API: Create Order
   app.post('/api/create-order', async (req, res) => {
     const { amount } = req.body;
-    const keyId = process.env.VITE_RAZORPAY_KEY_ID;
+    const keyId = process.env.VITE_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID;
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
     console.log(`[Payment] Attempting to create order for amount: ${amount}`);
