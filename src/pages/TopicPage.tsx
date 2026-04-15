@@ -400,10 +400,8 @@ function ContentSection({ title, icon: Icon, content, color, isHighlight, isMark
 
   return (
     <div className={cn(
-      'rounded-[2rem] sm:rounded-[2.5rem] border p-6 sm:p-10 transition-all duration-300',
-      isHighlight 
-        ? 'border-orange-200 bg-orange-50/40 shadow-xl shadow-orange-100/20' 
-        : 'border-slate-100 bg-white shadow-xl shadow-slate-100/30 hover:shadow-2xl hover:shadow-slate-200/40 hover:border-violet-200'
+      'brutalist-card p-6 sm:p-10 transition-all duration-300',
+      isHighlight && 'border-orange-500 bg-orange-50/20'
     )}>
       <div className="mb-6 sm:mb-8 flex items-center justify-between">
         <div className="flex items-center gap-4 sm:gap-5">

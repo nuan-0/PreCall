@@ -32,13 +32,13 @@ export function LandingPage() {
             <div className="flex flex-col items-center gap-8 w-full animate-in fade-in slide-in-from-bottom-10 duration-700 delay-300">
               <div className="flex flex-col sm:flex-row items-center justify-center gap-5 w-full sm:w-auto">
                 <Link to="/dashboard" className="w-full sm:w-auto">
-                  <Button size="lg" className="w-full sm:px-12 h-16 text-xl shadow-2xl shadow-violet-300/50 rounded-2xl group">
+                  <Button size="lg" className="brutalist-button w-full sm:px-12 h-20 text-2xl group">
                     Start Free Revision
-                    <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
+                    <ArrowRight className="ml-2 h-6 w-6 transition-transform group-hover:translate-x-2" />
                   </Button>
                 </Link>
                 <Link to="/premium" className="w-full sm:w-auto">
-                  <Button variant="outline" size="lg" className="w-full sm:px-12 h-16 text-xl bg-white border-slate-200 hover:border-violet-300 hover:bg-violet-50/50 rounded-2xl">
+                  <Button variant="outline" size="lg" className="w-full sm:px-12 h-20 text-2xl bg-white border-4 border-slate-900 rounded-none shadow-[6px_6px_0px_0px_rgba(30,27,75,0.1)] hover:shadow-[6px_6px_0px_0px_rgba(30,27,75,1)] transition-all">
                     Unlock Premium
                   </Button>
                 </Link>
@@ -105,11 +105,11 @@ export function LandingPage() {
               { title: 'Premium PDFs', desc: 'High-quality, print-friendly summaries ready for offline study and quick flips.', icon: FileText, color: 'bg-emerald-50 text-emerald-600 border-emerald-100' },
               { title: 'Topics', desc: 'Syllabus broken down into manageable, high-yield bits that you can finish in minutes.', icon: BookOpen, color: 'bg-indigo-50 text-indigo-600 border-indigo-100' },
             ].map((feature) => (
-              <Card key={feature.title} className="p-10 border-slate-100 shadow-xl shadow-slate-200/20 hover:shadow-2xl hover:shadow-violet-200/30 transition-all hover:-translate-y-1 bg-white">
-                <div className={cn("mb-8 inline-flex p-4 rounded-2xl border shadow-inner", feature.color)}>
+              <Card key={feature.title} className="brutalist-card p-10 group">
+                <div className={cn("mb-8 inline-flex p-4 rounded-2xl border shadow-inner transition-transform group-hover:scale-110 duration-500", feature.color)}>
                   <feature.icon className="h-7 w-7" />
                 </div>
-                <h3 className="text-2xl font-black text-violet-950 mb-4 tracking-tight">{feature.title}</h3>
+                <h3 className="text-2xl font-black text-violet-950 mb-4 tracking-tight uppercase italic">{feature.title}</h3>
                 <p className="text-slate-600 text-base font-medium leading-relaxed">{feature.desc}</p>
               </Card>
             ))}

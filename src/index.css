@@ -7,45 +7,45 @@
   }
   
   body {
-    @apply bg-slate-50 text-slate-900 antialiased selection:bg-violet-100 selection:text-violet-900;
+    @apply bg-[#FDFCFE] text-slate-900 antialiased selection:bg-violet-200 selection:text-violet-900;
   }
 }
 
 @layer components {
   .container-wide {
-    @apply mx-auto max-w-7xl px-4 sm:px-6 lg:px-8;
+    @apply mx-auto max-w-7xl px-6 lg:px-12;
   }
   
   .container-narrow {
-    @apply mx-auto max-w-4xl px-4 sm:px-6 lg:px-8;
+    @apply mx-auto max-w-4xl px-6 lg:px-12;
   }
   
   .section-padding {
-    @apply py-16 md:py-24 lg:py-32;
+    @apply py-20 md:py-32;
   }
 }
 
-/* Custom scrollbar for desktop */
+/* Custom scrollbar */
 @media (min-width: 1024px) {
   ::-webkit-scrollbar {
-    width: 8px;
+    width: 12px;
   }
   ::-webkit-scrollbar-track {
-    background: #f8fafc;
+    background: #FDFCFE;
   }
   ::-webkit-scrollbar-thumb {
-    background: #e2e8f0;
+    background: #e2e8f0; /* slate-200 */
+    border: 3px solid #FDFCFE;
     border-radius: 10px;
-    border: 2px solid #f8fafc;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #cbd5e1;
+    background: #cbd5e1; /* slate-300 */
   }
 }
 
 /* Typography refinements */
 h1, h2, h3, h4 {
-  @apply tracking-tight font-black;
+  @apply tracking-tight font-bold;
 }
 
 .text-balance {
@@ -54,15 +54,15 @@ h1, h2, h3, h4 {
 
 /* Markdown Content Styling */
 .markdown-body {
-  @apply w-full;
+  @apply w-full text-slate-700;
 }
 
 .markdown-body p {
-  @apply mb-4 last:mb-0 leading-relaxed;
+  @apply mb-6 last:mb-0 leading-relaxed text-lg;
 }
 
 .markdown-body ul, .markdown-body ol {
-  @apply pl-6 mb-4 space-y-2;
+  @apply pl-6 mb-6 space-y-3;
 }
 
 .markdown-body ul {
@@ -74,15 +74,15 @@ h1, h2, h3, h4 {
 }
 
 .markdown-body strong {
-  @apply font-black text-slate-900;
+  @apply font-black text-slate-950;
 }
 
 .markdown-body blockquote {
-  @apply border-l-4 border-violet-200 pl-4 italic text-slate-500 my-6;
+  @apply border-l-8 border-violet-600 bg-violet-50/50 p-8 italic text-violet-900 my-10 rounded-r-3xl shadow-sm;
 }
 
 .markdown-body code {
-  @apply bg-slate-100 px-1.5 py-0.5 rounded text-violet-600 font-mono text-[0.9em];
+  @apply bg-slate-100 px-2 py-1 rounded-lg text-violet-700 font-mono text-[0.85em] border border-slate-200;
 }
 
 /* Selection color */

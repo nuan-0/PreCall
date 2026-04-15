@@ -282,14 +282,14 @@ export function AdminPanel() {
 
       {/* Admin Sidebar */}
       <aside className={cn(
-        "fixed inset-y-0 left-0 z-40 w-72 border-r border-slate-200 bg-white p-8 transition-transform duration-300 md:sticky md:translate-x-0 overflow-y-auto",
+        "fixed inset-y-0 left-0 z-40 w-72 border-r border-slate-200 bg-white p-6 transition-transform duration-300 md:sticky md:translate-x-0 overflow-y-auto",
         isMobileMenuOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"
       )}>
-        <div className="mb-12 flex items-center gap-3">
-          <div className="h-10 w-10 rounded-2xl bg-violet-600 text-white flex items-center justify-center font-black text-xl shadow-lg shadow-violet-200">PC</div>
+        <div className="mb-10 flex items-center gap-3">
+          <div className="h-10 w-10 rounded-xl bg-violet-600 text-white flex items-center justify-center font-black text-lg shadow-lg shadow-violet-200">PC</div>
           <div>
-            <span className="block text-lg font-black text-slate-900 leading-none">PreCall</span>
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Control Center</span>
+            <span className="block text-xl font-black text-slate-900 leading-none tracking-tight">PreCall</span>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Control Center</span>
           </div>
         </div>
         
@@ -310,12 +310,12 @@ export function AdminPanel() {
           <AdminNavLink to="/admin/settings" icon={Settings} active={location.pathname === '/admin/settings'} onClick={() => setIsMobileMenuOpen(false)}>App Settings</AdminNavLink>
         </nav>
 
-        <div className="mt-auto pt-12 space-y-3">
-          <Link to="/" className="flex items-center gap-3 px-4 py-4 rounded-2xl text-sm font-black text-violet-600 bg-violet-50 hover:bg-violet-100 transition-all group">
+        <div className="mt-auto pt-10 space-y-3">
+          <Link to="/" className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-violet-600 bg-violet-50 hover:bg-violet-100 transition-all group">
             <Eye className="h-5 w-5" />
             View Public App
           </Link>
-          <Link to="/dashboard" className="flex items-center gap-3 px-4 py-4 rounded-2xl text-sm font-black text-amber-600 bg-amber-50 hover:bg-amber-100 transition-all group">
+          <Link to="/dashboard" className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 transition-all group">
             <Sparkles className="h-5 w-5" />
             View Premium View
           </Link>
@@ -327,7 +327,7 @@ export function AdminPanel() {
                 logout
               );
             }} 
-            className="flex w-full items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-slate-400 hover:text-red-500 transition-all group text-left"
+            className="flex w-full items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all group text-left"
           >
             <LogOut className="h-5 w-5" />
             Sign Out
@@ -387,17 +387,17 @@ function AdminNavLink({ to, icon: Icon, children, active, onClick }: any) {
       to={to}
       onClick={onClick}
       className={cn(
-        "flex items-center justify-between rounded-xl px-4 py-3.5 text-sm font-bold transition-all duration-200 group",
+        "flex items-center justify-between px-4 py-3 rounded-xl text-sm font-bold transition-all duration-200 group",
         active 
-          ? "bg-violet-50 text-violet-700 shadow-sm shadow-violet-100/50" 
+          ? "bg-violet-600 text-white shadow-lg shadow-violet-200" 
           : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
       )}
     >
       <div className="flex items-center gap-3">
-        <Icon className={cn("h-5 w-5 transition-colors", active ? "text-violet-600" : "text-slate-400 group-hover:text-slate-600")} />
+        <Icon className={cn("h-5 w-5 transition-colors", active ? "text-white" : "text-slate-400 group-hover:text-slate-600")} />
         {children}
       </div>
-      {active && <ChevronRight className="h-4 w-4 text-violet-400" />}
+      {active && <ChevronRight className="h-4 w-4 text-white" />}
     </Link>
   );
 }
@@ -452,31 +452,31 @@ function AdminNotifications({ showConfirm }: { showConfirm: any }) {
 
   return (
     <div className="space-y-10">
-      <Card className="p-10 border-slate-200 shadow-xl shadow-slate-100/50">
+      <Card className="p-10 border-4 border-slate-900 shadow-[10px_10px_0px_0px_rgba(30,27,75,1)]">
         <div className="flex items-center gap-4 mb-8">
-          <div className="p-3 rounded-2xl bg-violet-600 text-white shadow-lg shadow-violet-200">
+          <div className="p-3 border-2 border-slate-900 bg-violet-600 text-white shadow-[4px_4px_0px_0px_rgba(30,27,75,1)]">
             <Send className="h-6 w-6" />
           </div>
-          <h2 className="text-2xl font-black text-violet-950 tracking-tight">Broadcast Update</h2>
+          <h2 className="text-3xl font-black text-violet-950 tracking-tighter uppercase italic">Broadcast Update</h2>
         </div>
 
-        <form onSubmit={handleSend} className="space-y-6">
-          <div className="grid gap-6 md:grid-cols-2">
-            <div className="space-y-2">
+        <form onSubmit={handleSend} className="space-y-8">
+          <div className="grid gap-8 md:grid-cols-2">
+            <div className="space-y-3">
               <label className="text-xs font-black uppercase tracking-widest text-slate-400">Notification Title</label>
               <input 
                 type="text" 
-                className="w-full h-14 rounded-2xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" 
+                className="w-full h-16 border-4 border-slate-900 bg-white px-6 font-black text-slate-900 focus:ring-0 focus:border-slate-900 focus:shadow-[4px_4px_0px_0px_rgba(30,27,75,1)] transition-all placeholder:text-slate-300" 
                 value={newNotification.title} 
                 onChange={e => setNewNotification({...newNotification, title: e.target.value})} 
                 placeholder="e.g. New Polity Topic Live!" 
                 required 
               />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-3">
               <label className="text-xs font-black uppercase tracking-widest text-slate-400">Message Type</label>
               <select 
-                className="w-full h-14 rounded-2xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" 
+                className="w-full h-16 border-4 border-slate-900 bg-white px-6 font-black text-slate-900 focus:ring-0 focus:border-slate-900 focus:shadow-[4px_4px_0px_0px_rgba(30,27,75,1)] transition-all" 
                 value={newNotification.type} 
                 onChange={e => setNewNotification({...newNotification, type: e.target.value as any})}
               >
@@ -486,10 +486,10 @@ function AdminNotifications({ showConfirm }: { showConfirm: any }) {
               </select>
             </div>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-3">
             <label className="text-xs font-black uppercase tracking-widest text-slate-400">Message Content</label>
             <textarea 
-              className="w-full rounded-2xl border-slate-200 font-medium focus:ring-violet-500 focus:border-violet-500 p-4" 
+              className="w-full border-4 border-slate-900 bg-white p-6 font-bold text-slate-900 focus:ring-0 focus:border-slate-900 focus:shadow-[4px_4px_0px_0px_rgba(30,27,75,1)] transition-all placeholder:text-slate-300" 
               rows={4} 
               value={newNotification.message} 
               onChange={e => setNewNotification({...newNotification, message: e.target.value})} 
@@ -497,42 +497,42 @@ function AdminNotifications({ showConfirm }: { showConfirm: any }) {
               required 
             />
           </div>
-          <Button type="submit" loading={isSending} className="w-full h-14 text-lg shadow-xl shadow-violet-200">
-            <Send className="h-5 w-5 mr-2" />
+          <Button type="submit" loading={isSending} className="w-full h-20 text-2xl shadow-[8px_8px_0px_0px_rgba(30,27,75,1)] border-4 border-slate-900 bg-violet-600 text-white hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[6px_6px_0px_0px_rgba(30,27,75,1)] active:translate-x-[4px] active:translate-y-[4px] active:shadow-none transition-all uppercase italic tracking-tighter">
+            <Send className="h-8 w-8 mr-4" />
             Send to All Users
           </Button>
         </form>
       </Card>
 
-      <div className="space-y-6">
-        <h3 className="text-xl font-black text-violet-950 px-2">Recent Broadcasts</h3>
+      <div className="space-y-8">
+        <h3 className="text-3xl font-black text-violet-950 px-2 uppercase tracking-tighter italic">Recent Broadcasts</h3>
         <div className="grid gap-6">
           {notifications.map((n) => (
-            <Card key={n.id} className="p-6 border-slate-100 bg-slate-50/50 flex items-center justify-between gap-6 group">
-              <div className="flex items-center gap-6">
+            <Card key={n.id} className="p-8 border-4 border-slate-900 bg-white shadow-[6px_6px_0px_0px_rgba(30,27,75,1)] flex items-center justify-between gap-8 group">
+              <div className="flex items-center gap-8">
                 <div className={cn(
-                  "h-12 w-12 rounded-xl flex items-center justify-center shrink-0",
+                  "h-16 w-16 border-2 border-slate-900 flex items-center justify-center shrink-0 shadow-[4px_4px_0px_0px_rgba(30,27,75,1)]",
                   n.type === 'update' ? "bg-blue-100 text-blue-600" :
                   n.type === 'alert' ? "bg-amber-100 text-amber-600" :
                   "bg-violet-100 text-violet-600"
                 )}>
-                  {n.type === 'update' ? <Info className="h-6 w-6" /> :
-                   n.type === 'alert' ? <AlertTriangle className="h-6 w-6" /> :
-                   <Sparkles className="h-6 w-6" />}
+                  {n.type === 'update' ? <Info className="h-8 w-8" /> :
+                   n.type === 'alert' ? <AlertTriangle className="h-8 w-8" /> :
+                   <Sparkles className="h-8 w-8" />}
                 </div>
                 <div>
-                  <h4 className="font-black text-slate-900">{n.title}</h4>
-                  <p className="text-sm text-slate-500 font-medium line-clamp-1">{n.message}</p>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
+                  <h4 className="text-xl font-black text-slate-900 uppercase tracking-tighter italic">{n.title}</h4>
+                  <p className="text-slate-500 font-bold line-clamp-1">{n.message}</p>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2">
                     {new Date(n.createdAt).toLocaleDateString()}
                   </p>
                 </div>
               </div>
               <button 
                 onClick={() => handleDelete(n.id)} 
-                className="p-3 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                className="p-4 border-2 border-transparent text-slate-300 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200 transition-all"
               >
-                <Trash2 className="h-5 w-5" />
+                <Trash2 className="h-6 w-6" />
               </button>
             </Card>
           ))}
@@ -905,12 +905,12 @@ D. Article 22
     <div className="space-y-10">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h1 className="text-3xl font-black text-slate-900 leading-tight tracking-tight">Control Room</h1>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Control Room</h1>
           <p className="text-slate-500 font-medium mt-1">Manage your high-yield content and app growth.</p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="px-4 py-2 rounded-full bg-emerald-50 border border-emerald-100 flex items-center gap-2">
-            <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+          <div className="px-5 py-2.5 rounded-full bg-emerald-50 border border-emerald-100 flex items-center gap-3 shadow-sm">
+            <div className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
             <span className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">App is Live</span>
           </div>
         </div>
@@ -926,80 +926,80 @@ D. Article 22
       <div className="grid gap-8 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-8">
           <Card className="p-8 border-slate-200 shadow-sm">
-            <div className="flex items-center gap-3 mb-8">
-              <div className="p-2 rounded-xl bg-violet-50 text-violet-600">
-                <Zap className="h-5 w-5" />
+            <div className="flex items-center gap-4 mb-8">
+              <div className="p-2.5 rounded-xl bg-violet-50 text-violet-600">
+                <Zap className="h-6 w-6" />
               </div>
-              <h3 className="text-lg font-black text-slate-900">Founder's Quick Actions</h3>
+              <h3 className="text-xl font-black text-slate-900 tracking-tight">Founder's Quick Actions</h3>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Link to="/admin/topics" className="flex items-center gap-4 p-6 rounded-3xl border border-slate-100 bg-slate-50/50 hover:bg-white hover:border-violet-200 hover:shadow-xl hover:shadow-violet-100/50 transition-all group">
-                <div className="h-14 w-14 rounded-2xl bg-violet-100 text-violet-600 flex items-center justify-center group-hover:bg-violet-600 group-hover:text-white transition-all duration-300">
-                  <Plus className="h-7 w-7" />
+              <Link to="/admin/topics" className="flex items-center gap-4 p-5 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all group">
+                <div className="h-12 w-12 rounded-xl bg-violet-100 text-violet-600 flex items-center justify-center group-hover:bg-violet-600 group-hover:text-white transition-all duration-300">
+                  <Plus className="h-6 w-6" />
                 </div>
                 <div>
-                  <span className="block text-sm font-black text-slate-900">Add New Topic</span>
-                  <span className="text-xs font-medium text-slate-500">Paste new revision content</span>
+                  <span className="block text-sm font-bold text-slate-900">Add New Topic</span>
+                  <span className="text-[10px] font-medium text-slate-500">Paste new revision content</span>
                 </div>
               </Link>
               
-              <Link to="/admin/subjects" className="flex items-center gap-4 p-6 rounded-3xl border border-slate-100 bg-slate-50/50 hover:bg-white hover:border-blue-200 hover:shadow-xl hover:shadow-blue-100/50 transition-all group">
-                <div className="h-14 w-14 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
-                  <BookOpen className="h-7 w-7" />
+              <Link to="/admin/subjects" className="flex items-center gap-4 p-5 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all group">
+                <div className="h-12 w-12 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
+                  <BookOpen className="h-6 w-6" />
                 </div>
                 <div>
-                  <span className="block text-sm font-black text-slate-900">Manage Subjects</span>
-                  <span className="text-xs font-medium text-slate-500">Edit categories & PDFs</span>
+                  <span className="block text-sm font-bold text-slate-900">Manage Subjects</span>
+                  <span className="text-[10px] font-medium text-slate-500">Edit categories & PDFs</span>
                 </div>
               </Link>
 
-              <Link to="/admin/settings" className="flex items-center gap-4 p-6 rounded-3xl border border-slate-100 bg-slate-50/50 hover:bg-white hover:border-amber-200 hover:shadow-xl hover:shadow-amber-100/50 transition-all group">
-                <div className="h-14 w-14 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center group-hover:bg-amber-600 group-hover:text-white transition-all duration-300">
-                  <Settings className="h-7 w-7" />
+              <Link to="/admin/settings" className="flex items-center gap-4 p-5 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all group">
+                <div className="h-12 w-12 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center group-hover:bg-amber-600 group-hover:text-white transition-all duration-300">
+                  <Settings className="h-6 w-6" />
                 </div>
                 <div>
-                  <span className="block text-sm font-black text-slate-900">App Settings</span>
-                  <span className="text-xs font-medium text-slate-500">Update pricing & branding</span>
+                  <span className="block text-sm font-bold text-slate-900">App Settings</span>
+                  <span className="text-[10px] font-medium text-slate-500">Update pricing & branding</span>
                 </div>
               </Link>
 
-              <Link to="/dashboard" className="flex items-center gap-4 p-6 rounded-3xl border border-slate-100 bg-slate-50/50 hover:bg-white hover:border-amber-200 hover:shadow-xl hover:shadow-amber-100/50 transition-all group">
-                <div className="h-14 w-14 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center group-hover:bg-amber-600 group-hover:text-white transition-all duration-300">
-                  <Sparkles className="h-7 w-7" />
+              <Link to="/dashboard" className="flex items-center gap-4 p-5 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all group">
+                <div className="h-12 w-12 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center group-hover:bg-amber-600 group-hover:text-white transition-all duration-300">
+                  <Sparkles className="h-6 w-6" />
                 </div>
                 <div>
-                  <span className="block text-sm font-black text-slate-900">View Premium View</span>
-                  <span className="text-xs font-medium text-slate-500">Preview as premium user</span>
+                  <span className="block text-sm font-bold text-slate-900">View Premium View</span>
+                  <span className="text-[10px] font-medium text-slate-500">Preview as premium user</span>
                 </div>
               </Link>
 
-              <button onClick={seedData} className="flex items-center gap-4 p-6 rounded-3xl border border-slate-100 bg-slate-50/50 hover:bg-white hover:border-slate-300 hover:shadow-xl hover:shadow-slate-100/50 transition-all group text-left w-full">
-                <div className="h-14 w-14 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center group-hover:bg-slate-900 group-hover:text-white transition-all duration-300">
-                  <Zap className="h-7 w-7" />
+              <button onClick={seedData} className="flex items-center gap-4 p-5 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all group text-left w-full">
+                <div className="h-12 w-12 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center group-hover:bg-slate-900 group-hover:text-white transition-all duration-300">
+                  <Zap className="h-6 w-6" />
                 </div>
                 <div>
-                  <span className="block text-sm font-black text-slate-900">Safe Seed Core Data</span>
-                  <span className="text-xs font-medium text-slate-500">Add missing subjects/topics safely</span>
+                  <span className="block text-sm font-bold text-slate-900">Safe Seed Core Data</span>
+                  <span className="text-[10px] font-medium text-slate-500">Add missing subjects/topics safely</span>
                 </div>
               </button>
 
-              <button onClick={seedArticle21} className="flex items-center gap-4 p-6 rounded-3xl border border-slate-100 bg-violet-50/50 hover:bg-white hover:border-violet-300 hover:shadow-xl hover:shadow-violet-100/50 transition-all group text-left w-full">
-                <div className="h-14 w-14 rounded-2xl bg-violet-100 text-violet-600 flex items-center justify-center group-hover:bg-violet-600 group-hover:text-white transition-all duration-300">
-                  <Sparkles className="h-7 w-7" />
+              <button onClick={seedArticle21} className="flex items-center gap-4 p-5 rounded-2xl border border-slate-100 bg-violet-50 hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all group text-left w-full">
+                <div className="h-12 w-12 rounded-xl bg-violet-100 text-violet-600 flex items-center justify-center group-hover:bg-violet-600 group-hover:text-white transition-all duration-300">
+                  <Sparkles className="h-6 w-6" />
                 </div>
                 <div>
-                  <span className="block text-sm font-black text-slate-900">Add Article 21</span>
-                  <span className="text-xs font-medium text-slate-500">Seed starter free content</span>
+                  <span className="block text-sm font-bold text-slate-900">Add Article 21</span>
+                  <span className="text-[10px] font-medium text-slate-500">Seed starter free content</span>
                 </div>
               </button>
 
-              <button onClick={seedPreamble} className="flex items-center gap-4 p-6 rounded-3xl border border-slate-100 bg-blue-50/50 hover:bg-white hover:border-blue-300 hover:shadow-xl hover:shadow-blue-100/50 transition-all group text-left w-full">
-                <div className="h-14 w-14 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
-                  <Sparkles className="h-7 w-7" />
+              <button onClick={seedPreamble} className="flex items-center gap-4 p-5 rounded-2xl border border-slate-100 bg-blue-50 hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all group text-left w-full">
+                <div className="h-12 w-12 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
+                  <Sparkles className="h-6 w-6" />
                 </div>
                 <div>
-                  <span className="block text-sm font-black text-slate-900">Add Preamble</span>
-                  <span className="text-xs font-medium text-slate-500">Seed starter free content</span>
+                  <span className="block text-sm font-bold text-slate-900">Add Preamble</span>
+                  <span className="text-[10px] font-medium text-slate-500">Seed starter free content</span>
                 </div>
               </button>
             </div>
@@ -1008,21 +1008,21 @@ D. Article 22
 
         <div className="space-y-8">
           <Card className="p-8 border-slate-200 shadow-sm">
-            <div className="flex items-center gap-3 mb-8">
+            <div className="flex items-center gap-4 mb-8">
               <div className="p-2 rounded-xl bg-violet-50 text-violet-600">
                 <LayoutDashboard className="h-5 w-5" />
               </div>
-              <h3 className="text-lg font-black text-slate-900">Seed Data Overview</h3>
+              <h3 className="text-lg font-black text-slate-900 tracking-tight">Seed Data Overview</h3>
             </div>
             
             <div className="space-y-6">
               <div className="flex items-center justify-between">
-                <h4 className="text-sm font-bold text-slate-900">Subjects to Seed</h4>
+                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Subjects to Seed</h4>
                 <Badge variant="free">{INITIAL_SUBJECTS.length} Subjects</Badge>
               </div>
               <div className="flex flex-wrap gap-2">
                 {INITIAL_SUBJECTS.map(s => (
-                  <Badge key={s.slug} variant="premium" className="bg-slate-100 text-slate-600 border-slate-200">
+                  <Badge key={s.slug} variant="premium" className="bg-slate-100 text-slate-600 border-transparent">
                     {s.title}
                   </Badge>
                 ))}
@@ -1030,17 +1030,17 @@ D. Article 22
 
               <div className="pt-6 border-t border-slate-100">
                 <div className="flex items-center justify-between mb-4">
-                  <h4 className="text-sm font-bold text-slate-900">Topic Placeholders</h4>
+                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Topic Placeholders</h4>
                   <Badge variant="free">{TOPIC_PLACEHOLDERS.length} Topics</Badge>
                 </div>
-                <div className="max-h-64 overflow-y-auto pr-2 space-y-2">
+                <div className="max-h-80 overflow-y-auto pr-2 space-y-2">
                   {TOPIC_PLACEHOLDERS.map(t => (
-                    <div key={t.slug} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                    <div key={t.slug} className="flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50">
                       <div>
-                        <p className="text-sm font-bold text-slate-900">{t.title}</p>
-                        <p className="text-[10px] font-medium text-slate-500 uppercase tracking-widest">{t.subjectSlug} • {t.chapter}</p>
+                        <p className="text-xs font-bold text-slate-900">{t.title}</p>
+                        <p className="text-[10px] font-medium text-slate-400 uppercase tracking-tight">{t.subjectSlug} • {t.chapter}</p>
                       </div>
-                      <Badge variant={t.status === 'free' ? 'free' : 'premium'} className={t.status === 'coming_soon' ? 'bg-amber-100 text-amber-700 border-amber-200' : ''}>
+                      <Badge variant={t.status === 'free' ? 'free' : 'premium'} className={cn(t.status === 'coming_soon' ? 'bg-amber-100 text-amber-700' : '')}>
                         {t.status === 'coming_soon' ? 'Placeholder' : t.status}
                       </Badge>
                     </div>
@@ -1051,28 +1051,28 @@ D. Article 22
           </Card>
 
           <Card className="p-8 border-slate-200 shadow-sm bg-slate-900 text-white overflow-hidden relative">
-            <div className="absolute top-0 right-0 p-8 opacity-10">
-              <Info className="h-24 w-24" />
+            <div className="absolute top-0 right-0 p-6 opacity-10">
+              <Info className="h-20 w-20" />
             </div>
             <div className="relative z-10">
-              <div className="flex items-center gap-3 mb-8">
+              <div className="flex items-center gap-4 mb-8">
                 <div className="p-2 rounded-xl bg-white/10 text-violet-400">
                   <Info className="h-5 w-5" />
                 </div>
-                <h3 className="text-lg font-black">Growth Tips</h3>
+                <h3 className="text-lg font-black tracking-tight">Growth Tips</h3>
               </div>
-              <ul className="space-y-6 text-sm font-medium text-slate-400">
+              <ul className="space-y-6 text-sm font-bold text-slate-400">
                 <li className="flex gap-4">
-                  <div className="h-6 w-6 rounded-full bg-violet-500/20 text-violet-400 flex items-center justify-center text-[10px] font-black shrink-0 border border-violet-500/30">01</div>
-                  <p>Add <span className="text-white">1-2 topics daily</span> to keep users coming back for new content.</p>
+                  <div className="h-8 w-8 rounded-lg border border-violet-500/30 bg-violet-500/20 text-violet-400 flex items-center justify-center text-xs font-black shrink-0">01</div>
+                  <p className="leading-relaxed">Add <span className="text-white">1-2 topics daily</span> to keep users coming back for new content.</p>
                 </li>
                 <li className="flex gap-4">
-                  <div className="h-6 w-6 rounded-full bg-violet-500/20 text-violet-400 flex items-center justify-center text-[10px] font-black shrink-0 border border-violet-500/30">02</div>
-                  <p>Mark high-value topics as <span className="text-violet-400 font-bold">Premium</span> to drive subscription revenue.</p>
+                  <div className="h-8 w-8 rounded-lg border border-violet-500/30 bg-violet-500/20 text-violet-400 flex items-center justify-center text-xs font-black shrink-0">02</div>
+                  <p className="leading-relaxed">Mark high-value topics as <span className="text-violet-400 font-black">PREMIUM</span> to drive subscription revenue.</p>
                 </li>
                 <li className="flex gap-4">
-                  <div className="h-6 w-6 rounded-full bg-violet-500/20 text-violet-400 flex items-center justify-center text-[10px] font-black shrink-0 border border-violet-500/30">03</div>
-                  <p>Use the <span className="text-white">"Copy Link"</span> feature to share specific topics on Telegram/WhatsApp.</p>
+                  <div className="h-8 w-8 rounded-lg border border-violet-500/30 bg-violet-500/20 text-violet-400 flex items-center justify-center text-xs font-black shrink-0">03</div>
+                  <p className="leading-relaxed">Use the <span className="text-white">"Copy Link"</span> feature to share specific topics on Telegram/WhatsApp.</p>
                 </li>
               </ul>
             </div>
@@ -1088,18 +1088,18 @@ function StatCard({ title, value, icon: Icon, color }: any) {
     violet: 'bg-violet-50 text-violet-600',
     blue: 'bg-blue-50 text-blue-600',
     amber: 'bg-amber-50 text-amber-600',
-    emerald: 'bg-emerald-50 text-emerald-600',
+    emerald: 'bg-emerald-50 text-emerald-700',
   };
 
   return (
     <Card className="p-6 border-slate-200 shadow-sm">
       <div className="flex items-center justify-between mb-4">
-        <div className={cn('p-2.5 rounded-xl', colors[color])}>
+        <div className={cn('p-2 rounded-xl', colors[color])}>
           <Icon className="h-5 w-5" />
         </div>
       </div>
-      <p className="text-xs font-black text-slate-400 uppercase tracking-widest">{title}</p>
-      <p className="mt-1 text-3xl font-black text-slate-900 tracking-tight">{value}</p>
+      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{title}</p>
+      <p className="text-2xl font-black text-slate-900 tracking-tight">{value}</p>
     </Card>
   );
 }
@@ -1155,7 +1155,7 @@ function AdminSubjects({ showConfirm }: { showConfirm: any }) {
     <div className="space-y-10">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black text-slate-900">Manage Subjects</h1>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Manage Subjects</h1>
           <p className="text-slate-500 font-medium mt-1">Categories that appear on your dashboard.</p>
         </div>
         <Button icon={Plus} size="lg" onClick={() => setEditingSubject({ status: 'coming_soon', order: 0, pdfVisible: false, pdfTitle: '', pdfUrl: '', pdfAccessType: 'premium' })} className="shadow-lg shadow-violet-200">
@@ -1608,7 +1608,7 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
     <div className="space-y-10">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black text-slate-900">Content Topics</h1>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Content Topics</h1>
           <p className="text-slate-500 font-medium mt-1">Manage your revision flow: Subject → Chapter → Topic.</p>
         </div>
         <div className="flex gap-4">
@@ -1644,7 +1644,7 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
         <button
           onClick={() => setFilterSubject('all')}
           className={cn(
-            "px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all",
+            "px-6 py-3 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all",
             filterSubject === 'all' 
               ? "bg-violet-600 text-white shadow-lg shadow-violet-200" 
               : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
@@ -1657,7 +1657,7 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
             key={s.slug}
             onClick={() => setFilterSubject(s.slug)}
             className={cn(
-              "px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all",
+              "px-6 py-3 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all",
               filterSubject === s.slug 
                 ? "bg-violet-600 text-white shadow-lg shadow-violet-200" 
                 : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
@@ -1685,7 +1685,7 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
                     navigator.clipboard.writeText(BULK_PASTE_TEMPLATE);
                     toast.success('Template copied to clipboard!');
                   }}
-                  className="h-10 rounded-xl px-4 font-black border-2 border-slate-100 text-slate-600 hover:bg-slate-50"
+                  className="h-10 rounded-xl px-4 font-bold border-2 border-slate-100 text-slate-600 hover:bg-slate-50"
                 >
                   <Copy className="mr-2 h-4 w-4" /> Copy Template
                 </Button>
@@ -1719,10 +1719,10 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
               />
             </div>
             <div className="p-8 border-t border-slate-100 bg-slate-50 flex justify-end gap-4">
-              <Button variant="outline" onClick={() => setIsBulkPasteOpen(false)} className="h-12 rounded-xl px-6 font-black border-2">
+              <Button variant="outline" onClick={() => setIsBulkPasteOpen(false)} className="h-12 rounded-xl px-6 font-bold border">
                 Cancel
               </Button>
-              <Button onClick={handleBulkPaste} className="h-12 rounded-xl px-8 font-black shadow-xl shadow-violet-200">
+              <Button onClick={handleBulkPaste} className="h-12 rounded-xl px-8 font-bold shadow-xl shadow-violet-200">
                 <Zap className="mr-2 h-5 w-5" /> Populate Fields
               </Button>
             </div>
@@ -1745,7 +1745,7 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
                 </div>
               </div>
               <div className="flex items-center gap-4">
-                <Button variant="outline" onClick={() => setIsBulkPasteOpen(true)} className="h-10 rounded-xl px-4 font-black border-2 border-violet-200 text-violet-600 hover:bg-violet-50">
+                <Button variant="outline" onClick={() => setIsBulkPasteOpen(true)} className="h-10 rounded-xl px-4 font-bold border border-violet-200 text-violet-600 hover:bg-violet-50">
                   <Zap className="mr-2 h-4 w-4" /> Bulk Paste
                 </Button>
                 <button type="button" onClick={() => setEditingTopic(null)} className="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-100 rounded-full transition-colors">
@@ -1764,43 +1764,43 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
                       <div className="p-1.5 rounded-lg bg-violet-100 text-violet-600">
                         <Sparkles className="h-4 w-4" />
                       </div>
-                      <h4 className="text-xs font-black text-slate-900 uppercase tracking-widest">Topic Identity</h4>
+                      <h4 className="text-xs font-bold text-slate-900 uppercase tracking-widest">Topic Identity</h4>
                     </div>
                     <div className="grid gap-6 sm:grid-cols-2">
                       <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Topic Name (Public Title)</label>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Topic Name (Public Title)</label>
                         <input type="text" className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.title || ''} onChange={e => setEditingTopic({...editingTopic, title: e.target.value})} placeholder="e.g. Fundamental Rights" required />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Slug (for URL)</label>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Slug (for URL)</label>
                         <input type="text" className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.slug || ''} onChange={e => setEditingTopic({...editingTopic, slug: e.target.value.toLowerCase().replace(/\s+/g, '-')})} placeholder="e.g. fundamental-rights" required />
                       </div>
                     </div>
                     <div className="grid gap-6 sm:grid-cols-2">
                       <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Parent Subject</label>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Parent Subject</label>
                         <select className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.subjectSlug} onChange={e => setEditingTopic({...editingTopic, subjectSlug: e.target.value})}>
                           {subjects.map(s => <option key={s.slug} value={s.slug}>{s.title}</option>)}
                         </select>
                       </div>
                       <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Chapter / Category (Optional)</label>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Chapter / Category (Optional)</label>
                         <input type="text" className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.chapter || ''} onChange={e => setEditingTopic({...editingTopic, chapter: e.target.value})} placeholder="e.g. Fundamental Rights" />
                       </div>
                     </div>
                     <div className="grid gap-6 sm:grid-cols-2">
                       <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Display Order</label>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Display Order</label>
                         <input type="number" className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.order || 0} onChange={e => setEditingTopic({...editingTopic, order: parseInt(e.target.value)})} />
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Short Teaser</label>
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Short Teaser</label>
                       <textarea className="w-full rounded-xl border-slate-200 font-medium focus:ring-violet-500 focus:border-violet-500 p-4" rows={2} value={editingTopic.teaser || ''} onChange={e => setEditingTopic({...editingTopic, teaser: e.target.value})} placeholder="A brief hook for the dashboard..." />
                     </div>
                     <div className="grid gap-6 sm:grid-cols-3">
                       <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Access Status</label>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Access Status</label>
                         <select className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.status} onChange={e => setEditingTopic({...editingTopic, status: e.target.value as any})}>
                           <option value="free">Free</option>
                           <option value="premium">Premium</option>
@@ -1808,21 +1808,21 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
                         </select>
                       </div>
                       <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Exam Relevance</label>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Exam Relevance</label>
                         <input type="text" className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.examRelevance || ''} onChange={e => setEditingTopic({...editingTopic, examRelevance: e.target.value})} placeholder="e.g. High - Prelims" />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Revision Time</label>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Revision Time</label>
                         <input type="text" className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.estimatedTime || ''} onChange={e => setEditingTopic({...editingTopic, estimatedTime: e.target.value})} placeholder="e.g. 5 mins" />
                       </div>
                     </div>
                     <div className="grid gap-6 sm:grid-cols-2">
                       <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Last Updated</label>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Last Updated</label>
                         <input type="text" className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.lastUpdated || ''} onChange={e => setEditingTopic({...editingTopic, lastUpdated: e.target.value})} placeholder="e.g. 01 April 2026" />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Optional PDF Link</label>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Optional PDF Link</label>
                         <div className="flex gap-2">
                           <input type="text" className="flex-1 h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.pdfLink || ''} onChange={e => setEditingTopic({...editingTopic, pdfLink: e.target.value})} placeholder="https://..." />
                           <label className="flex items-center justify-center h-12 px-4 rounded-xl bg-violet-100 text-violet-600 font-bold cursor-pointer hover:bg-violet-200 transition-colors">
@@ -1833,7 +1833,7 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
                         </div>
                       </div>
                       <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Infographic Image URL</label>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Infographic Image URL</label>
                         <div className="flex gap-2">
                           <input type="text" className="flex-1 h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.infographicUrl || ''} onChange={e => setEditingTopic({...editingTopic, infographicUrl: e.target.value})} placeholder="https://..." />
                           <label className="flex items-center justify-center h-12 px-4 rounded-xl bg-violet-100 text-violet-600 font-bold cursor-pointer hover:bg-violet-200 transition-colors">
@@ -1846,25 +1846,25 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
                     </div>
                   </section>
 
-                  <section className="space-y-8 p-8 rounded-[2rem] bg-slate-900 text-white shadow-2xl shadow-slate-200">
-                    <div className="flex items-center gap-3 pb-2 border-b border-slate-800">
-                      <div className="p-1.5 rounded-lg bg-violet-500 text-white">
+                  <section className="space-y-8 p-8 rounded-[2rem] bg-white border border-slate-100 shadow-xl shadow-slate-100/50">
+                    <div className="flex items-center gap-3 pb-2 border-b border-slate-100">
+                      <div className="p-1.5 rounded-lg bg-violet-100 text-violet-600">
                         <Zap className="h-4 w-4" />
                       </div>
-                      <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">Main Topic Content</h4>
+                      <h4 className="text-xs font-bold uppercase tracking-widest text-slate-900">Main Topic Content</h4>
                     </div>
                     <div className="space-y-6">
                       <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Why this matters</label>
-                        <textarea className="w-full h-32 rounded-2xl bg-slate-800 border-slate-700 text-slate-100 font-medium text-sm focus:ring-violet-500 focus:border-violet-500 p-4" value={editingTopic.whyThisMatters || ''} onChange={e => setEditingTopic({...editingTopic, whyThisMatters: e.target.value})} />
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Why this matters</label>
+                        <textarea className="w-full h-32 rounded-2xl bg-slate-50/50 border-slate-200 text-slate-900 font-medium text-sm focus:ring-violet-500 focus:border-violet-500 p-4" value={editingTopic.whyThisMatters || ''} onChange={e => setEditingTopic({...editingTopic, whyThisMatters: e.target.value})} />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Core Concept</label>
-                        <textarea className="w-full h-64 rounded-2xl bg-slate-800 border-slate-700 text-slate-100 font-medium text-sm focus:ring-violet-500 focus:border-violet-500 p-4" value={editingTopic.coreConcept || ''} onChange={e => setEditingTopic({...editingTopic, coreConcept: e.target.value})} />
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Core Concept</label>
+                        <textarea className="w-full h-64 rounded-2xl bg-slate-50/50 border-slate-200 text-slate-900 font-medium text-sm focus:ring-violet-500 focus:border-violet-500 p-4" value={editingTopic.coreConcept || ''} onChange={e => setEditingTopic({...editingTopic, coreConcept: e.target.value})} />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">UPSC Gold Point</label>
-                        <textarea className="w-full h-32 rounded-2xl bg-slate-800 border-slate-700 text-slate-100 font-medium text-sm focus:ring-violet-500 focus:border-violet-500 p-4" value={editingTopic.upscGoldPoint || ''} onChange={e => setEditingTopic({...editingTopic, upscGoldPoint: e.target.value})} />
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">UPSC Gold Point</label>
+                        <textarea className="w-full h-32 rounded-2xl bg-slate-50/50 border-slate-200 text-slate-900 font-medium text-sm focus:ring-violet-500 focus:border-violet-500 p-4" value={editingTopic.upscGoldPoint || ''} onChange={e => setEditingTopic({...editingTopic, upscGoldPoint: e.target.value})} />
                       </div>
                     </div>
                   </section>
@@ -1877,41 +1877,41 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
                       <div className="p-1.5 rounded-lg bg-amber-100 text-amber-600">
                         <Target className="h-4 w-4" />
                       </div>
-                      <h4 className="text-xs font-black text-slate-900 uppercase tracking-widest">Advanced Sections</h4>
+                      <h4 className="text-xs font-bold text-slate-900 uppercase tracking-widest">Advanced Sections</h4>
                     </div>
                     <div className="grid gap-8">
                       <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Deep Understanding</label>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Deep Understanding</label>
                         <textarea className="w-full rounded-xl border-slate-200 bg-slate-50/50 font-medium focus:ring-violet-500 focus:border-violet-500 p-4" rows={4} value={editingTopic.deepUnderstanding || ''} onChange={e => setEditingTopic({...editingTopic, deepUnderstanding: e.target.value})} />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Linked Facts / Dimensions</label>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Linked Facts / Dimensions</label>
                         <textarea className="w-full rounded-xl border-slate-200 bg-slate-50/50 font-medium focus:ring-violet-500 focus:border-violet-500 p-4" rows={4} value={editingTopic.linkedFacts || ''} onChange={e => setEditingTopic({...editingTopic, linkedFacts: e.target.value})} />
                       </div>
                       <div className="grid gap-6 sm:grid-cols-2">
                         <div className="space-y-2">
-                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Trap Zone</label>
+                          <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Trap Zone</label>
                           <textarea className="w-full rounded-xl border-slate-200 bg-orange-50/30 font-medium focus:ring-orange-500 focus:border-orange-500 p-4" rows={4} value={editingTopic.trapZone || ''} onChange={e => setEditingTopic({...editingTopic, trapZone: e.target.value})} />
                         </div>
                         <div className="space-y-2">
-                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Memory Trick</label>
+                          <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Memory Trick</label>
                           <textarea className="w-full rounded-xl border-slate-200 bg-emerald-50/30 font-medium focus:ring-emerald-500 focus:border-emerald-500 p-4" rows={4} value={editingTopic.memoryTrick || ''} onChange={e => setEditingTopic({...editingTopic, memoryTrick: e.target.value})} />
                         </div>
                       </div>
                       <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Prelims Snapshot</label>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Prelims Snapshot</label>
                         <textarea className="w-full rounded-xl border-slate-200 bg-blue-50/30 font-medium focus:ring-blue-500 focus:border-blue-500 p-4" rows={4} value={editingTopic.prelimsSnapshot || ''} onChange={e => setEditingTopic({...editingTopic, prelimsSnapshot: e.target.value})} />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">MCQs (Question & Answer)</label>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">MCQs (Question & Answer)</label>
                         <textarea className="w-full rounded-xl border-slate-200 bg-indigo-50/30 font-medium focus:ring-indigo-500 focus:border-indigo-500 p-4" rows={4} value={editingTopic.mcqs || ''} onChange={e => setEditingTopic({...editingTopic, mcqs: e.target.value})} />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">One-Line Revision</label>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">One-Line Revision</label>
                         <textarea className="w-full rounded-xl border-slate-200 bg-violet-50/30 font-medium focus:ring-violet-500 focus:border-violet-500 p-4" rows={2} value={editingTopic.oneLineRevision || ''} onChange={e => setEditingTopic({...editingTopic, oneLineRevision: e.target.value})} />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Linked Topics</label>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Linked Topics</label>
                         <input type="text" className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.linkedTopics || ''} onChange={e => setEditingTopic({...editingTopic, linkedTopics: e.target.value})} placeholder="e.g. Preamble, Fundamental Rights" />
                       </div>
                     </div>
@@ -2067,7 +2067,7 @@ function AdminSettings({ showConfirm }: { showConfirm: any }) {
     <div className="space-y-10">
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black text-slate-900">App Settings</h1>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">App Settings</h1>
           <p className="text-slate-500 font-medium mt-1">Control the global identity, pricing, and messaging of your app.</p>
         </div>
         <Button onClick={handleSave} icon={Save} loading={isSaving} className="shadow-lg shadow-violet-200 hidden sm:flex">
@@ -2077,35 +2077,35 @@ function AdminSettings({ showConfirm }: { showConfirm: any }) {
 
       <div className="grid gap-10 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-10">
-          <Card className="p-10 border-slate-200 shadow-sm space-y-12">
+          <Card className="p-8 border-slate-200 shadow-sm space-y-10">
             {/* Section: Branding */}
-            <section className="space-y-8">
+            <section className="space-y-6">
               <div className="flex items-center gap-3 pb-2 border-b border-slate-100">
                 <div className="p-1.5 rounded-lg bg-violet-100 text-violet-600">
                   <Sparkles className="h-4 w-4" />
                 </div>
-                <h4 className="text-xs font-black text-slate-900 uppercase tracking-widest">Branding & Identity</h4>
+                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-widest">Branding & Identity</h4>
               </div>
-              <div className="grid gap-8 sm:grid-cols-2">
+              <div className="grid gap-6 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">App Name</label>
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">App Name</label>
                   <input type="text" className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={formData.appName || ''} onChange={e => setFormData({...formData, appName: e.target.value})} placeholder="e.g. PreCall" />
                   <p className="text-[10px] font-medium text-slate-400 italic">The name of your application.</p>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Partner / Sponsor Name</label>
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Partner / Sponsor Name</label>
                   <input type="text" className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={formData.sponsorName || ''} onChange={e => setFormData({...formData, sponsorName: e.target.value})} placeholder="e.g. UPSC Mentor" />
                   <p className="text-[10px] font-medium text-slate-400 italic">Appears in the header and cards.</p>
                 </div>
               </div>
-              <div className="grid gap-8 sm:grid-cols-2">
+              <div className="grid gap-6 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Sponsor Footer Text</label>
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Sponsor Footer Text</label>
                   <input type="text" className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={formData.sponsorText || ''} onChange={e => setFormData({...formData, sponsorText: e.target.value})} placeholder="e.g. Powered by Mentor Partner" />
                   <p className="text-[10px] font-medium text-slate-400 italic">Small text shown in the app footer.</p>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">App Footer Text</label>
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">App Footer Text</label>
                   <input type="text" className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={formData.footerText || ''} onChange={e => setFormData({...formData, footerText: e.target.value})} placeholder="e.g. Built for UPSC Aspirants" />
                   <p className="text-[10px] font-medium text-slate-400 italic">General footer copyright/info text.</p>
                 </div>
@@ -2113,49 +2113,49 @@ function AdminSettings({ showConfirm }: { showConfirm: any }) {
             </section>
 
             {/* Section: Pricing */}
-            <section className="space-y-8">
+            <section className="space-y-6">
               <div className="flex items-center gap-3 pb-2 border-b border-slate-100">
                 <div className="p-1.5 rounded-lg bg-amber-100 text-amber-600">
                   <Zap className="h-4 w-4" />
                 </div>
-                <h4 className="text-xs font-black text-slate-900 uppercase tracking-widest">Pricing Strategy</h4>
+                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-widest">Pricing Strategy</h4>
               </div>
-              <div className="grid gap-8 sm:grid-cols-2">
+              <div className="grid gap-6 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Current Price (₹)</label>
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Current Price (₹)</label>
                   <input type="text" className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={formData.price || ''} onChange={e => setFormData({...formData, price: e.target.value})} placeholder="e.g. 999" />
                   <p className="text-[10px] font-medium text-slate-400 italic">What users pay today for full access.</p>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Original Price (₹)</label>
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Original Price (₹)</label>
                   <input type="text" className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={formData.originalPrice || ''} onChange={e => setFormData({...formData, originalPrice: e.target.value})} placeholder="e.g. 2,499" />
                   <p className="text-[10px] font-medium text-slate-400 italic">Shown with a strikethrough to show value.</p>
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Pricing CTA Text</label>
+                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Pricing CTA Text</label>
                 <input type="text" className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={formData.pricingText || ''} onChange={e => setFormData({...formData, pricingText: e.target.value})} placeholder="e.g. Full access at ₹999 (Limited Offer)" />
                 <p className="text-[10px] font-medium text-slate-400 italic">Marketing line shown on the pricing card in the app.</p>
               </div>
             </section>
 
             {/* Section: Landing Page */}
-            <section className="space-y-8">
+            <section className="space-y-6">
               <div className="flex items-center gap-3 pb-2 border-b border-slate-100">
                 <div className="p-1.5 rounded-lg bg-blue-100 text-blue-600">
                   <LayoutDashboard className="h-4 w-4" />
                 </div>
-                <h4 className="text-xs font-black text-slate-900 uppercase tracking-widest">Landing Page Content</h4>
+                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-widest">Landing Page Content</h4>
               </div>
-              <div className="space-y-8">
+              <div className="space-y-6">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Hero Tagline</label>
-                  <textarea className="w-full rounded-xl border-slate-200 font-medium focus:ring-violet-500 focus:border-violet-500 p-6 bg-slate-50/50" rows={3} value={formData.heroTagline || ''} onChange={e => setFormData({...formData, heroTagline: e.target.value})} placeholder="The main headline at the top of your app..." />
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Hero Tagline</label>
+                  <textarea className="w-full rounded-xl border-slate-200 font-medium focus:ring-violet-500 focus:border-violet-500 p-6 bg-slate-50/50" rows={3} value={formData.heroTagline || ''} onChange={setFormData ? e => setFormData({...formData, heroTagline: e.target.value}) : undefined} placeholder="The main headline at the top of your app..." />
                   <p className="text-[10px] font-medium text-slate-400 italic">Keep it punchy and high-yield.</p>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Premium CTA Button Text</label>
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Premium CTA Button Text</label>
                   <input type="text" className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={formData.premiumCtaLine || ''} onChange={e => setFormData({...formData, premiumCtaLine: e.target.value})} placeholder="e.g. Unlock 100+ High-Yield Topics" />
                   <p className="text-[10px] font-medium text-slate-400 italic">The text on the main upgrade button.</p>
                 </div>
@@ -2176,7 +2176,7 @@ function AdminSettings({ showConfirm }: { showConfirm: any }) {
               <div className="p-1.5 rounded-lg bg-violet-100 text-violet-600">
                 <Info className="h-4 w-4" />
               </div>
-              <h5 className="text-xs font-black text-slate-900 uppercase tracking-widest">Founder's Note</h5>
+              <h5 className="text-xs font-bold text-slate-900 uppercase tracking-widest">Founder's Note</h5>
             </div>
             <p className="text-xs font-medium text-slate-500 leading-relaxed">
               These settings update your app instantly. Use the <span className="text-violet-600 font-bold tracking-tight">Pricing Strategy</span> to run limited-time offers or test different price points.
@@ -2184,7 +2184,7 @@ function AdminSettings({ showConfirm }: { showConfirm: any }) {
             <div className="pt-6 border-t border-slate-200">
               <div className="flex items-center gap-3 text-emerald-600">
                 <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-[10px] font-black uppercase tracking-widest">Live Updates Enabled</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest">Live Updates Enabled</span>
               </div>
               <p className="mt-2 text-[10px] font-medium text-slate-400">
                 Changes will be visible to all users as soon as you click save. No deployment required.
@@ -2272,7 +2272,7 @@ function AdminAccess({ showConfirm }: { showConfirm: any }) {
   return (
     <div className="space-y-10">
       <header>
-        <h1 className="text-3xl font-black text-slate-900">Admin Access</h1>
+        <h1 className="text-3xl font-black text-slate-900 tracking-tight">Admin Access</h1>
         <p className="text-slate-500 font-medium mt-1">Manage who can access this control center.</p>
       </header>
 
@@ -2280,7 +2280,7 @@ function AdminAccess({ showConfirm }: { showConfirm: any }) {
         <div className="lg:col-span-2 space-y-6">
           <Card className="p-0 border-slate-200 shadow-sm overflow-hidden">
             <div className="bg-slate-50/50 border-b border-slate-100 px-8 py-5">
-              <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Approved Admin Emails</h3>
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Approved Admin Emails</h3>
             </div>
             <div className="divide-y divide-slate-100">
               {adminEmails.map((email) => (
@@ -2318,11 +2318,11 @@ function AdminAccess({ showConfirm }: { showConfirm: any }) {
               <div className="p-2 rounded-xl bg-violet-50 text-violet-600">
                 <Plus className="h-5 w-5" />
               </div>
-              <h3 className="text-lg font-black text-slate-900">Add New Admin</h3>
+              <h3 className="text-lg font-bold text-slate-900">Add New Admin</h3>
             </div>
             <form onSubmit={handleAddAdmin} className="space-y-4">
               <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Google Email Address</label>
+                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Google Email Address</label>
                 <input 
                   type="email" 
                   required

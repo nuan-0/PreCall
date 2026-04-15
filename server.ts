@@ -120,6 +120,13 @@ async function startServer() {
 
   app.use(express.json());
 
+  // API: Config
+  app.get('/api/config', (req, res) => {
+    res.json({
+      razorpayKeyId: process.env.VITE_RAZORPAY_KEY_ID
+    });
+  });
+
   // API: Create Order
   app.post('/api/create-order', async (req, res) => {
     const { amount } = req.body;

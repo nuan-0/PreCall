@@ -60,10 +60,29 @@ export function PremiumPage() {
       return;
     }
 
-    const razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID;
+    let razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID;
+    
+    // Fallback: Fetch key from server if env var is missing
+    if (!razorpayKey) {
+      try {
+        const configRes = await fetch('/api/config');
+        if (configRes.ok) {
+          const configData = await configRes.json();
+          razorpayKey = configData.razorpayKeyId;
+        }
+      } catch (err) {
+        console.error("Failed to fetch config from server:", err);
+      }
+    }
     
     if (!razorpayKey) {
-      toast.error("Payment configuration missing. Please ensure VITE_RAZORPAY_KEY_ID is set.");
+      toast.error(
+        <div className="flex flex-col gap-2">
+          <span className="font-bold">Payment Configuration Missing</span>
+          <span className="text-xs">Please ensure VITE_RAZORPAY_KEY_ID is set in the platform settings.</span>
+        </div>,
+        { duration: 5000 }
+      );
       setIsProcessing(false);
       return;
     }
@@ -214,15 +233,15 @@ export function PremiumPage() {
 
   return (
     <div className="container-wide py-16 lg:py-24 pb-32">
-      <div className="text-center mb-20 max-w-4xl mx-auto">
-        <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-amber-50 border border-amber-100 text-amber-700 text-xs font-black uppercase tracking-widest mb-8 shadow-sm">
-          <Crown className="h-4 w-4" />
+      <div className="text-center mb-16 max-w-4xl mx-auto">
+        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-50 border border-amber-100 text-amber-700 text-[10px] font-bold uppercase tracking-widest mb-6 shadow-sm">
+          <Crown className="h-3.5 w-3.5" />
           PreCall Premium
         </div>
-        <h1 className="text-5xl font-black text-violet-950 mb-8 tracking-tight sm:text-6xl lg:text-7xl text-balance">
+        <h1 className="text-4xl font-bold text-violet-950 mb-6 tracking-tight sm:text-5xl lg:text-6xl text-balance">
           Revision that actually <span className="text-violet-600">sticks.</span>
         </h1>
-        <p className="text-xl text-slate-500 font-medium max-w-3xl mx-auto leading-relaxed text-balance">
+        <p className="text-lg text-slate-500 font-medium max-w-2xl mx-auto leading-relaxed text-balance">
           Stop drowning in massive textbooks. Switch to high-yield, recall-focused revision designed for the modern UPSC aspirant.
         </p>
       </div>
@@ -230,47 +249,46 @@ export function PremiumPage() {
       <div className="grid gap-10 lg:grid-cols-3 mb-24 items-start">
         <div className="lg:col-span-2 grid gap-6 sm:grid-cols-2">
           {benefits.map((benefit) => (
-            <Card key={benefit.title} className="p-10 border-slate-100 shadow-xl shadow-slate-100/30 hover:shadow-2xl hover:shadow-violet-100/40 transition-all hover:border-violet-200">
-              <div className="mb-6 inline-flex p-4 rounded-2xl bg-violet-50 text-violet-600 shadow-inner border border-violet-100">
-                <benefit.icon className="h-7 w-7" />
+            <Card key={benefit.title} className="p-8 border-slate-100 shadow-sm hover:shadow-md transition-all hover:border-violet-200">
+              <div className="mb-6 inline-flex p-3 rounded-xl bg-violet-50 text-violet-600 border border-violet-100">
+                <benefit.icon className="h-6 w-6" />
               </div>
-              <h3 className="text-xl font-black text-violet-950 mb-3 tracking-tight">{benefit.title}</h3>
-              <p className="text-slate-500 text-base font-medium leading-relaxed">{benefit.description}</p>
+              <h3 className="text-lg font-bold text-violet-950 mb-2 tracking-tight">{benefit.title}</h3>
+              <p className="text-slate-500 text-sm font-medium leading-relaxed">{benefit.description}</p>
             </Card>
           ))}
         </div>
 
         <div className="lg:col-span-1">
-          <Card className="sticky top-24 p-10 border-violet-200 bg-violet-50/50 shadow-2xl shadow-violet-200/50 overflow-hidden rounded-[2.5rem]">
-            <div className="absolute -right-12 -top-12 h-48 w-48 rounded-full bg-violet-200/30 blur-[80px]" />
-            <div className="absolute -left-12 -bottom-12 h-48 w-48 rounded-full bg-orange-200/20 blur-[80px]" />
+          <Card className="sticky top-24 p-8 border-violet-100 bg-violet-50/30 shadow-xl shadow-violet-100/20 overflow-hidden rounded-3xl">
+            <div className="absolute -right-12 -top-12 h-48 w-48 rounded-full bg-violet-200/20 blur-[80px]" />
             
             <div className="relative z-10">
               <div className="mb-6 flex items-center justify-end">
-                <div className="flex items-center gap-1 text-[10px] font-black text-emerald-600 uppercase tracking-widest">
+                <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 uppercase tracking-widest">
                   <ShieldCheck className="h-3 w-3" />
                   Verified
                 </div>
               </div>
               
-              <h3 className="text-3xl font-black text-violet-950 mb-3 tracking-tight">One Season Access</h3>
-              <p className="text-slate-500 text-base font-medium mb-10 leading-relaxed">One-time payment. No subscriptions. All future updates included.</p>
+              <h3 className="text-2xl font-bold text-violet-950 mb-2 tracking-tight">One Season Access</h3>
+              <p className="text-slate-500 text-sm font-medium mb-8 leading-relaxed">One-time payment. No subscriptions. All future updates included.</p>
               
-              <div className="mb-10">
-                <div className="flex items-baseline gap-3">
-                  <span className="text-6xl font-black text-violet-950">₹{price}</span>
-                  <span className="text-slate-400 line-through font-bold text-xl">₹{originalPrice}</span>
+              <div className="mb-8">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-5xl font-bold text-violet-950">₹{price}</span>
+                  <span className="text-slate-400 line-through font-bold text-lg">₹{originalPrice}</span>
                 </div>
-                <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase tracking-widest">
+                <div className="mt-3 inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase tracking-widest">
                   Save 60% Today
                 </div>
               </div>
 
-              <ul className="space-y-5 mb-12">
+              <ul className="space-y-4 mb-10">
                 {['All Subjects Unlocked', 'Unlimited PDF Downloads', 'Ad-free Experience', 'Priority Content Updates'].map((item) => (
-                  <li key={item} className="flex items-center gap-4 text-base font-bold text-violet-900">
-                    <div className="rounded-full bg-emerald-100 p-1.5 text-emerald-600 shadow-sm">
-                      <Check className="h-3.5 w-3.5" />
+                  <li key={item} className="flex items-center gap-3 text-sm font-bold text-violet-900">
+                    <div className="rounded-full bg-emerald-100 p-1 text-emerald-600">
+                      <Check className="h-3 w-3" />
                     </div>
                     {item}
                   </li>
@@ -279,17 +297,17 @@ export function PremiumPage() {
 
               <Button 
                 size="lg" 
-                className="w-full h-16 text-lg shadow-2xl shadow-violet-300 group"
+                className="w-full h-16 text-lg font-bold shadow-lg shadow-violet-200 group rounded-xl active:scale-[0.98] transition-all"
                 onClick={handleUpgrade}
                 loading={isProcessing}
                 disabled={isPremium}
               >
-                {isPremium ? 'Already Premium' : (isProcessing ? 'Processing...' : 'Get Premium Now')}
+                {isPremium ? 'Already Premium' : (isProcessing ? 'Processing...' : 'Unlock Premium Access')}
                 {!isPremium && !isProcessing && <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />}
               </Button>
               
               <div className="mt-6 flex flex-col items-center gap-3">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                   Secure Payment via Razorpay
                 </p>
               </div>
@@ -300,25 +318,24 @@ export function PremiumPage() {
 
       {/* FAQ Section */}
       <section className="mb-24 max-w-3xl mx-auto">
-        <h2 className="text-3xl font-black text-violet-950 mb-12 text-center tracking-tight">Common Questions</h2>
-        <div className="space-y-6">
+        <h2 className="text-2xl font-bold text-violet-950 mb-10 text-center tracking-tight">Common Questions</h2>
+        <div className="space-y-4">
           {faqs.map((faq, i) => (
-            <div key={i} className="p-8 rounded-3xl bg-slate-50 border border-slate-100 shadow-sm">
-              <h4 className="text-lg font-black text-violet-950 mb-3 tracking-tight">{faq.q}</h4>
-              <p className="text-slate-600 font-medium leading-relaxed">{faq.a}</p>
+            <div key={i} className="p-6 rounded-2xl bg-slate-50 border border-slate-100 shadow-sm">
+              <h4 className="text-base font-bold text-violet-950 mb-2 tracking-tight">{faq.q}</h4>
+              <p className="text-slate-600 text-sm font-medium leading-relaxed">{faq.a}</p>
             </div>
           ))}
         </div>
       </section>
 
-      <div className="rounded-[4rem] bg-slate-900 p-16 text-center text-white relative overflow-hidden shadow-2xl shadow-slate-300/50">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(124,58,237,0.3),transparent)]" />
-        <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(#fff 1px, transparent 0)', backgroundSize: '40px 40px' }} />
+      <div className="rounded-[3rem] bg-slate-900 p-12 text-center text-white relative overflow-hidden shadow-xl shadow-slate-200/50">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(124,58,237,0.2),transparent)]" />
         
-        <div className="relative z-10 max-w-3xl mx-auto">
-          <Sparkles className="h-12 w-12 text-amber-400 mx-auto mb-8" />
-          <h2 className="text-4xl font-black mb-6 tracking-tight">Join the Revision Revolution</h2>
-          <p className="text-xl text-slate-400 font-medium mb-12 leading-relaxed">
+        <div className="relative z-10 max-w-2xl mx-auto">
+          <Sparkles className="h-10 w-10 text-amber-400 mx-auto mb-6" />
+          <h2 className="text-3xl font-bold mb-4 tracking-tight">Join the Revision Revolution</h2>
+          <p className="text-lg text-slate-400 font-medium mb-10 leading-relaxed">
             Join hundreds of aspirants who are refining their revision strategy with PreCall.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -340,21 +357,21 @@ export function PremiumPage() {
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="bg-white rounded-[3rem] p-10 max-w-md w-full text-center shadow-2xl relative overflow-hidden"
+              className="bg-white rounded-[2.5rem] p-8 max-w-md w-full text-center shadow-2xl relative overflow-hidden"
             >
-              <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-violet-600 via-amber-400 to-emerald-500" />
+              <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-violet-600 via-amber-400 to-emerald-500" />
               
-              <div className="mb-8 inline-flex h-20 w-20 items-center justify-center rounded-3xl bg-emerald-50 text-emerald-600 shadow-inner">
-                <PartyPopper className="h-10 w-10" />
+              <div className="mb-6 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 shadow-inner">
+                <PartyPopper className="h-8 w-8" />
               </div>
               
-              <h2 className="text-3xl font-black text-violet-950 mb-4 tracking-tight">Welcome to Premium!</h2>
-              <p className="text-slate-600 font-medium mb-10 leading-relaxed">
+              <h2 className="text-2xl font-bold text-violet-950 mb-3 tracking-tight">Welcome to Premium!</h2>
+              <p className="text-slate-600 text-sm font-medium mb-8 leading-relaxed">
                 Your payment was successful. You now have full access to all high-yield topics and premium downloads.
               </p>
               
               <Button 
-                className="w-full h-14 text-lg rounded-2xl shadow-xl shadow-violet-200"
+                className="w-full h-12 text-base rounded-xl shadow-lg shadow-violet-200"
                 onClick={() => window.location.reload()}
               >
                 Start Learning Now

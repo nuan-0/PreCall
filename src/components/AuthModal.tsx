@@ -70,37 +70,35 @@ export function AuthModal() {
     <Modal
       isOpen={isAuthModalOpen}
       onClose={closeAuthModal}
-      title={authMode === 'email-signup' ? "Create your account" : "Continue your journey"}
+      title={authMode === 'email-signup' ? "Create account" : "Welcome back"}
     >
       <div className="space-y-6">
         {authMode === 'google' ? (
           <>
             <div className="space-y-4">
-              <p className="text-slate-500 font-medium leading-relaxed">
-                Join thousands of UPSC aspirants using high-yield revision to master the Prelims.
-              </p>
+              <div className="text-center">
+                <p className="text-slate-500 font-medium text-sm">
+                  Join thousands of aspirants using high-yield revision to master the UPSC Prelims.
+                </p>
+              </div>
               
-              <div className="space-y-3">
-                <div className="flex items-center gap-3 text-sm font-bold text-slate-700">
-                  <div className="p-1.5 rounded-lg bg-violet-50 text-violet-600">
-                    <Sparkles className="h-4 w-4" />
-                  </div>
-                  <span>Unlock 100+ High-Yield Topics</span>
+              <div className="grid grid-cols-1 gap-2">
+                <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-violet-50/50 border border-violet-100/50 text-xs font-bold text-slate-700">
+                  <Sparkles className="h-3.5 w-3.5 text-violet-600" />
+                  <span>100+ High-Yield Topics</span>
                 </div>
-                <div className="flex items-center gap-3 text-sm font-bold text-slate-700">
-                  <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600">
-                    <ShieldCheck className="h-4 w-4" />
-                  </div>
-                  <span>Save your progress & bookmarks</span>
+                <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-blue-50/50 border border-blue-100/50 text-xs font-bold text-slate-700">
+                  <ShieldCheck className="h-3.5 w-3.5 text-blue-600" />
+                  <span>Save progress & bookmarks</span>
                 </div>
               </div>
             </div>
 
-            <div className="space-y-4 pt-4">
+            <div className="space-y-4 pt-2">
               <Button
                 onClick={handleGoogleLogin}
                 loading={isLoggingIn}
-                className="w-full h-14 text-base bg-white border-2 border-slate-100 text-slate-700 hover:bg-slate-50 hover:border-violet-200 shadow-none"
+                className="w-full h-14 text-base bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-violet-300 shadow-sm transition-all active:scale-[0.98]"
               >
                 {!isLoggingIn && (
                   <svg className="mr-3 h-5 w-5" viewBox="0 0 24 24">
@@ -127,23 +125,22 @@ export function AuthModal() {
 
               <div className="relative py-2">
                 <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-100"></div></div>
-                <div className="relative flex justify-center text-[10px] font-black uppercase tracking-widest"><span className="bg-white px-4 text-slate-400">Or use email</span></div>
+                <div className="relative flex justify-center text-[10px] font-bold uppercase tracking-widest"><span className="bg-white px-4 text-slate-400">Or use email</span></div>
               </div>
 
-              <Button
-                variant="ghost"
+              <button
                 onClick={() => setAuthMode('email-login')}
-                className="w-full h-12 text-slate-600 font-bold"
+                className="w-full py-2 text-slate-400 hover:text-violet-600 font-bold text-xs transition-colors flex items-center justify-center gap-2"
               >
-                <Mail className="h-4 w-4 mr-2" />
+                <Mail className="h-3.5 w-3.5" />
                 Sign in with Email
-              </Button>
+              </button>
             </div>
           </>
         ) : (
           <form onSubmit={handleEmailAuth} className="space-y-4">
             <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Email Address</label>
+              <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Email Address</label>
               <div className="relative">
                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <input
@@ -158,7 +155,7 @@ export function AuthModal() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Password</label>
+              <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Password</label>
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <input
@@ -206,7 +203,7 @@ export function AuthModal() {
           </form>
         )}
         
-        <p className="text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">
+        <p className="text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">
           {authMode === 'google' ? 'Simple. Secure. No Passwords.' : 'Your data is safe and encrypted.'}
         </p>
       </div>
