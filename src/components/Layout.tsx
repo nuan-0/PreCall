@@ -365,6 +365,7 @@ export function Footer({ settings }: { settings?: any }) {
               <ul className="space-y-4">
                 <li><Link to="/dashboard" className="text-sm font-bold text-slate-600 hover:text-violet-600 transition-colors">Dashboard</Link></li>
                 <li><Link to="/premium" className="text-sm font-bold text-slate-600 hover:text-violet-600 transition-colors">Premium</Link></li>
+                <li><Link to="/qr" className="text-sm font-bold text-slate-600 hover:text-violet-600 transition-colors">QR Code</Link></li>
                 {isAdmin && (
                   <li><Link to="/admin" className="text-sm font-bold text-amber-600 hover:text-amber-700 transition-colors">Admin</Link></li>
                 )}
