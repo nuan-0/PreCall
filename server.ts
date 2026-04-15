@@ -3,7 +3,9 @@ import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
 // @ts-ignore
-import Razorpay from 'razorpay';
+import RazorpayPkg from 'razorpay';
+const Razorpay = (RazorpayPkg as any).default || RazorpayPkg;
+
 import crypto from 'crypto';
 // @ts-ignore
 import admin from 'firebase-admin';
@@ -36,20 +38,30 @@ async function startServer() {
 
   // Initialize Firebase Admin
   try {
-    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-      const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
-      });
-    } else {
-      const configPath = path.join(__dirname, 'firebase-applet-config.json');
-      if (fs.existsSync(configPath)) {
-        const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-        admin.initializeApp({
-          projectId: config.projectId
-        });
+    if (admin.apps.length === 0) {
+      if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+        try {
+          const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+          admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount)
+          });
+          console.log('✅ Firebase Admin initialized via Service Account');
+        } catch (parseError) {
+          console.error('❌ Failed to parse FIREBASE_SERVICE_ACCOUNT:', parseError);
+          admin.initializeApp();
+        }
       } else {
-        admin.initializeApp();
+        const configPath = path.join(__dirname, 'firebase-applet-config.json');
+        if (fs.existsSync(configPath)) {
+          const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+          admin.initializeApp({
+            projectId: config.projectId
+          });
+          console.log('✅ Firebase Admin initialized via local config');
+        } else {
+          admin.initializeApp();
+          console.log('✅ Firebase Admin initialized via default credentials');
+        }
       }
     }
   } catch (error) {
@@ -65,9 +77,7 @@ async function startServer() {
     const logPath = path.join(__dirname, 'seed-log.txt');
     
     const log = (msg: string) => {
-      const entry = `${new Date().toISOString()}: ${msg}\n`;
-      fs.appendFileSync(logPath, entry);
-      console.log(msg);
+      console.log(`[Seed] ${msg}`);
     };
 
     try {
@@ -234,11 +244,27 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+  // Only listen if not running as a serverless function (Vercel)
+  if (process.env.VITE || process.env.NODE_ENV !== 'production') {
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  }
+
+  // Global Error Handler
+  app.use((err: any, req: any, res: any, next: any) => {
+    console.error('[Global Error]', err);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      details: err.message || 'Unknown error'
+    });
   });
 
   return app;
 }
 
-export default startServer();
+const appPromise = startServer();
+export default async (req: any, res: any) => {
+  const app = await appPromise;
+  app(req, res);
+};

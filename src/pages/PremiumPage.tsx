@@ -113,12 +113,22 @@ export function PremiumPage() {
       
       clearTimeout(timeoutId);
 
-      if (!orderRes.ok) {
-        const err = await orderRes.json();
-        throw new Error(err.error || 'Failed to initialize payment');
+      let orderData;
+      try {
+        const text = await orderRes.text();
+        try {
+          orderData = JSON.parse(text);
+        } catch (e) {
+          console.error("Server returned non-JSON response:", text);
+          throw new Error('Server error: The payment system returned an invalid response. Please check your Vercel logs.');
+        }
+      } catch (e: any) {
+        throw new Error(e.message || 'Failed to parse server response');
       }
 
-      const orderData = await orderRes.json();
+      if (!orderRes.ok) {
+        throw new Error(orderData.error || orderData.details || 'Failed to initialize payment');
+      }
 
       // 3. Open Razorpay Checkout
       const options = {
