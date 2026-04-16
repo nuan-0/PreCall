@@ -44,8 +44,8 @@ export function Navbar() {
     { name: 'Home', path: '/', icon: BookOpen },
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { name: 'Notifications', path: '/notifications', icon: Bell },
-    { name: 'Premium', path: '/premium', icon: ShieldCheck },
-  ];
+    { name: 'Premium', path: '/premium', icon: ShieldCheck, hideIfPaid: true },
+  ].filter(item => !item.hideIfPaid || (!isPremium && !isAdmin));
 
   return (
     <nav className={cn(
@@ -336,7 +336,7 @@ export function Navbar() {
 }
 
 export function Footer({ settings }: { settings?: any }) {
-  const { isAdmin } = useAuth();
+  const { isAdmin, isPremium } = useAuth();
 
   return (
     <footer className="bg-white border-t-4 border-violet-400 pt-20 pb-12">
@@ -364,7 +364,9 @@ export function Footer({ settings }: { settings?: any }) {
               <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-6">Platform</h4>
               <ul className="space-y-4">
                 <li><Link to="/dashboard" className="text-sm font-bold text-slate-600 hover:text-violet-600 transition-colors">Dashboard</Link></li>
-                <li><Link to="/premium" className="text-sm font-bold text-slate-600 hover:text-violet-600 transition-colors">Premium</Link></li>
+                {(!isPremium && !isAdmin) && (
+                  <li><Link to="/premium" className="text-sm font-bold text-slate-600 hover:text-violet-600 transition-colors">Premium</Link></li>
+                )}
                 <li><Link to="/qr" className="text-sm font-bold text-slate-600 hover:text-violet-600 transition-colors">QR Code</Link></li>
                 {isAdmin && (
                   <li><Link to="/admin" className="text-sm font-bold text-amber-600 hover:text-amber-700 transition-colors">Admin</Link></li>

@@ -265,12 +265,9 @@ async function startServer() {
     });
   }
 
-  // Only listen if not running as a serverless function (Vercel)
-  if (process.env.VITE || process.env.NODE_ENV !== 'production') {
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`Server running on http://localhost:${PORT}`);
-    });
-  }
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
 
   // Global Error Handler
   app.use((err: any, req: any, res: any, next: any) => {
@@ -293,3 +290,10 @@ export default async (req: any, res: any) => {
   }
   return cachedApp(req, res);
 };
+
+// Start the server immediately if not in production
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+  startServer().catch(err => {
+    console.error("Critical error during server startup:", err);
+  });
+}

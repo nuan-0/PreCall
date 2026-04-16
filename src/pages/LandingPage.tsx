@@ -8,7 +8,9 @@ import { cn } from '../lib/utils';
 export function LandingPage() {
   const { subjects } = useSubjects();
   const { settings } = useSettings();
-  const { user, openAuthModal } = useAuth();
+  const { user, isPremium, isAdmin, openAuthModal } = useAuth();
+
+  const isPaidUser = isPremium || isAdmin;
 
   return (
     <div className="flex flex-col min-h-screen bg-white">
@@ -33,15 +35,17 @@ export function LandingPage() {
               <div className="flex flex-col sm:flex-row items-center justify-center gap-5 w-full sm:w-auto">
                 <Link to="/dashboard" className="w-full sm:w-auto">
                   <Button size="lg" className="brutalist-button w-full sm:px-12 h-20 text-2xl group">
-                    Start Free Revision
+                    {user ? 'Go to Dashboard' : 'Start Free Revision'}
                     <ArrowRight className="ml-2 h-6 w-6 transition-transform group-hover:translate-x-2" />
                   </Button>
                 </Link>
-                <Link to="/premium" className="w-full sm:w-auto">
-                  <Button variant="outline" size="lg" className="w-full sm:px-12 h-20 text-2xl bg-white border-4 border-violet-400 rounded-none shadow-[6px_6px_0px_0px_rgba(167,139,250,0.1)] hover:shadow-[6px_6px_0px_0px_rgba(139,92,246,1)] transition-all">
-                    Unlock Premium
-                  </Button>
-                </Link>
+                {!isPaidUser && (
+                  <Link to="/premium" className="w-full sm:w-auto">
+                    <Button variant="outline" size="lg" className="w-full sm:px-12 h-20 text-2xl bg-white border-4 border-violet-400 rounded-none shadow-[6px_6px_0px_0px_rgba(167,139,250,0.1)] hover:shadow-[6px_6px_0px_0px_rgba(139,92,246,1)] transition-all">
+                      Unlock Premium
+                    </Button>
+                  </Link>
+                )}
               </div>
 
               {!user && (
@@ -255,37 +259,39 @@ export function LandingPage() {
       </section>
 
       {/* CTA Section */}
-      <section className="section-padding px-4">
-        <div className="mx-auto max-w-6xl rounded-[4rem] bg-violet-950 p-16 md:p-28 text-center relative overflow-hidden shadow-[0_40px_100px_-20px_rgba(46,16,101,0.4)]">
-          <div className="absolute top-0 right-0 w-96 h-96 bg-violet-800/40 rounded-full blur-[120px] -mr-48 -mt-48 animate-pulse" />
-          <div className="absolute bottom-0 left-0 w-96 h-96 bg-orange-500/20 rounded-full blur-[120px] -ml-48 -mb-48 animate-pulse" />
-          
-          <div className="relative z-10">
-            <Badge variant="live" className="mb-10 bg-violet-800 border-violet-700 text-violet-200 px-6 py-2 text-xs">Limited Time Offer</Badge>
-            <h2 className="text-4xl md:text-7xl font-black text-white mb-10 leading-[1.1] tracking-tight text-balance">
-              {settings?.pricingText || "Unlock the full PreCall experience for ₹999."}
-            </h2>
-            <p className="text-violet-200 text-xl md:text-2xl mb-16 max-w-3xl mx-auto font-medium leading-relaxed text-balance">
-              Get one season access (valid till 25th May 2026) to all current and future topics, premium PDFs, and advanced elimination logic.
-            </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
-              <Link to="/premium" className="w-full sm:w-auto">
-                <Button variant="secondary" size="lg" className="w-full sm:px-16 h-20 text-2xl rounded-2xl shadow-2xl shadow-black/20 hover:scale-105 transition-transform">
-                  Upgrade to Premium
-                </Button>
-              </Link>
-              <Link to="/dashboard" className="w-full sm:w-auto">
-                <Button variant="ghost" size="lg" className="w-full sm:px-16 h-20 text-2xl text-white hover:bg-white/10 rounded-2xl">
-                  Try Free Topic
-                </Button>
-              </Link>
+      {!isPaidUser && (
+        <section className="section-padding px-4">
+          <div className="mx-auto max-w-6xl rounded-[4rem] bg-violet-950 p-16 md:p-28 text-center relative overflow-hidden shadow-[0_40px_100px_-20px_rgba(46,16,101,0.4)]">
+            <div className="absolute top-0 right-0 w-96 h-96 bg-violet-800/40 rounded-full blur-[120px] -mr-48 -mt-48 animate-pulse" />
+            <div className="absolute bottom-0 left-0 w-96 h-96 bg-orange-500/20 rounded-full blur-[120px] -ml-48 -mb-48 animate-pulse" />
+            
+            <div className="relative z-10">
+              <Badge variant="live" className="mb-10 bg-violet-800 border-violet-700 text-violet-200 px-6 py-2 text-xs">Limited Time Offer</Badge>
+              <h2 className="text-4xl md:text-7xl font-black text-white mb-10 leading-[1.1] tracking-tight text-balance">
+                {settings?.pricingText || "Unlock the full PreCall experience for ₹999."}
+              </h2>
+              <p className="text-violet-200 text-xl md:text-2xl mb-16 max-w-3xl mx-auto font-medium leading-relaxed text-balance">
+                Get one season access (valid till 25th May 2026) to all current and future topics, premium PDFs, and advanced elimination logic.
+              </p>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
+                <Link to="/premium" className="w-full sm:w-auto">
+                  <Button variant="secondary" size="lg" className="w-full sm:px-16 h-20 text-2xl rounded-2xl shadow-2xl shadow-black/20 hover:scale-105 transition-transform">
+                    Upgrade to Premium
+                  </Button>
+                </Link>
+                <Link to="/dashboard" className="w-full sm:w-auto">
+                  <Button variant="ghost" size="lg" className="w-full sm:px-16 h-20 text-2xl text-white hover:bg-white/10 rounded-2xl">
+                    Try Free Topic
+                  </Button>
+                </Link>
+              </div>
+              <p className="mt-12 text-violet-400 text-sm font-bold uppercase tracking-[0.2em]">
+                One-time payment • One season access (Till 25th May 2026) • No subscriptions
+              </p>
             </div>
-            <p className="mt-12 text-violet-400 text-sm font-bold uppercase tracking-[0.2em]">
-              One-time payment • One season access (Till 25th May 2026) • No subscriptions
-            </p>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
     </div>
   );
 }
