@@ -365,7 +365,7 @@ export function PremiumPage() {
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <a 
-              href="mailto:support@precall.app" 
+              href="mailto:precall.admin@gmail.com" 
               className="w-full sm:w-auto"
             >
               <Button variant="ghost" className="text-slate-400 hover:text-white w-full px-8 h-12">
