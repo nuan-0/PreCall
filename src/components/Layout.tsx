@@ -49,14 +49,14 @@ export function Navbar() {
 
   return (
     <nav className={cn(
-      "sticky top-0 z-50 w-full transition-all duration-200 border-b-4 border-slate-900",
+      "sticky top-0 z-50 w-full transition-all duration-200 border-b-4 border-violet-400",
       scrolled ? "bg-white/90 backdrop-blur-md py-2 shadow-lg" : "bg-white py-3"
     )}>
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-12 items-center justify-between">
           <div className="flex items-center">
             <Link to="/" className="flex items-center gap-2.5 group">
-              <div className="flex h-10 w-10 items-center justify-center border-2 border-slate-900 bg-violet-600 text-white font-black text-lg shadow-[3px_3px_0px_0px_rgba(30,27,75,1)] transition-transform group-hover:scale-105">
+              <div className="flex h-10 w-10 items-center justify-center border-2 border-violet-400 bg-violet-600 text-white font-black text-lg shadow-[3px_3px_0px_0px_rgba(167,139,250,1)] transition-transform group-hover:scale-105">
                 {settings?.appName?.substring(0, 2).toUpperCase() || 'PC'}
               </div>
               <span className="text-2xl font-black tracking-tighter text-violet-950 uppercase italic">{settings?.appName || 'PreCall'}</span>
@@ -339,12 +339,12 @@ export function Footer({ settings }: { settings?: any }) {
   const { isAdmin } = useAuth();
 
   return (
-    <footer className="bg-white border-t-4 border-slate-900 pt-20 pb-12">
+    <footer className="bg-white border-t-4 border-violet-400 pt-20 pb-12">
       <div className="mx-auto max-w-7xl px-6 lg:px-12">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-16 mb-16">
           <div>
             <Link to="/" className="flex items-center gap-2.5 mb-8">
-              <div className="flex h-10 w-10 items-center justify-center border-2 border-slate-900 bg-violet-600 text-white font-black shadow-[3px_3px_0px_0px_rgba(30,27,75,1)]">
+              <div className="flex h-10 w-10 items-center justify-center border-2 border-violet-400 bg-violet-600 text-white font-black shadow-[3px_3px_0px_0px_rgba(167,139,250,1)]">
                 {settings?.appName?.substring(0, 2).toUpperCase() || 'PC'}
               </div>
               <span className="text-2xl font-black tracking-tighter text-violet-950 uppercase italic">{settings?.appName || 'PreCall'}</span>

@@ -38,7 +38,7 @@ export function LandingPage() {
                   </Button>
                 </Link>
                 <Link to="/premium" className="w-full sm:w-auto">
-                  <Button variant="outline" size="lg" className="w-full sm:px-12 h-20 text-2xl bg-white border-4 border-slate-900 rounded-none shadow-[6px_6px_0px_0px_rgba(30,27,75,0.1)] hover:shadow-[6px_6px_0px_0px_rgba(30,27,75,1)] transition-all">
+                  <Button variant="outline" size="lg" className="w-full sm:px-12 h-20 text-2xl bg-white border-4 border-violet-400 rounded-none shadow-[6px_6px_0px_0px_rgba(167,139,250,0.1)] hover:shadow-[6px_6px_0px_0px_rgba(139,92,246,1)] transition-all">
                     Unlock Premium
                   </Button>
                 </Link>

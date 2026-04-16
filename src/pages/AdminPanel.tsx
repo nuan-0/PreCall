@@ -452,9 +452,9 @@ function AdminNotifications({ showConfirm }: { showConfirm: any }) {
 
   return (
     <div className="space-y-10">
-      <Card className="p-10 border-4 border-slate-900 shadow-[10px_10px_0px_0px_rgba(30,27,75,1)]">
+      <Card className="p-10 border-4 border-violet-400 shadow-[10px_10px_0px_0px_rgba(167,139,250,1)]">
         <div className="flex items-center gap-4 mb-8">
-          <div className="p-3 border-2 border-slate-900 bg-violet-600 text-white shadow-[4px_4px_0px_0px_rgba(30,27,75,1)]">
+          <div className="p-3 border-2 border-violet-400 bg-violet-600 text-white shadow-[4px_4px_0px_0px_rgba(167,139,250,1)]">
             <Send className="h-6 w-6" />
           </div>
           <h2 className="text-3xl font-black text-violet-950 tracking-tighter uppercase italic">Broadcast Update</h2>
@@ -466,7 +466,7 @@ function AdminNotifications({ showConfirm }: { showConfirm: any }) {
               <label className="text-xs font-black uppercase tracking-widest text-slate-400">Notification Title</label>
               <input 
                 type="text" 
-                className="w-full h-16 border-4 border-slate-900 bg-white px-6 font-black text-slate-900 focus:ring-0 focus:border-slate-900 focus:shadow-[4px_4px_0px_0px_rgba(30,27,75,1)] transition-all placeholder:text-slate-300" 
+                className="w-full h-16 border-4 border-violet-400 bg-white px-6 font-black text-slate-900 focus:ring-0 focus:border-violet-400 focus:shadow-[4px_4px_0px_0px_rgba(167,139,250,1)] transition-all placeholder:text-slate-300" 
                 value={newNotification.title} 
                 onChange={e => setNewNotification({...newNotification, title: e.target.value})} 
                 placeholder="e.g. New Polity Topic Live!" 
@@ -476,7 +476,7 @@ function AdminNotifications({ showConfirm }: { showConfirm: any }) {
             <div className="space-y-3">
               <label className="text-xs font-black uppercase tracking-widest text-slate-400">Message Type</label>
               <select 
-                className="w-full h-16 border-4 border-slate-900 bg-white px-6 font-black text-slate-900 focus:ring-0 focus:border-slate-900 focus:shadow-[4px_4px_0px_0px_rgba(30,27,75,1)] transition-all" 
+                className="w-full h-16 border-4 border-violet-400 bg-white px-6 font-black text-slate-900 focus:ring-0 focus:border-violet-400 focus:shadow-[4px_4px_0px_0px_rgba(167,139,250,1)] transition-all" 
                 value={newNotification.type} 
                 onChange={e => setNewNotification({...newNotification, type: e.target.value as any})}
               >
@@ -489,7 +489,7 @@ function AdminNotifications({ showConfirm }: { showConfirm: any }) {
           <div className="space-y-3">
             <label className="text-xs font-black uppercase tracking-widest text-slate-400">Message Content</label>
             <textarea 
-              className="w-full border-4 border-slate-900 bg-white p-6 font-bold text-slate-900 focus:ring-0 focus:border-slate-900 focus:shadow-[4px_4px_0px_0px_rgba(30,27,75,1)] transition-all placeholder:text-slate-300" 
+              className="w-full border-4 border-violet-400 bg-white p-6 font-bold text-slate-900 focus:ring-0 focus:border-violet-400 focus:shadow-[4px_4px_0px_0px_rgba(167,139,250,1)] transition-all placeholder:text-slate-300" 
               rows={4} 
               value={newNotification.message} 
               onChange={e => setNewNotification({...newNotification, message: e.target.value})} 
@@ -497,7 +497,7 @@ function AdminNotifications({ showConfirm }: { showConfirm: any }) {
               required 
             />
           </div>
-          <Button type="submit" loading={isSending} className="w-full h-20 text-2xl shadow-[8px_8px_0px_0px_rgba(30,27,75,1)] border-4 border-slate-900 bg-violet-600 text-white hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[6px_6px_0px_0px_rgba(30,27,75,1)] active:translate-x-[4px] active:translate-y-[4px] active:shadow-none transition-all uppercase italic tracking-tighter">
+          <Button type="submit" loading={isSending} className="w-full h-20 text-2xl shadow-[8px_8px_0px_0px_rgba(167,139,250,1)] border-4 border-violet-400 bg-violet-600 text-white hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[6px_6px_0px_0px_rgba(139,92,246,1)] active:translate-x-[4px] active:translate-y-[4px] active:shadow-none transition-all uppercase italic tracking-tighter">
             <Send className="h-8 w-8 mr-4" />
             Send to All Users
           </Button>
@@ -508,10 +508,10 @@ function AdminNotifications({ showConfirm }: { showConfirm: any }) {
         <h3 className="text-3xl font-black text-violet-950 px-2 uppercase tracking-tighter italic">Recent Broadcasts</h3>
         <div className="grid gap-6">
           {notifications.map((n) => (
-            <Card key={n.id} className="p-8 border-4 border-slate-900 bg-white shadow-[6px_6px_0px_0px_rgba(30,27,75,1)] flex items-center justify-between gap-8 group">
+            <Card key={n.id} className="p-8 border-4 border-violet-400 bg-white shadow-[6px_6px_0px_0px_rgba(167,139,250,1)] flex items-center justify-between gap-8 group">
               <div className="flex items-center gap-8">
                 <div className={cn(
-                  "h-16 w-16 border-2 border-slate-900 flex items-center justify-center shrink-0 shadow-[4px_4px_0px_0px_rgba(30,27,75,1)]",
+                  "h-16 w-16 border-2 border-violet-400 flex items-center justify-center shrink-0 shadow-[4px_4px_0px_0px_rgba(167,139,250,1)]",
                   n.type === 'update' ? "bg-blue-100 text-blue-600" :
                   n.type === 'alert' ? "bg-amber-100 text-amber-600" :
                   "bg-violet-100 text-violet-600"

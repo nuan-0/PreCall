@@ -8,6 +8,7 @@ const Razorpay = (RazorpayPkg as any).default || RazorpayPkg;
 import crypto from 'crypto';
 // @ts-ignore
 import admin from 'firebase-admin';
+import { getFirestore } from 'firebase-admin/firestore';
 import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -36,38 +37,47 @@ async function startServer() {
   checkRazorpayConfig();
 
   // Initialize Firebase Admin
+  let firestoreDatabaseId: string | undefined;
+  
   try {
     if (admin.apps.length === 0) {
+      const configPath = path.join(__dirname, 'firebase-applet-config.json');
+      let config: any = {};
+      
+      if (fs.existsSync(configPath)) {
+        config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        firestoreDatabaseId = config.firestoreDatabaseId;
+      }
+
       if (process.env.FIREBASE_SERVICE_ACCOUNT) {
         try {
           const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
           admin.initializeApp({
-            credential: admin.credential.cert(serviceAccount)
+            credential: admin.credential.cert(serviceAccount),
+            databaseURL: `https://${serviceAccount.project_id}.firebaseio.com`
           });
           console.log('✅ Firebase Admin initialized via Service Account');
         } catch (parseError) {
           console.error('❌ Failed to parse FIREBASE_SERVICE_ACCOUNT:', parseError);
           admin.initializeApp();
         }
+      } else if (config.projectId) {
+        admin.initializeApp({
+          projectId: config.projectId
+        });
+        console.log('✅ Firebase Admin initialized via local config');
       } else {
-        const configPath = path.join(__dirname, 'firebase-applet-config.json');
-        if (fs.existsSync(configPath)) {
-          const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-          admin.initializeApp({
-            projectId: config.projectId
-          });
-          console.log('✅ Firebase Admin initialized via local config');
-        } else {
-          admin.initializeApp();
-          console.log('✅ Firebase Admin initialized via default credentials');
-        }
+        admin.initializeApp();
+        console.log('✅ Firebase Admin initialized via default credentials');
       }
     }
   } catch (error) {
     console.error('Firebase Admin initialization error:', error);
   }
 
-  const db = admin.firestore();
+  // Use the specific database ID if available, otherwise default
+  const db = firestoreDatabaseId ? getFirestore(admin.app(), firestoreDatabaseId) : getFirestore(admin.app());
+  console.log(`✅ Firestore initialized (Database: ${firestoreDatabaseId || '(default)'})`);
 
   // Seed Razorpay Test Account
   const seedRazorpayTestAccount = async () => {
@@ -211,6 +221,7 @@ async function startServer() {
 
     if (generated_signature === razorpay_signature) {
       try {
+        console.log(`[Payment] Signature verified for user: ${userId}. Updating Firestore...`);
         // Update user status in Firestore
         await db.collection('users').doc(userId).set({
           isPremium: true,

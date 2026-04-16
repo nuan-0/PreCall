@@ -24,7 +24,7 @@ export default function QRCodePage() {
         margin: 1,
         width: 1024,
         color: {
-          dark: '#0F172A', // slate-900
+          dark: '#6D28D9', // violet-700 for better scannability than lighter lilac
           light: '#FFFFFF',
         },
       });
@@ -42,7 +42,7 @@ export default function QRCodePage() {
         const y = (canvas.height - logoSize) / 2;
 
         // Draw rounded lilac square
-        ctx.fillStyle = '#8B5CF6'; // Slightly deeper violet for better contrast
+        ctx.fillStyle = '#7C3AED'; // violet-600
         const radius = logoSize * 0.25;
         
         ctx.beginPath();
@@ -60,7 +60,7 @@ export default function QRCodePage() {
 
         // Add a clean white border around the lilac square
         ctx.strokeStyle = '#FFFFFF';
-        ctx.lineWidth = 20;
+        ctx.lineWidth = 24; // Thicker border
         ctx.stroke();
 
         // 3. Draw "PR" Text
@@ -69,7 +69,19 @@ export default function QRCodePage() {
         ctx.font = `900 ${logoSize * 0.55}px Inter, system-ui, sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
+        
+        // Add a subtle shadow to the text for better visibility
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.1)';
+        ctx.shadowBlur = 10;
+        ctx.shadowOffsetX = 2;
+        ctx.shadowOffsetY = 2;
+        
         ctx.fillText('PR', canvas.width / 2, canvas.height / 2);
+
+        // Reset shadow for further drawing if any
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
 
         setQrUrl(canvas.toDataURL('image/png'));
       };
@@ -86,7 +98,7 @@ export default function QRCodePage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pt-24 pb-12 px-4 relative overflow-hidden">
+    <div className="min-h-screen bg-[#FDFCFE] pt-24 pb-12 px-4 relative overflow-hidden">
       {/* Catchy background elements */}
       <div className="absolute top-0 left-0 w-full h-64 bg-gradient-to-b from-violet-100/50 to-transparent -z-10" />
       <div className="absolute -top-24 -right-24 w-96 h-96 bg-violet-200/20 rounded-full blur-3xl -z-10" />
@@ -105,20 +117,20 @@ export default function QRCodePage() {
         <motion.div 
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="bg-white rounded-[3rem] p-10 shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-slate-100 text-center relative"
+          className="bg-white rounded-[3rem] p-10 shadow-[0_20px_50px_rgba(124,58,237,0.08)] border border-violet-100 text-center relative"
         >
           <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-violet-600 text-white px-6 py-2 rounded-full text-xs font-black uppercase tracking-widest shadow-lg shadow-violet-200">
             Official QR
           </div>
 
-          <h1 className="text-3xl font-black tracking-tight text-slate-900 mb-3 mt-4">
+          <h1 className="text-3xl font-black tracking-tight text-violet-950 mb-3 mt-4">
             Share the App
           </h1>
           <p className="text-slate-400 font-medium mb-10 text-sm">
             Scan to visit <span className="text-violet-600 font-bold">precall.quantumnuan.com</span>
           </p>
 
-          <div className="relative aspect-square w-full max-w-[300px] mx-auto mb-10 p-6 bg-slate-50 rounded-[2.5rem] border border-slate-100 shadow-inner group">
+          <div className="relative aspect-square w-full max-w-[300px] mx-auto mb-10 p-6 bg-violet-50/30 rounded-[2.5rem] border border-violet-100 shadow-inner group">
             <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 to-transparent rounded-[2.5rem] opacity-0 group-hover:opacity-100 transition-opacity" />
             <canvas 
               ref={canvasRef} 
@@ -129,7 +141,7 @@ export default function QRCodePage() {
             />
             {!qrUrl && (
               <div className="w-full h-full flex items-center justify-center text-slate-300">
-                <div className="animate-pulse font-black text-xs uppercase tracking-widest">Generating...</div>
+                <div className="animate-pulse font-black text-xs uppercase tracking-widest text-violet-300">Generating...</div>
               </div>
             )}
           </div>
@@ -137,7 +149,7 @@ export default function QRCodePage() {
           <div className="grid grid-cols-1 gap-3">
             <button
               onClick={downloadQR}
-              className="flex items-center justify-center gap-3 py-4 bg-slate-900 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95 shadow-xl shadow-slate-200"
+              className="flex items-center justify-center gap-3 py-4 bg-violet-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-violet-700 transition-all active:scale-95 shadow-xl shadow-violet-200"
             >
               <Download className="h-5 w-5" />
               Download Image
