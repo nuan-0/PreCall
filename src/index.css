@@ -89,3 +89,12 @@ h1, h2, h3, h4 {
 ::selection {
   @apply bg-violet-100 text-violet-900;
 }
+
+/* Brutalist Card Style */
+.brutalist-card {
+  @apply bg-white border-2 border-violet-100 rounded-[2.5rem] shadow-sm transition-all duration-300;
+}
+
+.brutalist-card:hover {
+  @apply border-violet-300 shadow-xl shadow-violet-100/50 -translate-y-1;
+}

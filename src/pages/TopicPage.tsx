@@ -8,6 +8,10 @@ import { useAuth } from '../contexts/AuthContext';
 import { cn } from '../lib/utils';
 import ReactMarkdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import remarkGfm from 'remark-gfm';
+import 'katex/dist/katex.min.css';
 
 export function TopicPage() {
   const { slug } = useParams();
@@ -423,7 +427,12 @@ function ContentSection({ title, icon: Icon, content, color, isHighlight, isMark
       <div className="prose prose-violet max-w-none text-slate-600 font-medium leading-relaxed text-base sm:text-lg">
         {isMarkdown ? (
           <div className="markdown-body">
-            <ReactMarkdown remarkPlugins={[remarkBreaks]}>{content}</ReactMarkdown>
+            <ReactMarkdown 
+              remarkPlugins={[remarkBreaks, remarkMath, remarkGfm]} 
+              rehypePlugins={[rehypeKatex]}
+            >
+              {content}
+            </ReactMarkdown>
           </div>
         ) : (
           <p className="whitespace-pre-line">{content}</p>

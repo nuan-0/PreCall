@@ -270,7 +270,7 @@ export function AdminPanel() {
   return (
     <div className="flex min-h-screen bg-slate-50/50">
       {/* Mobile Header */}
-      <div className="md:hidden fixed top-0 left-0 right-0 z-50 bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between">
+      <div className="md:hidden fixed top-0 left-0 right-0 z-50 bg-white border-b border-violet-100 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="h-8 w-8 rounded-lg bg-violet-600 text-white flex items-center justify-center font-black text-sm">PC</div>
           <span className="font-black text-slate-900 tracking-tight">PreCall Admin</span>
@@ -933,7 +933,7 @@ D. Article 22
               <h3 className="text-xl font-black text-slate-900 tracking-tight">Founder's Quick Actions</h3>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Link to="/admin/topics" className="flex items-center gap-4 p-5 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all group">
+              <Link to="/admin/topics" className="flex items-center gap-4 p-5 rounded-2xl border border-violet-100 bg-slate-50 hover:bg-white hover:shadow-xl hover:shadow-violet-200/50 transition-all group">
                 <div className="h-12 w-12 rounded-xl bg-violet-100 text-violet-600 flex items-center justify-center group-hover:bg-violet-600 group-hover:text-white transition-all duration-300">
                   <Plus className="h-6 w-6" />
                 </div>
@@ -943,7 +943,7 @@ D. Article 22
                 </div>
               </Link>
               
-              <Link to="/admin/subjects" className="flex items-center gap-4 p-5 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all group">
+              <Link to="/admin/subjects" className="flex items-center gap-4 p-5 rounded-2xl border border-violet-100 bg-slate-50 hover:bg-white hover:shadow-xl hover:shadow-violet-200/50 transition-all group">
                 <div className="h-12 w-12 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
                   <BookOpen className="h-6 w-6" />
                 </div>
@@ -953,7 +953,7 @@ D. Article 22
                 </div>
               </Link>
 
-              <Link to="/admin/settings" className="flex items-center gap-4 p-5 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all group">
+              <Link to="/admin/settings" className="flex items-center gap-4 p-5 rounded-2xl border border-violet-100 bg-slate-50 hover:bg-white hover:shadow-xl hover:shadow-violet-200/50 transition-all group">
                 <div className="h-12 w-12 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center group-hover:bg-amber-600 group-hover:text-white transition-all duration-300">
                   <Settings className="h-6 w-6" />
                 </div>
@@ -963,7 +963,7 @@ D. Article 22
                 </div>
               </Link>
 
-              <Link to="/dashboard" className="flex items-center gap-4 p-5 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all group">
+              <Link to="/dashboard" className="flex items-center gap-4 p-5 rounded-2xl border border-violet-100 bg-slate-50 hover:bg-white hover:shadow-xl hover:shadow-violet-200/50 transition-all group">
                 <div className="h-12 w-12 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center group-hover:bg-amber-600 group-hover:text-white transition-all duration-300">
                   <Sparkles className="h-6 w-6" />
                 </div>
@@ -973,7 +973,7 @@ D. Article 22
                 </div>
               </Link>
 
-              <button onClick={seedData} className="flex items-center gap-4 p-5 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all group text-left w-full">
+              <button onClick={seedData} className="flex items-center gap-4 p-5 rounded-2xl border border-violet-100 bg-slate-50 hover:bg-white hover:shadow-xl hover:shadow-violet-200/50 transition-all group text-left w-full">
                 <div className="h-12 w-12 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center group-hover:bg-slate-900 group-hover:text-white transition-all duration-300">
                   <Zap className="h-6 w-6" />
                 </div>
@@ -983,7 +983,7 @@ D. Article 22
                 </div>
               </button>
 
-              <button onClick={seedArticle21} className="flex items-center gap-4 p-5 rounded-2xl border border-slate-100 bg-violet-50 hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all group text-left w-full">
+              <button onClick={seedArticle21} className="flex items-center gap-4 p-5 rounded-2xl border border-violet-100 bg-violet-50 hover:bg-white hover:shadow-xl hover:shadow-violet-200/50 transition-all group text-left w-full">
                 <div className="h-12 w-12 rounded-xl bg-violet-100 text-violet-600 flex items-center justify-center group-hover:bg-violet-600 group-hover:text-white transition-all duration-300">
                   <Sparkles className="h-6 w-6" />
                 </div>
@@ -993,7 +993,7 @@ D. Article 22
                 </div>
               </button>
 
-              <button onClick={seedPreamble} className="flex items-center gap-4 p-5 rounded-2xl border border-slate-100 bg-blue-50 hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all group text-left w-full">
+              <button onClick={seedPreamble} className="flex items-center gap-4 p-5 rounded-2xl border border-violet-100 bg-blue-50 hover:bg-white hover:shadow-xl hover:shadow-violet-200/50 transition-all group text-left w-full">
                 <div className="h-12 w-12 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
                   <Sparkles className="h-6 w-6" />
                 </div>
@@ -1028,14 +1028,14 @@ D. Article 22
                 ))}
               </div>
 
-              <div className="pt-6 border-t border-slate-100">
+              <div className="pt-6 border-t border-violet-100">
                 <div className="flex items-center justify-between mb-4">
                   <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Topic Placeholders</h4>
                   <Badge variant="free">{TOPIC_PLACEHOLDERS.length} Topics</Badge>
                 </div>
                 <div className="max-h-80 overflow-y-auto pr-2 space-y-2">
                   {TOPIC_PLACEHOLDERS.map(t => (
-                    <div key={t.slug} className="flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50">
+                    <div key={t.slug} className="flex items-center justify-between p-3 rounded-xl border border-violet-100 bg-slate-50">
                       <div>
                         <p className="text-xs font-bold text-slate-900">{t.title}</p>
                         <p className="text-[10px] font-medium text-slate-400 uppercase tracking-tight">{t.subjectSlug} • {t.chapter}</p>
@@ -1165,7 +1165,7 @@ function AdminSubjects({ showConfirm }: { showConfirm: any }) {
       
       {editingSubject && (
         <Card className="max-w-4xl border-violet-200 shadow-2xl shadow-violet-100/50 animate-in fade-in zoom-in-95 duration-300 overflow-hidden">
-          <div className="bg-slate-50 border-b border-slate-100 p-6 flex items-center justify-between">
+          <div className="bg-slate-50 border-b border-violet-100 p-6 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-xl bg-white shadow-sm text-violet-600">
                 <BookOpen className="h-5 w-5" />
@@ -1291,7 +1291,7 @@ function AdminSubjects({ showConfirm }: { showConfirm: any }) {
               </div>
             </div>
 
-            <div className="pt-8 border-t border-slate-100 flex items-center justify-end gap-4">
+            <div className="pt-8 border-t border-violet-100 flex items-center justify-end gap-4">
               <button type="button" onClick={() => setEditingSubject(null)} className="px-6 py-3 text-sm font-black text-slate-400 hover:text-slate-600 transition-colors uppercase tracking-widest">Discard</button>
               <Button type="submit" icon={Save} loading={isSaving} className="px-10 h-14 text-base shadow-xl shadow-violet-200">
                 {editingSubject.id ? 'Update Subject' : 'Create Subject'}
@@ -1397,6 +1397,27 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
   const [isSaving, setIsSaving] = useState(false);
   const [filterSubject, setFilterSubject] = useState<string>('all');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    // Force plain text paste to preserve symbols like ° and subscripts
+    e.preventDefault();
+    const text = e.clipboardData.getData('text/plain');
+    const target = e.target as HTMLTextAreaElement | HTMLInputElement;
+    const start = target.selectionStart || 0;
+    const end = target.selectionEnd || 0;
+    const value = target.value;
+    const newValue = value.substring(0, start) + text + value.substring(end);
+    
+    const name = target.name;
+    if (name && editingTopic) {
+      setEditingTopic({ ...editingTopic, [name]: newValue });
+      
+      // Set cursor position after update
+      setTimeout(() => {
+        target.selectionStart = target.selectionEnd = start + text.length;
+      }, 0);
+    }
+  };
 
   const filteredTopics = topics.filter(t => filterSubject === 'all' || t.subjectSlug === filterSubject);
 
@@ -1628,7 +1649,7 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
               icon={Trash2} 
               size="lg" 
               onClick={handleDeleteAllInSubject} 
-              className="border-2 border-slate-100 text-slate-400 hover:bg-slate-50"
+              className="border-2 border-violet-100 text-slate-400 hover:bg-slate-50"
             >
               Delete All Topics
             </Button>
@@ -1640,7 +1661,7 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
       </div>
 
       {/* Subject Navigation Flow */}
-      <div className="flex flex-wrap gap-2 p-2 bg-white rounded-3xl border border-slate-100 shadow-sm">
+      <div className="flex flex-wrap gap-2 p-2 bg-white rounded-3xl border border-violet-100 shadow-sm">
         <button
           onClick={() => setFilterSubject('all')}
           className={cn(
@@ -1672,7 +1693,7 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
       {isBulkPasteOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4">
           <div className="w-full max-w-4xl bg-white rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="p-8 border-b border-slate-100 flex items-center justify-between">
+            <div className="p-8 border-b border-violet-100 flex items-center justify-between">
               <div>
                 <h3 className="text-2xl font-black text-slate-900 tracking-tight">Bulk Paste Content</h3>
                 <p className="text-sm font-medium text-slate-400">Paste a markdown block with headers to populate fields automatically.</p>
@@ -1685,7 +1706,7 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
                     navigator.clipboard.writeText(BULK_PASTE_TEMPLATE);
                     toast.success('Template copied to clipboard!');
                   }}
-                  className="h-10 rounded-xl px-4 font-bold border-2 border-slate-100 text-slate-600 hover:bg-slate-50"
+                  className="h-10 rounded-xl px-4 font-bold border-2 border-violet-100 text-slate-600 hover:bg-slate-50"
                 >
                   <Copy className="mr-2 h-4 w-4" /> Copy Template
                 </Button>
@@ -1718,7 +1739,7 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
                 placeholder="### Why this matters&#10;This topic is key because...&#10;&#10;### Core Concept&#10;The main idea is..."
               />
             </div>
-            <div className="p-8 border-t border-slate-100 bg-slate-50 flex justify-end gap-4">
+            <div className="p-8 border-t border-violet-100 bg-slate-50 flex justify-end gap-4">
               <Button variant="outline" onClick={() => setIsBulkPasteOpen(false)} className="h-12 rounded-xl px-6 font-bold border">
                 Cancel
               </Button>
@@ -1734,7 +1755,7 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 sm:p-8 overflow-hidden">
           <Card className="w-full max-w-5xl h-full max-h-[90vh] flex flex-col border-violet-200 shadow-2xl animate-in fade-in zoom-in-95 duration-300">
             {/* Sticky Header */}
-            <div className="bg-white border-b border-slate-100 p-6 flex items-center justify-between shrink-0">
+            <div className="bg-white border-b border-violet-100 p-6 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-4">
                 <div className="p-2.5 rounded-2xl bg-violet-50 text-violet-600">
                   <Layout className="h-6 w-6" />
@@ -1846,7 +1867,7 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
                     </div>
                   </section>
 
-                  <section className="space-y-8 p-8 rounded-[2rem] bg-white border border-slate-100 shadow-xl shadow-slate-100/50">
+                  <section className="space-y-8 p-8 rounded-[2rem] bg-white border border-violet-100 shadow-xl shadow-slate-100/50">
                     <div className="flex items-center gap-3 pb-2 border-b border-slate-100">
                       <div className="p-1.5 rounded-lg bg-violet-100 text-violet-600">
                         <Zap className="h-4 w-4" />
@@ -1856,15 +1877,15 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
                     <div className="space-y-6">
                       <div className="space-y-2">
                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Why this matters</label>
-                        <textarea className="w-full h-32 rounded-2xl bg-slate-50/50 border-slate-200 text-slate-900 font-medium text-sm focus:ring-violet-500 focus:border-violet-500 p-4" value={editingTopic.whyThisMatters || ''} onChange={e => setEditingTopic({...editingTopic, whyThisMatters: e.target.value})} />
+                        <textarea name="whyThisMatters" onPaste={handlePaste} className="w-full h-32 rounded-2xl bg-slate-50/50 border-slate-200 text-slate-900 font-medium text-sm focus:ring-violet-500 focus:border-violet-500 p-4" value={editingTopic.whyThisMatters || ''} onChange={e => setEditingTopic({...editingTopic, whyThisMatters: e.target.value})} />
                       </div>
                       <div className="space-y-2">
                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Core Concept</label>
-                        <textarea className="w-full h-64 rounded-2xl bg-slate-50/50 border-slate-200 text-slate-900 font-medium text-sm focus:ring-violet-500 focus:border-violet-500 p-4" value={editingTopic.coreConcept || ''} onChange={e => setEditingTopic({...editingTopic, coreConcept: e.target.value})} />
+                        <textarea name="coreConcept" onPaste={handlePaste} className="w-full h-64 rounded-2xl bg-slate-50/50 border-slate-200 text-slate-900 font-medium text-sm focus:ring-violet-500 focus:border-violet-500 p-4" value={editingTopic.coreConcept || ''} onChange={e => setEditingTopic({...editingTopic, coreConcept: e.target.value})} />
                       </div>
                       <div className="space-y-2">
                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">UPSC Gold Point</label>
-                        <textarea className="w-full h-32 rounded-2xl bg-slate-50/50 border-slate-200 text-slate-900 font-medium text-sm focus:ring-violet-500 focus:border-violet-500 p-4" value={editingTopic.upscGoldPoint || ''} onChange={e => setEditingTopic({...editingTopic, upscGoldPoint: e.target.value})} />
+                        <textarea name="upscGoldPoint" onPaste={handlePaste} className="w-full h-32 rounded-2xl bg-slate-50/50 border-slate-200 text-slate-900 font-medium text-sm focus:ring-violet-500 focus:border-violet-500 p-4" value={editingTopic.upscGoldPoint || ''} onChange={e => setEditingTopic({...editingTopic, upscGoldPoint: e.target.value})} />
                       </div>
                     </div>
                   </section>
@@ -1882,33 +1903,33 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
                     <div className="grid gap-8">
                       <div className="space-y-2">
                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Deep Understanding</label>
-                        <textarea className="w-full rounded-xl border-slate-200 bg-slate-50/50 font-medium focus:ring-violet-500 focus:border-violet-500 p-4" rows={4} value={editingTopic.deepUnderstanding || ''} onChange={e => setEditingTopic({...editingTopic, deepUnderstanding: e.target.value})} />
+                        <textarea name="deepUnderstanding" onPaste={handlePaste} className="w-full rounded-xl border-slate-200 bg-slate-50/50 font-medium focus:ring-violet-500 focus:border-violet-500 p-4" rows={4} value={editingTopic.deepUnderstanding || ''} onChange={e => setEditingTopic({...editingTopic, deepUnderstanding: e.target.value})} />
                       </div>
                       <div className="space-y-2">
                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Linked Facts / Dimensions</label>
-                        <textarea className="w-full rounded-xl border-slate-200 bg-slate-50/50 font-medium focus:ring-violet-500 focus:border-violet-500 p-4" rows={4} value={editingTopic.linkedFacts || ''} onChange={e => setEditingTopic({...editingTopic, linkedFacts: e.target.value})} />
+                        <textarea name="linkedFacts" onPaste={handlePaste} className="w-full rounded-xl border-slate-200 bg-slate-50/50 font-medium focus:ring-violet-500 focus:border-violet-500 p-4" rows={4} value={editingTopic.linkedFacts || ''} onChange={e => setEditingTopic({...editingTopic, linkedFacts: e.target.value})} />
                       </div>
                       <div className="grid gap-6 sm:grid-cols-2">
                         <div className="space-y-2">
                           <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Trap Zone</label>
-                          <textarea className="w-full rounded-xl border-slate-200 bg-orange-50/30 font-medium focus:ring-orange-500 focus:border-orange-500 p-4" rows={4} value={editingTopic.trapZone || ''} onChange={e => setEditingTopic({...editingTopic, trapZone: e.target.value})} />
+                          <textarea name="trapZone" onPaste={handlePaste} className="w-full rounded-xl border-slate-200 bg-orange-50/30 font-medium focus:ring-orange-500 focus:border-orange-500 p-4" rows={4} value={editingTopic.trapZone || ''} onChange={e => setEditingTopic({...editingTopic, trapZone: e.target.value})} />
                         </div>
                         <div className="space-y-2">
                           <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Memory Trick</label>
-                          <textarea className="w-full rounded-xl border-slate-200 bg-emerald-50/30 font-medium focus:ring-emerald-500 focus:border-emerald-500 p-4" rows={4} value={editingTopic.memoryTrick || ''} onChange={e => setEditingTopic({...editingTopic, memoryTrick: e.target.value})} />
+                          <textarea name="memoryTrick" onPaste={handlePaste} className="w-full rounded-xl border-slate-200 bg-emerald-50/30 font-medium focus:ring-emerald-500 focus:border-emerald-500 p-4" rows={4} value={editingTopic.memoryTrick || ''} onChange={e => setEditingTopic({...editingTopic, memoryTrick: e.target.value})} />
                         </div>
                       </div>
                       <div className="space-y-2">
                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Prelims Snapshot</label>
-                        <textarea className="w-full rounded-xl border-slate-200 bg-blue-50/30 font-medium focus:ring-blue-500 focus:border-blue-500 p-4" rows={4} value={editingTopic.prelimsSnapshot || ''} onChange={e => setEditingTopic({...editingTopic, prelimsSnapshot: e.target.value})} />
+                        <textarea name="prelimsSnapshot" onPaste={handlePaste} className="w-full rounded-xl border-slate-200 bg-blue-50/30 font-medium focus:ring-blue-500 focus:border-blue-500 p-4" rows={4} value={editingTopic.prelimsSnapshot || ''} onChange={e => setEditingTopic({...editingTopic, prelimsSnapshot: e.target.value})} />
                       </div>
                       <div className="space-y-2">
                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">MCQs (Question & Answer)</label>
-                        <textarea className="w-full rounded-xl border-slate-200 bg-indigo-50/30 font-medium focus:ring-indigo-500 focus:border-indigo-500 p-4" rows={4} value={editingTopic.mcqs || ''} onChange={e => setEditingTopic({...editingTopic, mcqs: e.target.value})} />
+                        <textarea name="mcqs" onPaste={handlePaste} className="w-full rounded-xl border-slate-200 bg-indigo-50/30 font-medium focus:ring-indigo-500 focus:border-indigo-500 p-4" rows={4} value={editingTopic.mcqs || ''} onChange={e => setEditingTopic({...editingTopic, mcqs: e.target.value})} />
                       </div>
                       <div className="space-y-2">
                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">One-Line Revision</label>
-                        <textarea className="w-full rounded-xl border-slate-200 bg-violet-50/30 font-medium focus:ring-violet-500 focus:border-violet-500 p-4" rows={2} value={editingTopic.oneLineRevision || ''} onChange={e => setEditingTopic({...editingTopic, oneLineRevision: e.target.value})} />
+                        <textarea name="oneLineRevision" onPaste={handlePaste} className="w-full rounded-xl border-slate-200 bg-violet-50/30 font-medium focus:ring-violet-500 focus:border-violet-500 p-4" rows={2} value={editingTopic.oneLineRevision || ''} onChange={e => setEditingTopic({...editingTopic, oneLineRevision: e.target.value})} />
                       </div>
                       <div className="space-y-2">
                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Linked Topics</label>
@@ -1921,7 +1942,7 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
             </form>
 
             {/* Sticky Footer */}
-            <div className="bg-slate-50 border-t border-slate-100 p-6 flex items-center justify-end gap-4 shrink-0">
+            <div className="bg-slate-50 border-t border-violet-100 p-6 flex items-center justify-end gap-4 shrink-0">
               <button type="button" onClick={() => setEditingTopic(null)} className="px-6 py-3 text-sm font-black text-slate-400 hover:text-slate-600 transition-colors uppercase tracking-widest">Discard Changes</button>
               <Button type="submit" onClick={handleSave} icon={Save} loading={isSaving} className="px-10 h-14 text-base shadow-xl shadow-violet-200">
                 {editingTopic.id ? 'Update Topic' : 'Publish Topic'}
@@ -1932,7 +1953,7 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
       )}
 
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-violet-100 shadow-sm">
           <div className="flex items-center gap-3">
             <Filter className="h-4 w-4 text-slate-400" />
             <select className="bg-transparent border-none font-bold text-slate-600 focus:ring-0 text-sm" value={filterSubject} onChange={e => setFilterSubject(e.target.value)}>
@@ -2279,7 +2300,7 @@ function AdminAccess({ showConfirm }: { showConfirm: any }) {
       <div className="grid gap-8 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-6">
           <Card className="p-0 border-slate-200 shadow-sm overflow-hidden">
-            <div className="bg-slate-50/50 border-b border-slate-100 px-8 py-5">
+            <div className="bg-slate-50/50 border-b border-violet-100 px-8 py-5">
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Approved Admin Emails</h3>
             </div>
             <div className="divide-y divide-slate-100">
