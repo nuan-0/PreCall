@@ -69,6 +69,24 @@ export default function AboutPage() {
           </div>
         </section>
 
+        <section className="p-10 md:p-12 rounded-[2.5rem] border-4 border-violet-100 bg-violet-50/50">
+          <h2 className="text-2xl font-black text-violet-950 mb-6">A Visionary Note</h2>
+          <p className="text-slate-600 font-medium leading-relaxed mb-6">
+            PreCall is the realization of a shared dream to make UPSC preparation more accessible, precise, and less overwhelming. 
+          </p>
+          <div className="flex flex-col sm:flex-row items-center gap-6 p-6 rounded-2xl bg-white border border-violet-100">
+            <div className="h-16 w-16 rounded-full bg-violet-600 flex items-center justify-center text-white ring-4 ring-violet-100 shrink-0">
+              <Star className="h-8 w-8" />
+            </div>
+            <div>
+              <p className="text-slate-600 italic font-medium mb-2">
+                "UPSC Prelims is no longer a test of how much you can read, but of how much you can accurately recall under pressure."
+              </p>
+              <p className="text-sm font-black text-violet-900">— Special thanks to <strong>@important4UPSC</strong> for the vision and mentorship that made this platform possible.</p>
+            </div>
+          </div>
+        </section>
+
         <section className="text-center py-12">
           <h2 className="text-2xl font-black text-violet-950 mb-4">Join the Community</h2>
           <p className="text-slate-500 font-medium mb-8">

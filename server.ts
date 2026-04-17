@@ -10,6 +10,7 @@ import crypto from 'crypto';
 import admin from 'firebase-admin';
 import { getFirestore } from 'firebase-admin/firestore';
 import fs from 'fs';
+import fetch from 'node-fetch';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -78,6 +79,28 @@ async function startServer() {
   // Use the specific database ID if available, otherwise default
   const db = firestoreDatabaseId ? getFirestore(admin.app(), firestoreDatabaseId) : getFirestore(admin.app());
   console.log(`✅ Firestore initialized (Database: ${firestoreDatabaseId || '(default)'})`);
+
+  // Help function for Telegram Notifications
+  const sendTelegramNotification = async (message: string) => {
+    const token = process.env.TELEGRAM_BOT_TOKEN;
+    const chatId = process.env.TELEGRAM_CHAT_ID;
+    
+    if (!token || !chatId) return;
+
+    try {
+      await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: message,
+          parse_mode: 'HTML'
+        })
+      });
+    } catch (err) {
+      console.error('Failed to send Telegram notification:', err);
+    }
+  };
 
   // Seed Razorpay Test Account
   const seedRazorpayTestAccount = async () => {
@@ -239,6 +262,19 @@ async function startServer() {
           createdAt: new Date().toISOString()
         });
 
+        // Get Total Premium Users for Telegram Update
+        const premiumSnap = await db.collection('users').where('isPremium', '==', true).count().get();
+        const totalPremium = premiumSnap.data().count;
+
+        // Notify via Telegram
+        await sendTelegramNotification(
+          `💰 <b>New Premium Payment!</b>\n\n` +
+          `👤 <b>User ID:</b> <code>${userId}</code>\n` +
+          `💳 <b>Order ID:</b> <code>${razorpay_order_id}</code>\n` +
+          `📈 <b>Total Premium Users:</b> ${totalPremium}\n\n` +
+          `<i>App: PreCall Revision</i>`
+        );
+
         res.json({ status: 'ok', message: 'Payment verified and status updated' });
       } catch (error) {
         console.error('Error updating premium status:', error);
@@ -272,6 +308,15 @@ async function startServer() {
   // Global Error Handler
   app.use((err: any, req: any, res: any, next: any) => {
     console.error('[Global Error]', err);
+    
+    // Notify via Telegram on critical errors
+    sendTelegramNotification(
+      `⚠️ <b>Server Error Detected</b>\n\n` +
+      `📌 <b>Path:</b> <code>${req.path}</code>\n` +
+      `🛑 <b>Error:</b> <i>${err.message || 'Unknown error'}</i>\n\n` +
+      `🚀 <i>Check Vercel logs for details.</i>`
+    ).catch(() => {});
+
     res.status(500).json({
       error: 'Internal Server Error',
       details: err.message || 'Unknown error'
