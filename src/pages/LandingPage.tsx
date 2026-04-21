@@ -1,5 +1,6 @@
 import { ArrowRight, BookOpen, CheckCircle2, FileText, Lock, ShieldCheck, Target, Zap, ChevronRight, Star, Download, Share } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { Badge, Button, Card } from '../components/UI';
 import { useSubjects, useSettings } from '../hooks/useData';
 import { useAuth } from '../contexts/AuthContext';
@@ -9,6 +10,11 @@ export function LandingPage() {
   const { subjects } = useSubjects();
   const { settings } = useSettings();
   const { user, isPremium, isAdmin, openAuthModal } = useAuth();
+  const location = useLocation();
+
+  useEffect(() => {
+    // Guest scouting allowed, only open modal if explicitly requested or on paywalls
+  }, []);
 
   const isPaidUser = isPremium || isAdmin;
 

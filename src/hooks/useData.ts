@@ -35,15 +35,30 @@ export function useSubjects() {
     // SWR: Initial fetch using Promise.all if needed, but onSnapshot is already async
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (snapshot.empty) {
-        const defaultSubjects = [{
-          id: 'polity',
-          slug: 'polity',
-          title: 'Polity',
-          description: 'Master the Constitution, Fundamental Rights, and Governance with high-yield topics.',
-          order: 1,
-          status: 'live',
-          pdfVisible: true
-        } as Subject];
+        const defaultSubjects = [
+          {
+            id: 'polity',
+            slug: 'polity',
+            title: 'Polity',
+            description: 'Master the Constitution, Fundamental Rights, and Governance with high-yield topics.',
+            order: 1,
+            status: 'live',
+            pdfVisible: true,
+            pdfTitle: 'High-Yield Polity PDF',
+            pdfAccessType: 'premium'
+          },
+          {
+            id: 'modern-history',
+            slug: 'modern-history',
+            title: 'Modern Indian History',
+            description: 'From European arrival to Independence. Master movements, leaders, and constitutional evolution.',
+            order: 2,
+            status: 'live',
+            pdfVisible: true,
+            pdfTitle: 'Modern History Compendium',
+            pdfAccessType: 'premium'
+          }
+        ] as Subject[];
         setSubjects(defaultSubjects);
         setCache('subjects', defaultSubjects);
       } else {
@@ -142,20 +157,67 @@ export function useTopics(subjectSlug?: string) {
     }
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      if (snapshot.empty && subjectSlug === 'polity') {
-        const defaultTopics = [{
-          id: 'article-21-right-to-life',
-          slug: 'article-21-right-to-life',
-          subjectSlug: 'polity',
-          chapter: 'Fundamental Rights',
-          title: 'Article 21 – Right to Life and Personal Liberty',
-          teaser: 'The "Heart of Fundamental Rights". A single sentence that has been expanded by the Supreme Court to cover everything from Privacy to Sleep.',
-          status: 'free',
-          order: 1,
-          estimatedTime: '10 mins'
-        } as Topic];
-        setTopics(defaultTopics);
-        setCache(cacheKey, defaultTopics);
+      if (snapshot.empty) {
+        let defaultTopics: Topic[] = [];
+        
+        if (subjectSlug === 'polity') {
+          defaultTopics = [
+            {
+              id: 'article-21-right-to-life',
+              slug: 'article-21-right-to-life',
+              subjectSlug: 'polity',
+              chapter: 'Fundamental Rights',
+              title: 'Article 21 – Right to Life',
+              teaser: 'The "Heart of FR". Expanded by the SC to cover everything from Privacy to Sleep.',
+              status: 'free',
+              order: 1,
+              estimatedTime: '10 mins'
+            },
+            {
+              id: 'preamble-identity-card',
+              slug: 'preamble-identity-card',
+              subjectSlug: 'polity',
+              chapter: 'Preamble',
+              title: 'The Preamble: Identity Card',
+              teaser: 'Sovereign, Socialist, Secular, Democratic, Republic. Key to the Constitution.',
+              status: 'premium',
+              order: 2,
+              estimatedTime: '8 mins'
+            }
+          ] as Topic[];
+        } else if (subjectSlug === 'modern-history') {
+          defaultTopics = [
+            {
+              id: 'european-penetration',
+              slug: 'european-penetration',
+              subjectSlug: 'modern-history',
+              chapter: 'Advent of Europeans',
+              title: 'European Penetration into India',
+              teaser: 'From "God, Gold and Glory" to systematic shifts in trade and naval strategy.',
+              status: 'free',
+              order: 1,
+              estimatedTime: '12 mins'
+            },
+            {
+              id: 'revolt-of-1857',
+              slug: 'revolt-of-1857',
+              subjectSlug: 'modern-history',
+              chapter: 'Revolts',
+              title: 'The Great Revolt of 1857',
+              teaser: 'The "First War of Independence" and the end of EIC Company rule.',
+              status: 'premium',
+              order: 2,
+              estimatedTime: '15 mins'
+            }
+          ] as Topic[];
+        }
+
+        if (defaultTopics.length > 0) {
+          setTopics(defaultTopics);
+          setCache(cacheKey, defaultTopics);
+        } else {
+          setTopics([]);
+        }
       } else {
         const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Topic));
         setTopics(data);

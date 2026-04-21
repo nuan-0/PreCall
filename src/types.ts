@@ -59,6 +59,7 @@ export interface AppSettings {
   footerText: string;
   price: string;
   originalPrice: string;
+  pdfPrice?: string;
 }
 
 export interface AppNotification {
@@ -81,6 +82,7 @@ export interface UserProfile {
   role: 'admin' | 'user';
   isPremium: boolean;
   premiumExpiry?: string;
+  ownedPdfs?: string[];
   completedTopics?: string[];
   lastLogin: string;
 }

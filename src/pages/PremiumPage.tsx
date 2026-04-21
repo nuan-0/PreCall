@@ -1,13 +1,14 @@
-import { Check, Crown, ShieldCheck, Zap, Sparkles, FileText, Smartphone, Users, ArrowRight, HelpCircle, MessageCircle, PartyPopper } from 'lucide-react';
-import { useState, useRef } from 'react';
-import { Button, Card, Badge } from '../components/UI';
-import { useSettings } from '../hooks/useData';
+import { Check, Crown, ShieldCheck, Zap, Sparkles, FileText, Smartphone, Users, ArrowRight, HelpCircle, MessageCircle, PartyPopper, CheckCircle2 } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Button, Card, Badge, Skeleton } from '../components/UI';
+import { useSettings, useSubjects } from '../hooks/useData';
 import { useAuth } from '../contexts/AuthContext';
 import { doc, setDoc, addDoc, collection } from 'firebase/firestore';
 import { db } from '../firebase';
 import { toast } from 'sonner';
 import confetti from 'canvas-confetti';
 import { motion, AnimatePresence } from 'motion/react';
+import { cn } from '../lib/utils';
 
 declare global {
   interface Window {
@@ -17,9 +18,12 @@ declare global {
 
 export function PremiumPage() {
   const { settings } = useSettings();
-  const { user, isPremium, openAuthModal } = useAuth();
+  const { subjects, loading: subjectsLoading } = useSubjects();
+  const { user, profile, isPremium, openAuthModal } = useAuth();
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successType, setSuccessType] = useState<'premium' | 'pdf'>('premium');
+  const [selectedPdfSlugs, setSelectedPdfSlugs] = useState<string[]>([]);
   const processingRef = useRef(false);
   
   const price = settings?.price || '999';
@@ -40,7 +44,24 @@ export function PremiumPage() {
     });
   };
 
-  const handleUpgrade = async () => {
+  // Sort subjects to show Live ones first
+  const validPdfs = subjects.filter(s => s.status === 'live' && s.pdfVisible);
+
+  const togglePdfSelection = (slug: string) => {
+    if (profile?.ownedPdfs?.includes(slug)) return;
+    
+    setSelectedPdfSlugs(prev => 
+      prev.includes(slug) ? prev.filter(s => s !== slug) : [...prev, slug]
+    );
+  };
+
+  const selectAllPdfs = () => {
+    if (validPdfs.length === 0) return;
+    const slugs = validPdfs.map(s => s.slug).filter(slug => !profile?.ownedPdfs?.includes(slug));
+    setSelectedPdfSlugs(slugs);
+  };
+
+  const handlePayment = async (type: 'premium' | 'pdf', pdfSlug?: string) => {
     if (processingRef.current) return;
     
     if (!user) {
@@ -48,102 +69,68 @@ export function PremiumPage() {
       return;
     }
 
-    if (isPremium) {
+    if (type === 'premium' && isPremium) {
       toast.success("You already have Premium access!");
+      return;
+    }
+    
+    if (type === 'pdf' && pdfSlug && (isPremium || profile?.ownedPdfs?.includes(pdfSlug))) {
+      toast.success("You already own this PDF!");
       return;
     }
 
     processingRef.current = true;
     setIsProcessing(true);
     
-    // 1. Ensure Razorpay script is loaded
     const isScriptLoaded = await loadRazorpayScript();
     if (!isScriptLoaded) {
-      toast.error("Failed to load payment gateway. Please check your internet connection.");
+      toast.error("Failed to load payment gateway.");
       setIsProcessing(false);
       processingRef.current = false;
       return;
     }
 
     let razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID;
-    
-    // Fallback: Fetch key from server if env var is missing or not exposed to client
     try {
       const configRes = await fetch('/api/config');
       if (configRes.ok) {
         const configData = await configRes.json();
-        if (configData.razorpayKeyId) {
-          razorpayKey = configData.razorpayKeyId;
-        }
+        if (configData.razorpayKeyId) razorpayKey = configData.razorpayKeyId;
       }
-    } catch (err) {
-      console.error("Failed to fetch config from server:", err);
-    }
+    } catch (err) {}
     
     if (!razorpayKey) {
-      toast.error(
-        <div className="flex flex-col gap-2">
-          <span className="font-bold">Payment Configuration Missing</span>
-          <span className="text-xs">The app couldn't find your Razorpay Key ID.</span>
-          <div className="bg-slate-900/10 p-2 rounded text-[10px] font-mono">
-            Key Name: VITE_RAZORPAY_KEY_ID
-          </div>
-          <span className="text-[10px] opacity-70">If you just added it in Settings, please wait 10 seconds and try again.</span>
-        </div>,
-        { duration: 8000 }
-      );
+      toast.error("Payment configuration missing.");
       setIsProcessing(false);
       processingRef.current = false;
       return;
     }
 
     try {
-      // 2. Create Order on Server
-      const amountInPaise = parseInt(price.replace(/,/g, '')) * 100;
+      const amountValue = type === 'premium' ? parseInt(price.replace(/,/g, '')) : 149;
+      const amountInPaise = amountValue * 100;
       
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
-
       const orderRes = await fetch('/api/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: amountInPaise }),
-        signal: controller.signal
+        body: JSON.stringify({ amount: amountInPaise })
       });
       
-      clearTimeout(timeoutId);
+      if (!orderRes.ok) throw new Error('Failed to create order');
+      const orderData = await orderRes.json();
 
-      let orderData;
-      try {
-        const text = await orderRes.text();
-        try {
-          orderData = JSON.parse(text);
-        } catch (e) {
-          console.error("Server returned non-JSON response:", text);
-          throw new Error('Server error: The payment system returned an invalid response. Please check your Vercel logs.');
-        }
-      } catch (e: any) {
-        throw new Error(e.message || 'Failed to parse server response');
-      }
-
-      if (!orderRes.ok) {
-        throw new Error(orderData.error || orderData.details || 'Failed to initialize payment');
-      }
-
-      // 3. Open Razorpay Checkout
       const options = {
         key: razorpayKey,
         amount: orderData.amount,
         currency: orderData.currency,
         name: settings?.appName || "PreCall",
-        description: "Premium One Season Access",
+        description: type === 'premium' ? "Premium Season Access" : `High-Yield PDF: ${pdfSlug}`,
         image: "/icon.svg",
         order_id: orderData.id,
         handler: async function (response: any) {
           try {
             toast.loading("Verifying payment...", { id: 'payment-verify' });
             
-            // 4. Verify the payment on our backend
             const verifyRes = await fetch('/api/verify-payment', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -151,71 +138,42 @@ export function PremiumPage() {
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_signature: response.razorpay_signature,
-                userId: user.uid
+                userId: user.uid,
+                productType: type,
+                productSlug: pdfSlug || null
               })
             });
 
-            if (!verifyRes.ok) {
-              const errData = await verifyRes.json();
-              throw new Error(errData.error || 'Verification failed');
-            }
+            if (!verifyRes.ok) throw new Error('Verification failed');
             
-            toast.success("Payment verified! Welcome to Premium.", { id: 'payment-verify' });
-            
-            // Trigger Confetti
-            confetti({
-              particleCount: 150,
-              spread: 70,
-              origin: { y: 0.6 },
-              colors: ['#7c3aed', '#f59e0b', '#10b981']
-            });
+            toast.success("Payment verified!", { id: 'payment-verify' });
+            confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
 
+            setSuccessType(type);
             setShowSuccessModal(true);
             setIsProcessing(false);
             processingRef.current = false;
           } catch (error: any) {
-            console.error("Error verifying payment:", error);
-            toast.error(error.message || "Payment successful but failed to update status. Please contact support.", { id: 'payment-verify' });
+            toast.error("Payment verification failed.", { id: 'payment-verify' });
             setIsProcessing(false);
             processingRef.current = false;
           }
         },
-        prefill: {
-          name: user.displayName || "",
-          email: user.email || "",
-        },
-        theme: {
-          color: "#7c3aed",
-        },
-        modal: {
-          ondismiss: function() {
-            setIsProcessing(false);
-            processingRef.current = false;
-          }
-        }
+        prefill: { name: user.displayName || "", email: user.email || "" },
+        theme: { color: "#7c3aed" },
+        modal: { ondismiss: () => { setIsProcessing(false); processingRef.current = false; } }
       };
 
       const rzp = new window.Razorpay(options);
-      
-      rzp.on('payment.failed', function (response: any) {
-        console.error("Payment failed:", response.error);
-        toast.error(`Payment failed: ${response.error.description}`);
-        setIsProcessing(false);
-        processingRef.current = false;
-      });
-
       rzp.open();
     } catch (error: any) {
-      console.error("Payment initialization failed:", error);
-      const errorMsg = error.name === 'AbortError' 
-        ? "Request timed out. Please try again." 
-        : (error.message || "Failed to load payment gateway.");
-      
-      toast.error(errorMsg);
+      toast.error(error.message || "Payment initialization failed.");
       setIsProcessing(false);
       processingRef.current = false;
     }
   };
+
+  const handleUpgrade = () => handlePayment('premium');
 
   const benefits = [
     {
@@ -341,6 +299,116 @@ export function PremiumPage() {
         </div>
       </div>
 
+      {/* PDF Store Section */}
+      <section id="pdf-store" className="mb-24">
+        <header className="text-center mb-16">
+          <Badge variant="new" className="mb-6 h-7 px-4 shadow-sm bg-blue-100 text-blue-700 uppercase">PDF Store & Bundles</Badge>
+          <h2 className="text-3xl font-bold text-violet-950 mb-4 tracking-tight">Revision PDF Store</h2>
+          <p className="text-slate-500 font-medium max-w-xl mx-auto leading-relaxed">
+            Already know what you need? Buy individual high-yield subject PDFs or bundle them for focused offline revision.
+          </p>
+        </header>
+
+        {selectedPdfSlugs.length >= 2 && validPdfs.length > 0 && selectedPdfSlugs.length >= Math.ceil(validPdfs.length / 2) && !isPremium && (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-10 p-6 rounded-3xl bg-amber-50 border-2 border-amber-200 flex flex-col md:flex-row items-center justify-between gap-6"
+          >
+            <div className="flex items-center gap-4">
+              <div className="h-12 w-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+                <Crown className="h-6 w-6" />
+              </div>
+              <div>
+                <h4 className="text-amber-950 font-bold">Bundle Recommended!</h4>
+                <p className="text-sm text-amber-700 font-medium">You've selected multiple PDFs. It is more cost-effective to get <b>Season Premium Access for ₹{price}</b> for all current and future PDFs.</p>
+              </div>
+            </div>
+            <Button onClick={handleUpgrade} className="bg-amber-600 hover:bg-amber-700 shadow-xl shadow-amber-200 whitespace-nowrap">
+              Upgrade to Premium
+            </Button>
+          </motion.div>
+        )}
+
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {subjectsLoading ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <Card key={i} className="p-6 h-48 border-slate-100 flex flex-col justify-between">
+                <div>
+                  <Skeleton className="h-10 w-10 mb-4 rounded-xl" />
+                  <Skeleton className="h-6 w-3/4 mb-2" />
+                  <Skeleton className="h-4 w-1/2" />
+                </div>
+              </Card>
+            ))
+          ) : validPdfs.length > 0 ? (
+            validPdfs.map((subject) => {
+              const isOwned = profile?.ownedPdfs?.includes(subject.slug) || isPremium;
+              const isSelected = selectedPdfSlugs.includes(subject.slug);
+
+              return (
+                <Card 
+                  key={subject.slug} 
+                  onClick={() => !isOwned && togglePdfSelection(subject.slug)}
+                  className={cn(
+                    "p-6 cursor-pointer transition-all duration-300 border-slate-100 relative group",
+                    isSelected && "border-violet-500 bg-violet-50/50 shadow-lg shadow-violet-100",
+                    isOwned && "opacity-80 cursor-default bg-emerald-50/20"
+                  )}
+                >
+                  <div className="mb-4 flex items-start justify-between">
+                    <div className={cn(
+                      "h-10 w-10 rounded-xl flex items-center justify-center transition-colors",
+                      isSelected ? "bg-violet-600 text-white" : "bg-slate-50 text-slate-400 group-hover:bg-violet-100 group-hover:text-violet-600"
+                    )}>
+                      <FileText className="h-5 w-5" />
+                    </div>
+                    {isOwned ? (
+                      <Badge variant="free" className="h-6 px-2 bg-emerald-100 text-emerald-700">Owned</Badge>
+                    ) : (
+                      <div className={cn(
+                        "h-6 w-6 rounded-full border-2 flex items-center justify-center transition-all",
+                        isSelected ? "border-violet-600 bg-violet-600 text-white" : "border-slate-200"
+                      )}>
+                        {isSelected && <Check className="h-3 w-3" />}
+                      </div>
+                    )}
+                  </div>
+                  <h4 className="font-bold text-violet-950 mb-1">{subject.title}</h4>
+                  <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">High-Yield PDF</p>
+                  
+                  {isSelected && (
+                    <div className="mt-4 pt-4 border-t border-violet-100 flex items-center justify-between">
+                      <span className="text-sm font-black text-violet-900">₹149</span>
+                      <Button 
+                        size="sm" 
+                        className="h-8 text-[10px] font-black"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handlePayment('pdf', subject.slug);
+                        }}
+                      >
+                        Buy Now
+                      </Button>
+                    </div>
+                  )}
+                </Card>
+              );
+            })
+          ) : (
+            <div className="col-span-full py-12 text-center">
+              <p className="text-slate-400 font-bold uppercase tracking-widest">No subject PDFs available for purchase yet.</p>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-12 text-center">
+          <Button variant="ghost" className="text-slate-400 hover:text-violet-600 font-black text-[10px] uppercase tracking-widest" onClick={selectAllPdfs}>
+            Select All Subjects
+          </Button>
+        </div>
+      </section>
+
       {/* FAQ Section */}
       <section className="mb-24 max-w-3xl mx-auto">
         <h2 className="text-2xl font-bold text-violet-950 mb-10 text-center tracking-tight">Common Questions</h2>
@@ -390,9 +458,13 @@ export function PremiumPage() {
                 <PartyPopper className="h-8 w-8" />
               </div>
               
-              <h2 className="text-2xl font-bold text-violet-950 mb-3 tracking-tight">Welcome to Premium!</h2>
+              <h2 className="text-2xl font-bold text-violet-950 mb-3 tracking-tight">
+                {successType === 'premium' ? 'Welcome to Premium!' : 'PDF Unlocked!'}
+              </h2>
               <p className="text-slate-600 text-sm font-medium mb-8 leading-relaxed">
-                Your payment was successful. You now have full access to all high-yield topics and premium downloads.
+                {successType === 'premium' 
+                  ? 'Your payment was successful. You now have full access to all high-yield topics and premium downloads.'
+                  : 'Your payment was successful. You can now download the PDF from the subject page.'}
               </p>
               
               <Button 

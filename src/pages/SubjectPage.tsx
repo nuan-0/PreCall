@@ -9,8 +9,18 @@ export function SubjectPage() {
   const { slug } = useParams();
   const { subjects } = useSubjects();
   const subject = subjects.find(s => s.slug === slug);
+  const { user, profile, isAdmin, isPremium: userIsPremium, openAuthModal } = useAuth();
 
   const { topics, loading } = useTopics(subject?.slug || '');
+  
+  const hasPdfAccess = userIsPremium || isAdmin || subject?.pdfAccessType === 'free' || profile?.ownedPdfs?.includes(subject?.slug || '');
+
+  const handlePdfClick = (e: React.MouseEvent) => {
+    if (!user) {
+      e.preventDefault();
+      openAuthModal();
+    }
+  };
   
   const displayTopics = topics.length > 0 ? topics : [
     { title: 'Fundamental Rights vs DPSP', teaser: 'The core conflict and balance between Part III and Part IV.', status: 'free', slug: 'fr-vs-dpsp' },
@@ -58,11 +68,19 @@ export function SubjectPage() {
         </div>
         
         {subject.pdfVisible ? (
-          <a href={subject.pdfUrl} target="_blank" rel="noopener noreferrer" className="w-full md:w-auto">
-            <Button variant="outline" icon={FileText} className="w-full h-16 px-10 text-base shadow-xl shadow-slate-200/20 bg-white border-slate-200 hover:border-violet-300 hover:text-violet-600">
-              {subject.pdfTitle || 'Download PDF'}
-            </Button>
-          </a>
+          hasPdfAccess ? (
+            <a href={subject.pdfUrl} target="_blank" rel="noopener noreferrer" className="w-full md:w-auto">
+              <Button variant="outline" icon={FileText} className="w-full h-16 px-10 text-base shadow-xl shadow-slate-200/20 bg-white border-slate-200 hover:border-violet-300 hover:text-violet-600">
+                {subject.pdfTitle || 'Download PDF'}
+              </Button>
+            </a>
+          ) : (
+            <Link to="/premium" onClick={handlePdfClick} className="w-full md:w-auto">
+              <Button variant="outline" icon={Lock} className="w-full h-16 px-10 text-base shadow-xl shadow-amber-100/20 bg-amber-50/30 border-amber-200 text-amber-700 hover:bg-amber-50">
+                Unlock PDF (₹149)
+              </Button>
+            </Link>
+          )
         ) : (
           <div className="w-full md:w-auto flex items-center gap-4 px-8 py-5 rounded-2xl bg-slate-50 border border-slate-100 text-slate-400 shadow-inner">
             <FileText className="h-6 w-6" />

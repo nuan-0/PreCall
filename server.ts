@@ -8,9 +8,12 @@ const Razorpay = (RazorpayPkg as any).default || RazorpayPkg;
 import crypto from 'crypto';
 // @ts-ignore
 import admin from 'firebase-admin';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import fs from 'fs';
 import fetch from 'node-fetch';
+
+import multer from 'multer';
+const upload = multer({ storage: multer.memoryStorage() });
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -55,7 +58,8 @@ async function startServer() {
           const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
           admin.initializeApp({
             credential: admin.credential.cert(serviceAccount),
-            databaseURL: `https://${serviceAccount.project_id}.firebaseio.com`
+            databaseURL: `https://${serviceAccount.project_id}.firebaseio.com`,
+            storageBucket: config.storageBucket || `${serviceAccount.project_id}.firebasestorage.app`
           });
           console.log('✅ Firebase Admin initialized via Service Account');
         } catch (parseError) {
@@ -64,7 +68,8 @@ async function startServer() {
         }
       } else if (config.projectId) {
         admin.initializeApp({
-          projectId: config.projectId
+          projectId: config.projectId,
+          storageBucket: config.storageBucket
         });
         console.log('✅ Firebase Admin initialized via local config');
       } else {
@@ -181,6 +186,57 @@ async function startServer() {
     });
   });
 
+  // API: Proxy Upload to Storage (Bypass CORS issues)
+  app.post('/api/upload', upload.single('file'), async (req: any, res) => {
+    try {
+      const { userId, folder = 'uploads' } = req.body;
+      const file = req.file;
+
+      if (!file) {
+        console.error('[Upload Proxy] No file received');
+        return res.status(400).json({ error: 'No file uploaded' });
+      }
+
+      console.log(`[Upload Proxy] Received ${file.originalname} (${file.size} bytes) for user: ${userId}`);
+
+      // Basic Admin Check
+      const user = await admin.auth().getUser(userId);
+      if (user.email !== 'precall.admin@gmail.com') {
+        console.warn(`[Upload Proxy] Permission denied for ${user.email}`);
+        return res.status(403).json({ error: 'Only authorized admins can upload files' });
+      }
+
+      const bucketName = (admin.app().options as any).storageBucket;
+      const bucket = admin.storage().bucket(bucketName);
+      const fileName = `${folder}/${Date.now()}-${file.originalname.replace(/\s+/g, '_')}`;
+      const blob = bucket.file(fileName);
+
+      console.log(`[Upload Proxy] Target bucket: ${bucket.name}, File: ${fileName}`);
+
+      // Using blob.save instead of createWriteStream for more reliability
+      await blob.save(file.buffer, {
+        metadata: {
+          contentType: file.mimetype,
+        }
+      });
+
+      try {
+        // Attempt to make public, ignore if it fails (bucket might be Uniform bucket-level access)
+        await blob.makePublic();
+      } catch (pubErr) {
+        console.warn('[Upload Proxy] makePublic failed, likely Uniform access or permission restriction');
+      }
+
+      const publicUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
+      console.log(`[Upload Proxy] Upload successfully processed: ${publicUrl}`);
+      res.json({ url: publicUrl });
+
+    } catch (err: any) {
+      console.error('[Upload Proxy] Catch error:', err);
+      res.status(500).json({ error: 'Upload proxy failed', details: err.message });
+    }
+  });
+
   // API: Create Order
   app.post('/api/create-order', async (req, res) => {
     const { amount } = req.body;
@@ -226,7 +282,10 @@ async function startServer() {
       razorpay_payment_id, 
       razorpay_order_id, 
       razorpay_signature,
-      userId 
+      userId,
+      productType = 'premium', // 'premium', 'pdf', or 'pdf_bundle'
+      productSlug = null,      // if productType is 'pdf'
+      productSlugs = []        // if productType is 'pdf_bundle'
     } = req.body;
 
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
@@ -244,34 +303,56 @@ async function startServer() {
 
     if (generated_signature === razorpay_signature) {
       try {
-        console.log(`[Payment] Signature verified for user: ${userId}. Updating Firestore...`);
-        // Update user status in Firestore
-        await db.collection('users').doc(userId).set({
-          isPremium: true,
+        console.log(`[Payment] Signature verified for user: ${userId}. Product: ${productType} ${productSlug || productSlugs.join(',')}. Updating Firestore...`);
+        
+        const userRef = db.collection('users').doc(userId);
+        const updateData: any = {
           premiumPaymentId: razorpay_payment_id,
           premiumOrderId: razorpay_order_id,
-          premiumActivatedAt: new Date().toISOString()
-        }, { merge: true });
+          lastPaymentAt: new Date().toISOString()
+        };
+
+        let notificationTitle = 'Payment Verified! ✅';
+        let notificationMessage = 'Your payment was verified. Access granted!';
+
+        if (productType === 'premium') {
+          updateData.isPremium = true;
+          updateData.premiumActivatedAt = new Date().toISOString();
+          notificationTitle = 'Premium Activated! 👑';
+          notificationMessage = 'Your payment was verified. You now have full access to everything!';
+        } else if (productType === 'pdf' && productSlug) {
+          updateData.ownedPdfs = FieldValue.arrayUnion(productSlug);
+          notificationTitle = 'PDF Unlocked! 📄';
+          notificationMessage = `You have successfully purchased the high-yield PDF for ${productSlug}.`;
+        } else if (productType === 'pdf_bundle' && productSlugs.length > 0) {
+          updateData.ownedPdfs = FieldValue.arrayUnion(...productSlugs);
+          notificationTitle = 'PDF Bundle Unlocked! 📚';
+          notificationMessage = `You have successfully purchased ${productSlugs.length} high-yield PDFs.`;
+        }
+
+        // Update user status in Firestore
+        await userRef.set(updateData, { merge: true });
 
         // Add notification
         await db.collection('notifications').add({
           userId: userId,
-          title: 'Premium Activated! 👑',
-          message: 'Your payment was verified by our server. You now have full access!',
-          type: 'premium',
+          title: notificationTitle,
+          message: notificationMessage,
+          type: productType === 'premium' ? 'premium' : 'welcome',
           createdAt: new Date().toISOString()
         });
 
-        // Get Total Premium Users for Telegram Update
+        // Get Summary for Telegram Update
         const premiumSnap = await db.collection('users').where('isPremium', '==', true).count().get();
         const totalPremium = premiumSnap.data().count;
 
         // Notify via Telegram
         await sendTelegramNotification(
-          `💰 <b>New Premium Payment!</b>\n\n` +
+          `💰 <b>New ${productType === 'premium' ? 'Premium' : 'PDF'} Purchase!</b>\n\n` +
           `👤 <b>User ID:</b> <code>${userId}</code>\n` +
-          `💳 <b>Order ID:</b> <code>${razorpay_order_id}</code>\n` +
-          `📈 <b>Total Premium Users:</b> ${totalPremium}\n\n` +
+          `📄 <b>Item:</b> ${productType === 'premium' ? 'Full Access' : `PDF: ${productSlug}`}\n` +
+          `💳 <b>Order:</b> <code>${razorpay_order_id}</code>\n` +
+          `📈 <b>Total Premium:</b> ${totalPremium}\n\n` +
           `<i>App: PreCall Revision</i>`
         );
 

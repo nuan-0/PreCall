@@ -1,9 +1,9 @@
 import { LayoutDashboard, Plus, Settings, FileText, BookOpen, Edit2, Trash2, Zap, ExternalLink, Save, X, AlertCircle, Info, Sparkles, Users, LogOut, ChevronRight, Eye, Copy, Menu, Layout, Target, Filter, CheckCircle2, ShieldCheck, Bell, Send, AlertTriangle, Upload } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, Route, Routes, useLocation } from 'react-router-dom';
 import { Badge, Button, Card, Modal } from '../components/UI';
 import { collection, doc, setDoc, writeBatch, deleteDoc, addDoc, getDocs } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL, uploadBytesResumable } from 'firebase/storage';
 import { db, storage, handleFirestoreError, OperationType } from '../firebase';
 import { toast } from 'sonner';
 import { useSubjects, useTopics, useSettings, useNotifications } from '../hooks/useData';
@@ -1105,9 +1105,71 @@ function StatCard({ title, value, icon: Icon, color }: any) {
 }
 
 function AdminSubjects({ showConfirm }: { showConfirm: any }) {
+  const { user } = useAuth();
   const { subjects } = useSubjects();
   const [editingSubject, setEditingSubject] = useState<Partial<Subject> | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+
+  const pdfInputRef = useRef<HTMLInputElement>(null);
+
+  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== 'application/pdf') {
+      toast.error('Please upload a PDF file');
+      return;
+    }
+
+    const toastId = toast.loading('Initiating upload...');
+    try {
+      if (!user) throw new Error('Not authenticated');
+      
+      let url = '';
+      try {
+        // Attempt Direct Browser Upload
+        toast.loading('Attempting direct browser upload...', { id: toastId });
+        const storageRef = ref(storage, `subjects/${Date.now()}-${file.name}`);
+        const result = await uploadBytes(storageRef, file);
+        url = await getDownloadURL(result.ref);
+        console.log('Direct upload successful:', url);
+      } catch (directError: any) {
+        console.warn('Direct upload failed, falling back to proxy:', directError);
+        toast.loading('Direct upload failed, switching to server proxy...', { id: toastId });
+        
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('userId', user.uid);
+        formData.append('folder', 'subjects');
+
+        const response = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Server upload failed');
+        }
+
+        const data = await response.json();
+        url = data.url;
+      }
+      
+      setEditingSubject(prev => prev ? { 
+        ...prev, 
+        pdfUrl: url, 
+        pdfVisible: true,
+        pdfTitle: prev.pdfTitle || `High-Yield ${prev.title || 'Revision'} PDF`
+      } : null);
+      toast.success('PDF uploaded successfully!', { id: toastId });
+    } catch (error: any) {
+      console.error('Final upload error:', error);
+      toast.error(`Upload failed: ${error.message}`, { id: toastId });
+    } finally {
+      if (e.target) e.target.value = '';
+    }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1275,8 +1337,25 @@ function AdminSubjects({ showConfirm }: { showConfirm: any }) {
                         </div>
                         <div className="space-y-2">
                           <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">PDF Link (URL)</label>
-                          <input type="text" className="w-full h-12 rounded-xl border-slate-200 text-sm font-bold focus:ring-violet-500 focus:border-violet-500" value={editingSubject.pdfUrl || ''} onChange={e => setEditingSubject({...editingSubject, pdfUrl: e.target.value})} placeholder="https://..." />
-                          <p className="text-[10px] font-medium text-slate-400 italic">The direct link to the file.</p>
+                            <div className="flex gap-2">
+                              <input type="text" className="flex-1 h-12 rounded-xl border-slate-200 text-sm font-bold focus:ring-violet-500 focus:border-violet-500" value={editingSubject.pdfUrl || ''} onChange={e => setEditingSubject({...editingSubject, pdfUrl: e.target.value})} placeholder="https://..." />
+                              <input 
+                                type="file" 
+                                ref={pdfInputRef}
+                                accept="application/pdf" 
+                                className="hidden" 
+                                onChange={handlePdfUpload} 
+                              />
+                              <button 
+                                type="button"
+                                onClick={() => pdfInputRef.current?.click()}
+                                className="flex items-center justify-center h-12 px-4 rounded-xl bg-blue-100 text-blue-600 font-bold cursor-pointer hover:bg-blue-200 transition-colors"
+                              >
+                                <Upload className="h-4 w-4 mr-2" />
+                                Upload
+                              </button>
+                            </div>
+                          <p className="text-[10px] font-medium text-slate-400 italic">The direct link to the file or upload a new one.</p>
                         </div>
                       </div>
                     </div>
@@ -1391,10 +1470,13 @@ const BULK_PASTE_TEMPLATE = `### Why this matters
 [Comma separated list of related topics]`;
 
 function AdminTopics({ showConfirm }: { showConfirm: any }) {
+  const { user } = useAuth();
   const { topics } = useTopics();
   const { subjects } = useSubjects();
   const [editingTopic, setEditingTopic] = useState<Partial<Topic> | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
+  const imgInputRef = useRef<HTMLInputElement>(null);
   const [filterSubject, setFilterSubject] = useState<string>('all');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -1501,20 +1583,48 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
       return;
     }
 
-    const toastId = toast.loading('Uploading image...');
+    const toastId = toast.loading('Initiating upload...');
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `infographics/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-      const storageRef = ref(storage, fileName);
+      if (!user) throw new Error('Not authenticated');
+
+      let url = '';
+      try {
+        // Attempt Direct Browser Upload
+        toast.loading('Attempting direct browser upload...', { id: toastId });
+        const storageRef = ref(storage, `infographics/${Date.now()}-${file.name}`);
+        const result = await uploadBytes(storageRef, file);
+        url = await getDownloadURL(result.ref);
+        console.log('Direct image upload successful:', url);
+      } catch (directError: any) {
+        console.warn('Direct image upload failed, falling back to proxy:', directError);
+        toast.loading('Direct upload failed, switching to server proxy...', { id: toastId });
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('userId', user.uid);
+        formData.append('folder', 'infographics');
+
+        const response = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Server upload failed');
+        }
+
+        const data = await response.json();
+        url = data.url;
+      }
       
-      await uploadBytes(storageRef, file);
-      const downloadUrl = await getDownloadURL(storageRef);
-      
-      setEditingTopic(prev => prev ? { ...prev, infographicUrl: downloadUrl } : null);
-      toast.success('Image uploaded successfully', { id: toastId });
-    } catch (error) {
-      console.error('Upload error:', error);
-      toast.error('Failed to upload image', { id: toastId });
+      setEditingTopic(prev => prev ? { ...prev, infographicUrl: url } : null);
+      toast.success('Image uploaded successfully!', { id: toastId });
+    } catch (error: any) {
+      console.error('Final image upload error:', error);
+      toast.error(`Image upload failed: ${error.message}`, { id: toastId });
+    } finally {
+      if (e.target) e.target.value = '';
     }
   };
 
@@ -1527,19 +1637,48 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
       return;
     }
 
-    const toastId = toast.loading('Uploading PDF...');
+    const toastId = toast.loading('Initiating upload...');
     try {
-      const fileName = `pdfs/${Date.now()}-${Math.random().toString(36).substring(7)}.pdf`;
-      const storageRef = ref(storage, fileName);
-      
-      await uploadBytes(storageRef, file);
-      const downloadUrl = await getDownloadURL(storageRef);
-      
-      setEditingTopic(prev => prev ? { ...prev, pdfLink: downloadUrl } : null);
-      toast.success('PDF uploaded successfully', { id: toastId });
-    } catch (error) {
-      console.error('Upload error:', error);
-      toast.error('Failed to upload PDF', { id: toastId });
+      if (!user) throw new Error('Not authenticated');
+
+      let url = '';
+      try {
+        // Attempt Direct Browser Upload
+        toast.loading('Attempting direct browser upload...', { id: toastId });
+        const storageRef = ref(storage, `topic-pdfs/${Date.now()}-${file.name}`);
+        const result = await uploadBytes(storageRef, file);
+        url = await getDownloadURL(result.ref);
+        console.log('Direct PDF upload successful:', url);
+      } catch (directError: any) {
+        console.warn('Direct PDF upload failed, falling back to proxy:', directError);
+        toast.loading('Direct upload failed, switching to server proxy...', { id: toastId });
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('userId', user.uid);
+        formData.append('folder', 'topic-pdfs');
+
+        const response = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Server upload failed');
+        }
+
+        const data = await response.json();
+        url = data.url;
+      }
+
+      setEditingTopic(prev => prev ? { ...prev, pdfLink: url } : null);
+      toast.success('PDF uploaded successfully!', { id: toastId });
+    } catch (error: any) {
+      console.error('Final PDF upload error:', error);
+      toast.error(`PDF upload failed: ${error.message}`, { id: toastId });
+    } finally {
+      if (e.target) e.target.value = '';
     }
   };
 
@@ -1844,25 +1983,25 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
                       </div>
                       <div className="space-y-2">
                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Optional PDF Link</label>
-                        <div className="flex gap-2">
-                          <input type="text" className="flex-1 h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.pdfLink || ''} onChange={e => setEditingTopic({...editingTopic, pdfLink: e.target.value})} placeholder="https://..." />
-                          <label className="flex items-center justify-center h-12 px-4 rounded-xl bg-violet-100 text-violet-600 font-bold cursor-pointer hover:bg-violet-200 transition-colors">
-                            <Upload className="h-4 w-4 mr-2" />
-                            Upload
-                            <input type="file" accept="application/pdf" className="hidden" onChange={handlePdfUpload} />
-                          </label>
-                        </div>
+                          <div className="flex gap-2">
+                            <input type="text" className="flex-1 h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.pdfLink || ''} onChange={e => setEditingTopic({...editingTopic, pdfLink: e.target.value})} placeholder="https://..." />
+                            <input type="file" ref={pdfInputRef} accept="application/pdf" className="hidden" onChange={handlePdfUpload} />
+                            <button type="button" onClick={() => pdfInputRef.current?.click()} className="flex items-center justify-center h-12 px-4 rounded-xl bg-violet-100 text-violet-600 font-bold cursor-pointer hover:bg-violet-200 transition-colors">
+                              <Upload className="h-4 w-4 mr-2" />
+                              Upload
+                            </button>
+                          </div>
                       </div>
                       <div className="space-y-2">
                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Infographic Image URL</label>
-                        <div className="flex gap-2">
-                          <input type="text" className="flex-1 h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.infographicUrl || ''} onChange={e => setEditingTopic({...editingTopic, infographicUrl: e.target.value})} placeholder="https://..." />
-                          <label className="flex items-center justify-center h-12 px-4 rounded-xl bg-violet-100 text-violet-600 font-bold cursor-pointer hover:bg-violet-200 transition-colors">
-                            <Upload className="h-4 w-4 mr-2" />
-                            Upload
-                            <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
-                          </label>
-                        </div>
+                          <div className="flex gap-2">
+                            <input type="text" className="flex-1 h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.infographicUrl || ''} onChange={e => setEditingTopic({...editingTopic, infographicUrl: e.target.value})} placeholder="https://..." />
+                            <input type="file" ref={imgInputRef} accept="image/*" className="hidden" onChange={handleImageUpload} />
+                            <button type="button" onClick={() => imgInputRef.current?.click()} className="flex items-center justify-center h-12 px-4 rounded-xl bg-violet-100 text-violet-600 font-bold cursor-pointer hover:bg-violet-200 transition-colors">
+                              <Upload className="h-4 w-4 mr-2" />
+                              Upload
+                            </button>
+                          </div>
                       </div>
                     </div>
                   </section>
@@ -2146,6 +2285,11 @@ function AdminSettings({ showConfirm }: { showConfirm: any }) {
                   <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Current Price (₹)</label>
                   <input type="text" className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={formData.price || ''} onChange={e => setFormData({...formData, price: e.target.value})} placeholder="e.g. 999" />
                   <p className="text-[10px] font-medium text-slate-400 italic">What users pay today for full access.</p>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Individual PDF Price (₹)</label>
+                  <input type="text" className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={formData.pdfPrice || ''} onChange={e => setFormData({...formData, pdfPrice: e.target.value})} placeholder="e.g. 199" />
+                  <p className="text-[10px] font-medium text-slate-400 italic">Price per subject PDF in the store.</p>
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Original Price (₹)</label>

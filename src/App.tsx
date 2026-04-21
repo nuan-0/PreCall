@@ -9,6 +9,7 @@ import { SubjectPage } from './pages/SubjectPage';
 import { TopicPage } from './pages/TopicPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { NotificationsPage } from './pages/NotificationsPage';
+import { PdfStorePage } from './pages/PdfStorePage';
 import AboutPage from './pages/AboutPage';
 import ContactPage from './pages/ContactPage';
 import TermsPage from './pages/TermsPage';
@@ -49,10 +50,27 @@ function AppContent({ settings }: { settings: any }) {
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/subject/:slug" element={<SubjectPage />} />
-          <Route path="/topic/:slug" element={<TopicPage />} />
+          <Route 
+            path="/pdf-store" 
+            element={<PdfStorePage />} 
+          />
+          <Route 
+            path="/subject/:slug" 
+            element={<SubjectPage />} 
+          />
+          <Route 
+            path="/topic/:slug" 
+            element={<TopicPage />} 
+          />
           <Route path="/premium" element={<PremiumPage />} />
-          <Route path="/notifications" element={<NotificationsPage />} />
+          <Route 
+            path="/notifications" 
+            element={
+              <ProtectedRoute>
+                <NotificationsPage />
+              </ProtectedRoute>
+            } 
+          />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/contact" element={<ContactPage />} />
           <Route path="/terms" element={<TermsPage />} />

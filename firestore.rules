@@ -133,7 +133,7 @@ service cloud.firestore {
                     !('role' in request.resource.data) && 
                     !('isPremium' in request.resource.data);
       allow update: if isAuthenticated() && request.auth.uid == userId && 
-                    (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'isPremium', 'premiumExpiry', 'premiumPaymentId', 'premiumOrderId', 'premiumActivatedAt']) || isAdmin());
+                    (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'isPremium', 'premiumExpiry', 'premiumPaymentId', 'premiumOrderId', 'premiumActivatedAt', 'ownedPdfs']) || isAdmin());
     }
 
     match /notifications/{notificationId} {

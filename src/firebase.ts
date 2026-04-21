@@ -41,7 +41,7 @@ export const db = initializeFirestore(app, {
   })
 }, firebaseConfig.firestoreDatabaseId || '(default)');
 
-export const storage = getStorage(app);
+export const storage = getStorage(app, firebaseConfig.storageBucket);
 
 export enum OperationType {
   CREATE = 'create',

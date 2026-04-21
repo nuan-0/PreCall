@@ -179,6 +179,24 @@ export function Dashboard() {
           )}
         </div>
       </section>
+
+      {/* Mini PDF Store CTA */}
+      {(!isAdmin && !isPremium) && (
+        <section className="mt-16 text-center">
+          <div className="inline-block p-10 rounded-[2.5rem] bg-violet-50 border border-violet-100 max-w-2xl shadow-sm relative overflow-hidden group">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-violet-200/20 rounded-full blur-2xl -mr-16 -mt-16" />
+            <div className="relative z-10">
+              <h4 className="text-violet-950 text-xl font-black mb-2 tracking-tight">Only need the Revision PDFs?</h4>
+              <p className="text-slate-500 font-medium mb-6 leading-relaxed">If you don't need full access, you can buy high-yield subject PDFs individually at just ₹149.</p>
+              <Link to="/premium#pdf-store">
+                <Button variant="outline" className="border-violet-200 text-violet-600 hover:bg-violet-600 hover:text-white px-8 h-12 shadow-lg shadow-violet-100 transition-all">
+                  Explore PDF Store
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
     </div>
   );
 }

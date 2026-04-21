@@ -97,7 +97,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               updates.push(addDoc(collection(db, 'notifications'), {
                 userId: firebaseUser.uid,
                 title: 'Welcome to PreCall!',
-                message: `Hi ${firebaseUser.displayName?.split(' ')[0] || 'Aspirant'}, we're excited to help you master UPSC Prelims. Start by exploring the Polity topics!`,
+                message: `Hi ${firebaseUser.displayName?.split(' ')[0] || 'Aspirant'}, we're excited to help you master UPSC Prelims. Start by exploring high-yield topics in Polity and Modern History!`,
                 type: 'welcome',
                 createdAt: new Date().toISOString()
               }));

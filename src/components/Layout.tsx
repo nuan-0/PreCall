@@ -1,4 +1,4 @@
-import { BookOpen, ChevronRight, LayoutDashboard, Lock, Menu, X, ShieldCheck, LogOut, LogIn, User as UserIcon, Download, Bell } from 'lucide-react';
+import { BookOpen, ChevronRight, LayoutDashboard, Lock, Menu, X, ShieldCheck, LogOut, LogIn, User as UserIcon, Download, Bell, ShoppingCart } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
@@ -43,6 +43,7 @@ export function Navbar() {
   const navItems = [
     { name: 'Home', path: '/', icon: BookOpen },
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+    { name: 'PDF Store', path: '/pdf-store', icon: ShoppingCart },
     { name: 'Notifications', path: '/notifications', icon: Bell },
     { name: 'Premium', path: '/premium', icon: ShieldCheck, hideIfPaid: true },
   ].filter(item => !item.hideIfPaid || (!isPremium && !isAdmin));
