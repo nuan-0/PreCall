@@ -86,3 +86,16 @@ export interface UserProfile {
   completedTopics?: string[];
   lastLogin: string;
 }
+
+export interface Coupon {
+  id: string;
+  code: string;
+  type: 'flat' | 'percentage';
+  discountAmount?: number;
+  discountPercentage?: number;
+  isActive: boolean;
+  usageCount: number;
+  maxUsage?: number;
+  expiresAt?: string;
+  createdAt: string;
+}

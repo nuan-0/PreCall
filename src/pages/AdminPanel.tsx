@@ -8,7 +8,7 @@ import { db, storage, handleFirestoreError, OperationType } from '../firebase';
 import { toast } from 'sonner';
 import { useSubjects, useTopics, useSettings, useNotifications } from '../hooks/useData';
 import { useAuth } from '../contexts/AuthContext';
-import { Subject, Topic, AppSettings, AppNotification } from '../types';
+import { Subject, Topic, AppSettings, AppNotification, Coupon } from '../types';
 import { cn } from '../lib/utils';
 
 export const INITIAL_SUBJECTS = [
@@ -307,6 +307,7 @@ export function AdminPanel() {
           <AdminNavLink to="/admin/access" icon={ShieldCheck} active={location.pathname === '/admin/access'} onClick={() => setIsMobileMenuOpen(false)}>Admin Access</AdminNavLink>
           
           <div className="pt-6 pb-2 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Business</div>
+          <AdminNavLink to="/admin/coupons" icon={Copy} active={location.pathname === '/admin/coupons'} onClick={() => setIsMobileMenuOpen(false)}>Manage Coupons</AdminNavLink>
           <AdminNavLink to="/admin/settings" icon={Settings} active={location.pathname === '/admin/settings'} onClick={() => setIsMobileMenuOpen(false)}>App Settings</AdminNavLink>
         </nav>
 
@@ -351,6 +352,7 @@ export function AdminPanel() {
           <Route path="/notifications" element={<AdminNotifications showConfirm={showConfirm} />} />
           <Route path="/settings" element={<AdminSettings showConfirm={showConfirm} />} />
           <Route path="/access" element={<AdminAccess showConfirm={showConfirm} />} />
+          <Route path="/coupons" element={<AdminCoupons showConfirm={showConfirm} />} />
         </Routes>
       </main>
 
@@ -1337,25 +1339,47 @@ function AdminSubjects({ showConfirm }: { showConfirm: any }) {
                         </div>
                         <div className="space-y-2">
                           <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">PDF Link (URL)</label>
-                            <div className="flex gap-2">
-                              <input type="text" className="flex-1 h-12 rounded-xl border-slate-200 text-sm font-bold focus:ring-violet-500 focus:border-violet-500" value={editingSubject.pdfUrl || ''} onChange={e => setEditingSubject({...editingSubject, pdfUrl: e.target.value})} placeholder="https://..." />
-                              <input 
-                                type="file" 
-                                ref={pdfInputRef}
-                                accept="application/pdf" 
-                                className="hidden" 
-                                onChange={handlePdfUpload} 
-                              />
-                              <button 
-                                type="button"
-                                onClick={() => pdfInputRef.current?.click()}
-                                className="flex items-center justify-center h-12 px-4 rounded-xl bg-blue-100 text-blue-600 font-bold cursor-pointer hover:bg-blue-200 transition-colors"
-                              >
-                                <Upload className="h-4 w-4 mr-2" />
-                                Upload
-                              </button>
+                            <div className="flex flex-col gap-2">
+                              <div className="flex gap-2">
+                                <input type="text" className={cn(
+                                  "flex-1 h-12 rounded-xl border-slate-200 text-sm font-bold focus:ring-violet-500 focus:border-violet-500",
+                                  editingSubject.pdfVisible && !editingSubject.pdfUrl && "border-amber-300 bg-amber-50"
+                                )} value={editingSubject.pdfUrl || ''} onChange={e => setEditingSubject({...editingSubject, pdfUrl: e.target.value})} placeholder="https://..." />
+                                <input 
+                                  type="file" 
+                                  ref={pdfInputRef}
+                                  accept="application/pdf" 
+                                  className="hidden" 
+                                  onChange={handlePdfUpload} 
+                                />
+                                <button 
+                                  type="button"
+                                  onClick={() => pdfInputRef.current?.click()}
+                                  className="flex items-center justify-center h-12 px-4 rounded-xl bg-blue-100 text-blue-600 font-bold cursor-pointer hover:bg-blue-200 transition-colors"
+                                >
+                                  <Upload className="h-4 w-4 mr-2" />
+                                  Upload
+                                </button>
+                                {editingSubject.pdfUrl && (
+                                  <Button 
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setEditingSubject({...editingSubject, pdfUrl: '', pdfVisible: false})}
+                                    className="h-12 w-12 p-0 border-rose-200 text-rose-500 hover:bg-rose-50"
+                                    title="Remove PDF"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </div>
+                              {editingSubject.pdfVisible && !editingSubject.pdfUrl && (
+                                <p className="text-[10px] font-bold text-amber-600 animate-pulse flex items-center gap-1">
+                                  <AlertTriangle className="h-3 w-3" />
+                                  Warning: PDF is enabled but no link is set. Users will see "Coming Soon".
+                                </p>
+                              )}
                             </div>
-                          <p className="text-[10px] font-medium text-slate-400 italic">The direct link to the file or upload a new one.</p>
+                          <p className="text-[10px] font-medium text-slate-400 italic">The direct link to the file or upload a new one. Remember to save subject after uploading!</p>
                         </div>
                       </div>
                     </div>
@@ -1990,6 +2014,17 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
                               <Upload className="h-4 w-4 mr-2" />
                               Upload
                             </button>
+                            {editingTopic.pdfUrl && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setEditingTopic({ ...editingTopic, pdfUrl: '' })}
+                                className="h-12 w-12 p-0 border-rose-200 text-rose-500 hover:bg-rose-50"
+                                title="Remove PDF"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
                           </div>
                       </div>
                       <div className="space-y-2">
@@ -2001,6 +2036,17 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
                               <Upload className="h-4 w-4 mr-2" />
                               Upload
                             </button>
+                            {editingTopic.infographicUrl && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setEditingTopic({ ...editingTopic, infographicUrl: '' })}
+                                className="h-12 w-12 p-0 border-rose-200 text-rose-500 hover:bg-rose-50"
+                                title="Remove Infographic"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
                           </div>
                       </div>
                     </div>
@@ -2358,6 +2404,199 @@ function AdminSettings({ showConfirm }: { showConfirm: any }) {
           </Card>
         </div>
       </div>
+    </div>
+  );
+}
+
+function AdminCoupons({ showConfirm }: { showConfirm: any }) {
+  const { user } = useAuth();
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editingCoupon, setEditingCoupon] = useState<Partial<Coupon> | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    fetchCoupons();
+  }, []);
+
+  const fetchCoupons = async () => {
+    try {
+      const res = await fetch(`/api/admin/coupons?userId=${user?.uid}`);
+      if (res.ok) {
+        const data = await res.json();
+        setCoupons(data);
+      }
+    } catch (err) {
+      toast.error('Failed to fetch coupons');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveCoupon = async () => {
+    if (!editingCoupon?.code || !editingCoupon?.type) {
+      toast.error('Code and type are required');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const res = await fetch('/api/admin/coupons', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user?.uid,
+          coupon: editingCoupon
+        })
+      });
+
+      if (res.ok) {
+        toast.success('Coupon saved');
+        setEditingCoupon(null);
+        fetchCoupons();
+      } else {
+        throw new Error();
+      }
+    } catch (err) {
+      toast.error('Failed to save coupon');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-10">
+      <header className="flex justify-between items-end">
+        <div>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Coupons</h1>
+          <p className="text-slate-500 font-medium mt-1">Create discount codes for your users.</p>
+        </div>
+        <Button onClick={() => setEditingCoupon({ code: '', type: 'percentage', isActive: true, discountPercentage: 10 })} className="shadow-lg shadow-violet-200">
+          <Plus className="h-5 w-5 mr-2" />
+          Create Coupon
+        </Button>
+      </header>
+
+      {loading ? (
+        <div className="flex justify-center p-20">
+          <Zap className="h-8 w-8 text-violet-600 animate-spin" />
+        </div>
+      ) : (
+        <Card className="p-0 border-slate-200 shadow-sm overflow-hidden">
+          <div className="divide-y divide-slate-100">
+            {coupons.length === 0 ? (
+              <div className="p-10 text-center text-slate-400 font-bold">No coupons found.</div>
+            ) : (
+              coupons.map(coupon => (
+                <div key={coupon.id} className="flex items-center justify-between px-8 py-5 hover:bg-slate-50/30 transition-colors">
+                  <div className="flex items-center gap-6">
+                    <div className="h-12 w-12 rounded-2xl bg-violet-100 text-violet-600 flex items-center justify-center font-black text-xs">
+                      {coupon.type === 'percentage' ? `${coupon.discountPercentage}%` : `â‚¹${coupon.discountAmount}`}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-black text-slate-900 tracking-wider font-mono text-lg">{coupon.code}</span>
+                        {!coupon.isActive && <Badge variant="free">Inactive</Badge>}
+                      </div>
+                      <p className="text-xs text-slate-400 font-bold uppercase mt-1">
+                        Used {coupon.usageCount} times {coupon.maxUsage ? `/ Max ${coupon.maxUsage}` : ''}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => setEditingCoupon(coupon)} className="p-2 text-slate-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg">
+                      <Edit2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </Card>
+      )}
+
+      {editingCoupon && (
+        <Modal 
+          isOpen={!!editingCoupon} 
+          onClose={() => setEditingCoupon(null)} 
+          title={editingCoupon.id ? "Edit Coupon" : "New Coupon"}
+        >
+          <div className="space-y-6">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Coupon Code</label>
+                <input 
+                  className="w-full h-12 rounded-xl border-slate-200 font-black tracking-widest uppercase"
+                  value={editingCoupon.code}
+                  onChange={e => setEditingCoupon({ ...editingCoupon, code: e.target.value.toUpperCase() })}
+                  placeholder="WELCOME10"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Discount Type</label>
+                <select 
+                  className="w-full h-12 rounded-xl border-slate-200 font-bold"
+                  value={editingCoupon.type}
+                  onChange={e => setEditingCoupon({ ...editingCoupon, type: e.target.value as any })}
+                >
+                  <option value="percentage">Percentage (%)</option>
+                  <option value="flat">Flat Amount (â‚¹)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              {editingCoupon.type === 'percentage' ? (
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Percentage</label>
+                  <input 
+                    type="number"
+                    className="w-full h-12 rounded-xl border-slate-200 font-bold"
+                    value={editingCoupon.discountPercentage}
+                    onChange={e => setEditingCoupon({ ...editingCoupon, discountPercentage: Number(e.target.value) })}
+                  />
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Amount (INR)</label>
+                  <input 
+                    type="number"
+                    className="w-full h-12 rounded-xl border-slate-200 font-bold"
+                    value={editingCoupon.discountAmount}
+                    onChange={e => setEditingCoupon({ ...editingCoupon, discountAmount: Number(e.target.value) })}
+                  />
+                </div>
+              )}
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Max Usage (Optional)</label>
+                <input 
+                  type="number"
+                  className="w-full h-12 rounded-xl border-slate-200 font-bold"
+                  value={editingCoupon.maxUsage || ''}
+                  onChange={e => setEditingCoupon({ ...editingCoupon, maxUsage: e.target.value ? Number(e.target.value) : undefined })}
+                  placeholder="Unlimited"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input 
+                type="checkbox" 
+                id="couponActive"
+                checked={editingCoupon.isActive}
+                onChange={e => setEditingCoupon({ ...editingCoupon, isActive: e.target.checked })}
+                className="h-5 w-5 text-violet-600 rounded border-slate-300 focus:ring-violet-500"
+              />
+              <label htmlFor="couponActive" className="text-sm font-bold text-slate-700">Set as Active</label>
+            </div>
+
+            <Button onClick={handleSaveCoupon} loading={isSaving} className="w-full h-14 shadow-xl shadow-violet-100 mt-4">
+              <Save className="h-5 w-5 mr-2" />
+              {editingCoupon.id ? 'Update Coupon' : 'Create Coupon'}
+            </Button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

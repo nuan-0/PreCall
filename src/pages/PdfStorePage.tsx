@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import confetti from 'canvas-confetti';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
+import { Coupon } from '../types';
 
 declare global {
   interface Window {
@@ -21,6 +22,9 @@ export function PdfStorePage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [selectedPdfSlugs, setSelectedPdfSlugs] = useState<string[]>([]);
+  const [couponCode, setCouponCode] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
+  const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
   const processingRef = useRef(false);
   
   const unitPrice = parseInt(settings?.pdfPrice || '199');
@@ -41,8 +45,8 @@ export function PdfStorePage() {
     });
   };
 
-  // Only subjects with PDFs
-  const validPdfs = subjects.filter(s => s.status === 'live' && s.pdfVisible);
+  // Only subjects with PDFs actually uploaded and visible
+  const validPdfs = subjects.filter(s => s.status === 'live' && s.pdfVisible && s.pdfUrl);
 
   const togglePdfSelection = (slug: string) => {
     // Check if owned - users can still toggle for "simulation/testing" if they want to see the UI,
@@ -65,6 +69,42 @@ export function PdfStorePage() {
     if (validPdfs.length === 0) return;
     const slugs = validPdfs.map(s => s.slug);
     setSelectedPdfSlugs(slugs);
+  };
+
+  useEffect(() => {
+    if (selectedPdfSlugs.length > 1 && appliedCoupon) {
+      setAppliedCoupon(null);
+      setCouponCode('');
+      toast.info("Coupons only apply to single PDF purchases.");
+    }
+  }, [selectedPdfSlugs.length]);
+
+  const handleApplyCoupon = async () => {
+    if (!couponCode.trim()) return;
+    if (selectedPdfSlugs.length > 1) {
+      toast.error("Coupons cannot be applied to PDF bundles.");
+      return;
+    }
+    setIsValidatingCoupon(true);
+    try {
+      const res = await fetch('/api/validate-coupon', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: couponCode.trim() })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setAppliedCoupon(data.coupon);
+        toast.success(`Coupon applied: ${data.message}`);
+      } else {
+        setAppliedCoupon(null);
+        toast.error(data.error || 'Invalid coupon');
+      }
+    } catch (err) {
+      toast.error('Failed to validate coupon');
+    } finally {
+      setIsValidatingCoupon(false);
+    }
   };
 
   const handlePurchase = async () => {
@@ -121,7 +161,11 @@ export function PdfStorePage() {
       const orderRes = await fetch('/api/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: amountInPaise })
+        body: JSON.stringify({ 
+          amount: amountInPaise,
+          couponCode: appliedCoupon?.code,
+          productType: selectedPdfSlugs.length > 1 ? 'pdf_bundle' : 'pdf'
+        })
       });
       
       if (!orderRes.ok) throw new Error('Failed to create order');
@@ -149,6 +193,7 @@ export function PdfStorePage() {
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_signature: response.razorpay_signature,
                 userId: user.uid,
+                couponCode: appliedCoupon?.code,
                 productType: selectedPdfSlugs.length === 1 ? 'pdf' : 'pdf_bundle',
                 productSlug: selectedPdfSlugs.length === 1 ? selectedPdfSlugs[0] : null,
                 productSlugs: selectedPdfSlugs.length > 1 ? selectedPdfSlugs : []
@@ -344,10 +389,88 @@ export function PdfStorePage() {
                     </motion.div>
                   )}
 
+                  {/* Coupon Section */}
+                  <div className="py-4 border-t border-slate-100">
+                    {selectedPdfSlugs.length > 1 ? (
+                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-center">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed">
+                          Coupons only apply to single PDF purchases.<br/>
+                          <span className="text-violet-400">Bundle pricing already includes a natural discount.</span>
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="relative flex-1">
+                            <input
+                              type="text"
+                              placeholder="ENTER COUPON CODE"
+                              className="w-full h-10 pl-4 pr-10 text-[10px] font-black uppercase tracking-widest bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+                              value={couponCode}
+                              onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                              disabled={!!appliedCoupon}
+                            />
+                            {appliedCoupon && (
+                              <div className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-500">
+                                <Check className="h-4 w-4" />
+                              </div>
+                            )}
+                          </div>
+                          {appliedCoupon ? (
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="text-rose-500 hover:text-rose-600 font-bold text-[10px]"
+                              onClick={() => { setAppliedCoupon(null); setCouponCode(''); }}
+                            >
+                              Remove
+                            </Button>
+                          ) : (
+                            <Button 
+                              size="sm" 
+                              className="h-10 text-[10px] font-black px-4"
+                              onClick={handleApplyCoupon}
+                              loading={isValidatingCoupon}
+                            >
+                              Apply
+                            </Button>
+                          )}
+                        </div>
+                        {appliedCoupon && (
+                          <p className="text-[10px] text-emerald-600 font-bold px-1">
+                            Applied: {appliedCoupon.type === 'percentage' ? `${appliedCoupon.discountPercentage}% Off` : `₹${appliedCoupon.discountAmount} Off`}
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </div>
+
                   <div className="pt-4 border-t border-slate-100">
-                    <div className="flex items-center justify-between mb-6">
-                      <span className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">Total Amount</span>
-                      <span className="text-3xl font-black text-violet-950">₹{totalPrice}</span>
+                    <div className="space-y-2 mb-6">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">Subtotal</span>
+                        <span className="text-sm font-bold text-slate-600 italic">₹{totalPrice}</span>
+                      </div>
+                      {appliedCoupon && (
+                        <div className="flex items-center justify-between text-emerald-600">
+                          <span className="font-bold uppercase tracking-widest text-[10px]">Discount</span>
+                          <span className="text-sm font-bold italic">-₹{
+                            appliedCoupon.type === 'flat' 
+                              ? appliedCoupon.discountAmount 
+                              : Math.round(totalPrice * (appliedCoupon.discountPercentage || 0) / 100)
+                          }</span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between pt-2">
+                        <span className="text-slate-900 font-bold uppercase tracking-widest text-[10px]">Total Amount</span>
+                        <span className="text-3xl font-black text-violet-950">₹{
+                          appliedCoupon 
+                            ? Math.max(0, appliedCoupon.type === 'flat' 
+                                ? totalPrice - (appliedCoupon.discountAmount || 0)
+                                : totalPrice - Math.round(totalPrice * (appliedCoupon.discountPercentage || 0) / 100))
+                            : totalPrice
+                        }</span>
+                      </div>
                     </div>
 
                     <Button 

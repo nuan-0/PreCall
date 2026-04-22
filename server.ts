@@ -177,6 +177,86 @@ async function startServer() {
     res.json({ status: 'ok', env: process.env.NODE_ENV });
   });
 
+  // API: Validate Coupon
+  app.post('/api/validate-coupon', async (req, res) => {
+    const { code } = req.body;
+    if (!code) return res.status(400).json({ error: 'Coupon code is required' });
+
+    try {
+      const couponSnap = await db.collection('coupons')
+        .where('code', '==', code.toUpperCase())
+        .where('isActive', '==', true)
+        .limit(1)
+        .get();
+
+      if (couponSnap.empty) {
+        return res.status(404).json({ error: 'Invalid or inactive coupon code' });
+      }
+
+      const couponData = couponSnap.docs[0].data();
+      if (couponData.expiresAt && new Date(couponData.expiresAt) < new Date()) {
+        return res.status(400).json({ error: 'Coupon has expired' });
+      }
+      if (couponData.maxUsage && couponData.usageCount >= couponData.maxUsage) {
+        return res.status(400).json({ error: 'Coupon usage limit reached' });
+      }
+
+      res.json({
+        valid: true,
+        code: couponData.code,
+        type: couponData.type,
+        discountAmount: couponData.discountAmount,
+        discountPercentage: couponData.discountPercentage
+      });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to validate coupon' });
+    }
+  });
+
+  // API: Get Coupons (Admin only)
+  app.get('/api/admin/coupons', async (req: any, res) => {
+    const { userId } = req.query;
+    try {
+      if (userId) {
+        const user = await admin.auth().getUser(userId);
+        if (user.email !== 'precall.admin@gmail.com') {
+          return res.status(403).json({ error: 'Unauthorised' });
+        }
+      }
+      const couponsSnap = await db.collection('coupons').orderBy('createdAt', 'desc').get();
+      const coupons = couponsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      res.json(coupons);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch coupons' });
+    }
+  });
+
+  // API: Upsert Coupon (Admin only)
+  app.post('/api/admin/coupons', async (req, res) => {
+    const { userId, coupon } = req.body;
+    try {
+      const user = await admin.auth().getUser(userId);
+      if (user.email !== 'precall.admin@gmail.com') {
+        return res.status(403).json({ error: 'Unauthorised' });
+      }
+
+      const couponId = coupon.id || db.collection('coupons').doc().id;
+      const data = {
+        ...coupon,
+        code: coupon.code.toUpperCase(),
+        updatedAt: new Date().toISOString(),
+        createdAt: coupon.createdAt || new Date().toISOString(),
+        usageCount: coupon.usageCount || 0
+      };
+      delete data.id;
+
+      await db.collection('coupons').doc(couponId).set(data, { merge: true });
+      res.json({ id: couponId, ...data });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to save coupon' });
+    }
+  });
+
   // API: Config
   app.get('/api/config', (req, res) => {
     const keyId = process.env.VITE_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID || process.env.RAZORPAY_LIVE_KEY_ID;
@@ -239,7 +319,40 @@ async function startServer() {
 
   // API: Create Order
   app.post('/api/create-order', async (req, res) => {
-    const { amount } = req.body;
+    const { amount, couponCode, productType } = req.body;
+    let finalAmount = amount; // in paise
+
+    // Strict rule: No coupon discounts for PDF bundles
+    const isBundle = productType === 'pdf_bundle';
+
+    if (couponCode && !isBundle) {
+      try {
+        const couponSnap = await db.collection('coupons')
+          .where('code', '==', couponCode.toUpperCase())
+          .where('isActive', '==', true)
+          .limit(1)
+          .get();
+
+        if (!couponSnap.empty) {
+          const couponData = couponSnap.docs[0].data();
+          const isValid = !couponData.expiresAt || new Date(couponData.expiresAt) > new Date();
+          const underLimit = !couponData.maxUsage || couponData.usageCount < couponData.maxUsage;
+
+          if (isValid && underLimit) {
+            if (couponData.type === 'flat') {
+              const discountPaise = (couponData.discountAmount || 0) * 100;
+              finalAmount = Math.max(0, finalAmount - discountPaise);
+            } else if (couponData.type === 'percentage') {
+              const multiplier = (100 - (couponData.discountPercentage || 0)) / 100;
+              finalAmount = Math.round(finalAmount * multiplier);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Coupon apply error:', err);
+      }
+    }
+
     const keyId = process.env.VITE_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID || process.env.RAZORPAY_LIVE_KEY_ID;
     const keySecret = process.env.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_LIVE_KEY_SECRET;
 
@@ -332,6 +445,28 @@ async function startServer() {
 
         // Update user status in Firestore
         await userRef.set(updateData, { merge: true });
+
+        // Increment coupon usage if provided
+        const { couponCode } = req.body;
+        if (couponCode) {
+          try {
+            const couponSnap = await db.collection('coupons')
+              .where('code', '==', couponCode.toUpperCase())
+              .limit(1)
+              .get();
+            
+            if (!couponSnap.empty) {
+              const couponRef = couponSnap.docs[0].ref;
+              await couponRef.update({
+                usageCount: FieldValue.increment(1),
+                updatedAt: new Date().toISOString()
+              });
+              console.log(`[Payment] Coupon ${couponCode} usage incremented.`);
+            }
+          } catch (err) {
+            console.error('[Payment] Error incrementing coupon usage:', err);
+          }
+        }
 
         // Add notification
         await db.collection('notifications').add({
