@@ -1672,7 +1672,7 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
         url = data.url;
       }
 
-      setEditingTopic(prev => prev ? { ...prev, pdfLink: url } : null);
+      setEditingTopic(prev => prev ? { ...prev, pdfUrl: url } : null);
       toast.success('PDF uploaded successfully!', { id: toastId });
     } catch (error: any) {
       console.error('Final PDF upload error:', error);
@@ -1984,7 +1984,7 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
                       <div className="space-y-2">
                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Optional PDF Link</label>
                           <div className="flex gap-2">
-                            <input type="text" className="flex-1 h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.pdfLink || ''} onChange={e => setEditingTopic({...editingTopic, pdfLink: e.target.value})} placeholder="https://..." />
+                            <input type="text" className="flex-1 h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.pdfUrl || ''} onChange={e => setEditingTopic({...editingTopic, pdfUrl: e.target.value})} placeholder="https://..." />
                             <input type="file" ref={pdfInputRef} accept="application/pdf" className="hidden" onChange={handlePdfUpload} />
                             <button type="button" onClick={() => pdfInputRef.current?.click()} className="flex items-center justify-center h-12 px-4 rounded-xl bg-violet-100 text-violet-600 font-bold cursor-pointer hover:bg-violet-200 transition-colors">
                               <Upload className="h-4 w-4 mr-2" />

@@ -147,15 +147,27 @@ export function Dashboard() {
                   <p className="mt-3 text-sm text-slate-500 font-medium leading-relaxed line-clamp-2">{subject.description}</p>
                 </div>
 
-                <div className="mt-10 flex items-center justify-between pt-6 border-t border-slate-50">
+                <div className="mt-10 flex items-center justify-between pt-6 border-t border-slate-50 relative z-20">
                   <div className="flex items-center gap-4">
-                    {subject.pdfVisible && (
-                      <div className="flex flex-col">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-violet-400">Resource</span>
-                        <div className="flex items-center gap-1 text-sm font-bold text-violet-600">
-                          <FileText className="h-3 w-3" />
-                          PDF
-                        </div>
+                    {subject.pdfVisible && subject.pdfUrl && (
+                      <div className="flex items-center gap-2">
+                        {(isPremium || isAdmin || subject.pdfAccessType === 'free' || profile?.ownedPdfs?.includes(subject.slug)) ? (
+                          <a 
+                            href={subject.pdfUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-50 text-violet-600 hover:bg-violet-100 transition-colors text-[10px] font-black uppercase tracking-widest"
+                          >
+                            <FileText className="h-3.5 w-3.5" />
+                            Download
+                          </a>
+                        ) : (
+                          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-50 text-slate-400 text-[10px] font-black uppercase tracking-widest cursor-not-allowed">
+                            <Lock className="h-3.5 w-3.5" />
+                            Premium PDF
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

@@ -328,10 +328,10 @@ D. Article 22
               </div>
             )}
 
-            {topic.pdfLink && (
+            {topic.pdfUrl && (
               <div className="pt-8">
                 <a 
-                  href={topic.pdfLink} 
+                  href={topic.pdfUrl} 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="flex items-center justify-center gap-3 w-full p-6 rounded-[2rem] bg-violet-600 text-white font-black text-xl shadow-xl shadow-violet-200 hover:bg-violet-700 transition-all active:scale-[0.98]"

@@ -1,4 +1,4 @@
-import { ArrowLeft, FileText, Lock, ChevronRight, BookOpen, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, FileText, Lock, ChevronRight, BookOpen, CheckCircle2, Download } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { Badge, Button, Card, Skeleton } from '../components/UI';
 import { useSubjects, useTopics } from '../hooks/useData';
@@ -67,10 +67,10 @@ export function SubjectPage() {
           <p className="text-xl text-slate-500 font-medium leading-relaxed max-w-2xl text-balance">{subject.description}</p>
         </div>
         
-        {subject.pdfVisible ? (
+        {subject.pdfVisible && subject.pdfUrl ? (
           hasPdfAccess ? (
             <a href={subject.pdfUrl} target="_blank" rel="noopener noreferrer" className="w-full md:w-auto">
-              <Button variant="outline" icon={FileText} className="w-full h-16 px-10 text-base shadow-xl shadow-slate-200/20 bg-white border-slate-200 hover:border-violet-300 hover:text-violet-600">
+              <Button variant="outline" icon={Download} className="w-full h-16 px-10 text-base shadow-xl shadow-slate-200/20 bg-white border-slate-200 hover:border-violet-300 hover:text-violet-600">
                 {subject.pdfTitle || 'Download PDF'}
               </Button>
             </a>
@@ -81,7 +81,7 @@ export function SubjectPage() {
               </Button>
             </Link>
           )
-        ) : (
+        ) : subject.pdfVisible ? (
           <div className="w-full md:w-auto flex items-center gap-4 px-8 py-5 rounded-2xl bg-slate-50 border border-slate-100 text-slate-400 shadow-inner">
             <FileText className="h-6 w-6" />
             <div className="flex flex-col">
@@ -89,7 +89,7 @@ export function SubjectPage() {
               <span className="text-sm font-bold uppercase tracking-widest">PDF Coming Soon</span>
             </div>
           </div>
-        )}
+        ) : null}
       </div>
 
       <div className="mb-10 flex items-center justify-between border-b border-slate-100 pb-6">

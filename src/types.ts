@@ -23,7 +23,7 @@ export interface Topic {
   examRelevance: string;
   estimatedTime: string;
   lastUpdated: string;
-  pdfLink?: string;
+  pdfUrl?: string;
   infographicUrl?: string;
   
   // Content Sections
