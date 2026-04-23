@@ -90,10 +90,13 @@ async function startServer() {
     const token = process.env.TELEGRAM_BOT_TOKEN;
     const chatId = process.env.TELEGRAM_CHAT_ID;
     
-    if (!token || !chatId) return;
+    if (!token || !chatId) {
+      console.log('⚠️ Telegram notification skipped: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not found in environment.');
+      return;
+    }
 
     try {
-      await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -102,9 +105,53 @@ async function startServer() {
           parse_mode: 'HTML'
         })
       });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        console.error('❌ Telegram API error:', response.status, errData);
+      } else {
+        console.log('✅ Telegram notification sent successfully.');
+      }
     } catch (err) {
-      console.error('Failed to send Telegram notification:', err);
+      console.error('❌ Failed to send Telegram notification:', err);
     }
+  };
+
+  // help handle escaping for Telegram HTML mode
+  const escapeHTML = (text: string) => {
+    if (!text) return '';
+    return text.toString()
+               .replace(/&/g, '&amp;')
+               .replace(/</g, '&lt;')
+               .replace(/>/g, '&gt;');
+  };
+
+  // Helper: Resilient Admin Check
+  const checkIsAdmin = async (userId: string): Promise<boolean> => {
+    if (!userId) return false;
+    try {
+      // 1. Primary Check: Firestore (Works even if Identity Toolkit API is disabled)
+      const userDoc = await db.collection('users').doc(userId).get();
+      if (userDoc.exists) {
+        const userData = userDoc.data();
+        // Role 'admin' is protected by firestore.rules (users cannot set it themselves)
+        if (userData?.role === 'admin' || userData?.email === 'precall.admin@gmail.com') return true;
+      }
+
+      // 2. Secondary Check: Firebase Auth (Fallback)
+      try {
+        const user = await admin.auth().getUser(userId);
+        return user.email === 'precall.admin@gmail.com';
+      } catch (authErr: any) {
+        // Log but don't crash if it's the specific "API Disabled" error
+        if (authErr.code === 'auth/internal-error' || authErr.message?.includes('Identity Toolkit API')) {
+          console.warn('[Admin Check] Identity Toolkit API disabled, relying on Firestore fallback');
+        }
+      }
+    } catch (err) {
+      console.error('[Admin Check] Fatal error:', err);
+    }
+    return false;
   };
 
   // Seed Razorpay Test Account
@@ -177,6 +224,22 @@ async function startServer() {
     res.json({ status: 'ok', env: process.env.NODE_ENV });
   });
 
+  // API: Report Client-Side Error
+  app.post('/api/report-error', async (req, res) => {
+    const { message, stack, url, userAgent, userId } = req.body;
+    
+    await sendTelegramNotification(
+      `🚨 <b>Client-Side Crash Detected</b>\n\n` +
+      `👤 <b>User:</b> <code>${userId || 'Guest'}</code>\n` +
+      `🛑 <b>Error:</b> <i>${message || 'Unknown'}</i>\n` +
+      `🌐 <b>URL:</b> <code>${url || 'Unknown'}</code>\n` +
+      `📱 <b>UA:</b> <code>${userAgent || 'Unknown'}</code>\n\n` +
+      `<b>Trace:</b>\n<pre>${(stack || '').substring(0, 500)}...</pre>`
+    ).catch(() => {});
+
+    res.json({ status: 'ok' });
+  });
+
   // API: Validate Coupon
   app.post('/api/validate-coupon', async (req, res) => {
     const { code } = req.body;
@@ -218,9 +281,9 @@ async function startServer() {
     const { userId } = req.query;
     try {
       if (userId) {
-        const user = await admin.auth().getUser(userId);
-        if (user.email !== 'precall.admin@gmail.com') {
-          return res.status(403).json({ error: 'Unauthorised' });
+        const isAdmin = await checkIsAdmin(userId as string);
+        if (!isAdmin) {
+          return res.status(403).json({ error: 'Unauthorized: Admin access required' });
         }
       }
       const couponsSnap = await db.collection('coupons').orderBy('createdAt', 'desc').get();
@@ -235,9 +298,9 @@ async function startServer() {
   app.post('/api/admin/coupons', async (req, res) => {
     const { userId, coupon } = req.body;
     try {
-      const user = await admin.auth().getUser(userId);
-      if (user.email !== 'precall.admin@gmail.com') {
-        return res.status(403).json({ error: 'Unauthorised' });
+      const isAdmin = await checkIsAdmin(userId);
+      if (!isAdmin) {
+        return res.status(403).json({ error: 'Unauthorized: Admin access required' });
       }
 
       const couponId = coupon.id || db.collection('coupons').doc().id;
@@ -280,9 +343,9 @@ async function startServer() {
       console.log(`[Upload Proxy] Received ${file.originalname} (${file.size} bytes) for user: ${userId}`);
 
       // Basic Admin Check
-      const user = await admin.auth().getUser(userId);
-      if (user.email !== 'precall.admin@gmail.com') {
-        console.warn(`[Upload Proxy] Permission denied for ${user.email}`);
+      const isAdmin = await checkIsAdmin(userId);
+      if (!isAdmin) {
+        console.warn(`[Upload Proxy] Permission denied for ${userId}. Identity Toolkit API might be disabled.`);
         return res.status(403).json({ error: 'Only authorized admins can upload files' });
       }
 
@@ -484,9 +547,9 @@ async function startServer() {
         // Notify via Telegram
         await sendTelegramNotification(
           `💰 <b>New ${productType === 'premium' ? 'Premium' : 'PDF'} Purchase!</b>\n\n` +
-          `👤 <b>User ID:</b> <code>${userId}</code>\n` +
-          `📄 <b>Item:</b> ${productType === 'premium' ? 'Full Access' : `PDF: ${productSlug}`}\n` +
-          `💳 <b>Order:</b> <code>${razorpay_order_id}</code>\n` +
+          `👤 <b>User ID:</b> <code>${escapeHTML(userId)}</code>\n` +
+          `📄 <b>Item:</b> ${productType === 'premium' ? 'Full Access' : `PDF: ${escapeHTML(productSlug || '')}`}\n` +
+          `💳 <b>Order:</b> <code>${escapeHTML(razorpay_order_id)}</code>\n` +
           `📈 <b>Total Premium:</b> ${totalPremium}\n\n` +
           `<i>App: PreCall Revision</i>`
         );
@@ -528,9 +591,9 @@ async function startServer() {
     // Notify via Telegram on critical errors
     sendTelegramNotification(
       `⚠️ <b>Server Error Detected</b>\n\n` +
-      `📌 <b>Path:</b> <code>${req.path}</code>\n` +
-      `🛑 <b>Error:</b> <i>${err.message || 'Unknown error'}</i>\n\n` +
-      `🚀 <i>Check Vercel logs for details.</i>`
+      `📌 <b>Path:</b> <code>${escapeHTML(req.path)}</code>\n` +
+      `🛑 <b>Error:</b> <i>${escapeHTML(err.message || 'Unknown error')}</i>\n\n` +
+      `🚀 <i>Check context logs for details.</i>`
     ).catch(() => {});
 
     res.status(500).json({
@@ -538,6 +601,20 @@ async function startServer() {
       details: err.message || 'Unknown error'
     });
   });
+
+  // help handle escaping for Telegram HTML mode
+  // (Moved up)
+
+  // Test Telegram on Startup
+  try {
+    const settingsSnap = await db.collection('settings').doc('general').get();
+    const appName = settingsSnap.exists ? settingsSnap.data()?.appName : 'PreCall';
+    
+    sendTelegramNotification(`🚀 <b>${escapeHTML(appName || 'PreCall')} Server Started</b>\nEnvironment: <code>${process.env.NODE_ENV || 'development'}</code>`).catch(() => {});
+  } catch (err) {
+    console.error('Failed to send startup notification:', err);
+    sendTelegramNotification(`🚀 <b>PreCall Server Started</b>\nEnvironment: <code>${process.env.NODE_ENV || 'development'}</code>`).catch(() => {});
+  }
 
   return app;
 }

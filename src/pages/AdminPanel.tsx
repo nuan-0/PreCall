@@ -1,4 +1,4 @@
-import { LayoutDashboard, Plus, Settings, FileText, BookOpen, Edit2, Trash2, Zap, ExternalLink, Save, X, AlertCircle, Info, Sparkles, Users, LogOut, ChevronRight, Eye, Copy, Menu, Layout, Target, Filter, CheckCircle2, ShieldCheck, Bell, Send, AlertTriangle, Upload } from 'lucide-react';
+import { LayoutDashboard, Plus, Settings, FileText, BookOpen, Edit2, Trash2, Zap, ExternalLink, Save, X, AlertCircle, Info, Sparkles, Users, LogOut, ChevronRight, Eye, Copy, Menu, Layout, Target, Filter, CheckCircle2, ShieldCheck, Bell, Send, AlertTriangle, Upload, RefreshCw, Image } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { Link, Route, Routes, useLocation } from 'react-router-dom';
 import { Badge, Button, Card, Modal } from '../components/UI';
@@ -1123,40 +1123,27 @@ function AdminSubjects({ showConfirm }: { showConfirm: any }) {
       return;
     }
 
-    const toastId = toast.loading('Initiating upload...');
+    const toastId = toast.loading('Uploading PDF...');
     try {
       if (!user) throw new Error('Not authenticated');
       
-      let url = '';
-      try {
-        // Attempt Direct Browser Upload
-        toast.loading('Attempting direct browser upload...', { id: toastId });
-        const storageRef = ref(storage, `subjects/${Date.now()}-${file.name}`);
-        const result = await uploadBytes(storageRef, file);
-        url = await getDownloadURL(result.ref);
-        console.log('Direct upload successful:', url);
-      } catch (directError: any) {
-        console.warn('Direct upload failed, falling back to proxy:', directError);
-        toast.loading('Direct upload failed, switching to server proxy...', { id: toastId });
-        
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('userId', user.uid);
-        formData.append('folder', 'subjects');
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('userId', user.uid);
+      formData.append('folder', 'subjects');
 
-        const response = await fetch('/api/upload', {
-          method: 'POST',
-          body: formData
-        });
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+      });
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Server upload failed');
-        }
-
-        const data = await response.json();
-        url = data.url;
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Upload failed' }));
+        throw new Error(errorData.error || 'Server upload failed');
       }
+
+      const data = await response.json();
+      const url = data.url;
       
       setEditingSubject(prev => prev ? { 
         ...prev, 
@@ -1164,6 +1151,7 @@ function AdminSubjects({ showConfirm }: { showConfirm: any }) {
         pdfVisible: true,
         pdfTitle: prev.pdfTitle || `High-Yield ${prev.title || 'Revision'} PDF`
       } : null);
+      
       toast.success('PDF uploaded successfully!', { id: toastId });
     } catch (error: any) {
       console.error('Final upload error:', error);
@@ -1338,48 +1326,61 @@ function AdminSubjects({ showConfirm }: { showConfirm: any }) {
                           <p className="text-[10px] font-medium text-slate-400 italic">Who can download this file?</p>
                         </div>
                         <div className="space-y-2">
-                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">PDF Link (URL)</label>
-                            <div className="flex flex-col gap-2">
-                              <div className="flex gap-2">
-                                <input type="text" className={cn(
-                                  "flex-1 h-12 rounded-xl border-slate-200 text-sm font-bold focus:ring-violet-500 focus:border-violet-500",
-                                  editingSubject.pdfVisible && !editingSubject.pdfUrl && "border-amber-300 bg-amber-50"
-                                )} value={editingSubject.pdfUrl || ''} onChange={e => setEditingSubject({...editingSubject, pdfUrl: e.target.value})} placeholder="https://..." />
-                                <input 
-                                  type="file" 
-                                  ref={pdfInputRef}
-                                  accept="application/pdf" 
-                                  className="hidden" 
-                                  onChange={handlePdfUpload} 
-                                />
-                                <button 
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">PDF High-Yield Resource</label>
+                            <div className="flex flex-col gap-3">
+                              <input 
+                                type="file" 
+                                ref={pdfInputRef}
+                                accept="application/pdf"
+                                className="hidden"
+                                onChange={handlePdfUpload}
+                              />
+                              
+                              {!editingSubject.pdfUrl ? (
+                                <button
                                   type="button"
                                   onClick={() => pdfInputRef.current?.click()}
-                                  className="flex items-center justify-center h-12 px-4 rounded-xl bg-blue-100 text-blue-600 font-bold cursor-pointer hover:bg-blue-200 transition-colors"
+                                  className="w-full h-24 rounded-2xl border-2 border-dashed border-violet-200 bg-violet-50/50 flex flex-col items-center justify-center gap-2 hover:bg-violet-100/50 hover:border-violet-300 transition-all group"
                                 >
-                                  <Upload className="h-4 w-4 mr-2" />
-                                  Upload
+                                  <div className="p-2 rounded-full bg-white text-violet-600 shadow-sm group-hover:scale-110 transition-transform">
+                                    <Upload className="h-5 w-5" />
+                                  </div>
+                                  <span className="text-xs font-black text-violet-700 uppercase tracking-widest">Click to Upload PDF</span>
+                                  <span className="text-[10px] font-medium text-violet-400">Maximum size: 10MB</span>
                                 </button>
-                                {editingSubject.pdfUrl && (
-                                  <Button 
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => setEditingSubject({...editingSubject, pdfUrl: '', pdfVisible: false})}
-                                    className="h-12 w-12 p-0 border-rose-200 text-rose-500 hover:bg-rose-50"
-                                    title="Remove PDF"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                )}
-                              </div>
-                              {editingSubject.pdfVisible && !editingSubject.pdfUrl && (
-                                <p className="text-[10px] font-bold text-amber-600 animate-pulse flex items-center gap-1">
-                                  <AlertTriangle className="h-3 w-3" />
-                                  Warning: PDF is enabled but no link is set. Users will see "Coming Soon".
-                                </p>
+                              ) : (
+                                <div className="flex items-center gap-3 p-4 rounded-2xl bg-emerald-50 border border-emerald-100 group">
+                                  <div className="p-2 rounded-lg bg-emerald-100 text-emerald-600">
+                                    <FileText className="h-5 w-5" />
+                                  </div>
+                                  <div className="flex-1 overflow-hidden">
+                                    <span className="block text-xs font-black text-emerald-900 truncate">PDF Uploaded Successfully</span>
+                                    <a href={editingSubject.pdfUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-emerald-600 hover:underline truncate block">
+                                      View File: {editingSubject.pdfUrl.split('/').pop()}
+                                    </a>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => pdfInputRef.current?.click()}
+                                      className="p-2 rounded-lg bg-white text-slate-400 hover:text-violet-600 shadow-sm transition-colors"
+                                      title="Replace PDF"
+                                    >
+                                      <RefreshCw className="h-4 w-4" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditingSubject({ ...editingSubject, pdfUrl: '', pdfVisible: false })}
+                                      className="p-2 rounded-lg bg-white text-slate-400 hover:text-rose-600 shadow-sm transition-colors"
+                                      title="Remove PDF"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </button>
+                                  </div>
+                                </div>
                               )}
                             </div>
-                          <p className="text-[10px] font-medium text-slate-400 italic">The direct link to the file or upload a new one. Remember to save subject after uploading!</p>
+                            <p className="text-[10px] font-medium text-slate-400 italic">Upload the resource PDF. Remember to save subject after uploading!</p>
                         </div>
                       </div>
                     </div>
@@ -1607,40 +1608,27 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
       return;
     }
 
-    const toastId = toast.loading('Initiating upload...');
+    const toastId = toast.loading('Uploading image...');
     try {
       if (!user) throw new Error('Not authenticated');
 
-      let url = '';
-      try {
-        // Attempt Direct Browser Upload
-        toast.loading('Attempting direct browser upload...', { id: toastId });
-        const storageRef = ref(storage, `infographics/${Date.now()}-${file.name}`);
-        const result = await uploadBytes(storageRef, file);
-        url = await getDownloadURL(result.ref);
-        console.log('Direct image upload successful:', url);
-      } catch (directError: any) {
-        console.warn('Direct image upload failed, falling back to proxy:', directError);
-        toast.loading('Direct upload failed, switching to server proxy...', { id: toastId });
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('userId', user.uid);
+      formData.append('folder', 'infographics');
 
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('userId', user.uid);
-        formData.append('folder', 'infographics');
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+      });
 
-        const response = await fetch('/api/upload', {
-          method: 'POST',
-          body: formData
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Server upload failed');
-        }
-
-        const data = await response.json();
-        url = data.url;
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Upload failed' }));
+        throw new Error(errorData.error || 'Server upload failed');
       }
+
+      const data = await response.json();
+      const url = data.url;
       
       setEditingTopic(prev => prev ? { ...prev, infographicUrl: url } : null);
       toast.success('Image uploaded successfully!', { id: toastId });
@@ -1661,40 +1649,27 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
       return;
     }
 
-    const toastId = toast.loading('Initiating upload...');
+    const toastId = toast.loading('Uploading PDF...');
     try {
       if (!user) throw new Error('Not authenticated');
 
-      let url = '';
-      try {
-        // Attempt Direct Browser Upload
-        toast.loading('Attempting direct browser upload...', { id: toastId });
-        const storageRef = ref(storage, `topic-pdfs/${Date.now()}-${file.name}`);
-        const result = await uploadBytes(storageRef, file);
-        url = await getDownloadURL(result.ref);
-        console.log('Direct PDF upload successful:', url);
-      } catch (directError: any) {
-        console.warn('Direct PDF upload failed, falling back to proxy:', directError);
-        toast.loading('Direct upload failed, switching to server proxy...', { id: toastId });
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('userId', user.uid);
+      formData.append('folder', 'topic-pdfs');
 
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('userId', user.uid);
-        formData.append('folder', 'topic-pdfs');
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+      });
 
-        const response = await fetch('/api/upload', {
-          method: 'POST',
-          body: formData
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Server upload failed');
-        }
-
-        const data = await response.json();
-        url = data.url;
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Upload failed' }));
+        throw new Error(errorData.error || 'Server upload failed');
       }
+
+      const data = await response.json();
+      const url = data.url;
 
       setEditingTopic(prev => prev ? { ...prev, pdfUrl: url } : null);
       toast.success('PDF uploaded successfully!', { id: toastId });
@@ -2005,49 +1980,79 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Last Updated</label>
                         <input type="text" className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.lastUpdated || ''} onChange={e => setEditingTopic({...editingTopic, lastUpdated: e.target.value})} placeholder="e.g. 01 April 2026" />
                       </div>
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Optional PDF Link</label>
-                          <div className="flex gap-2">
-                            <input type="text" className="flex-1 h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.pdfUrl || ''} onChange={e => setEditingTopic({...editingTopic, pdfUrl: e.target.value})} placeholder="https://..." />
+                      <div className="space-y-4">
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">PDF & Graphics Resource</label>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          {/* Topic PDF */}
+                          <div className="space-y-2">
                             <input type="file" ref={pdfInputRef} accept="application/pdf" className="hidden" onChange={handlePdfUpload} />
-                            <button type="button" onClick={() => pdfInputRef.current?.click()} className="flex items-center justify-center h-12 px-4 rounded-xl bg-violet-100 text-violet-600 font-bold cursor-pointer hover:bg-violet-200 transition-colors">
-                              <Upload className="h-4 w-4 mr-2" />
-                              Upload
-                            </button>
-                            {editingTopic.pdfUrl && (
-                              <Button
+                            {!editingTopic.pdfUrl ? (
+                              <button
                                 type="button"
-                                variant="outline"
-                                onClick={() => setEditingTopic({ ...editingTopic, pdfUrl: '' })}
-                                className="h-12 w-12 p-0 border-rose-200 text-rose-500 hover:bg-rose-50"
-                                title="Remove PDF"
+                                onClick={() => pdfInputRef.current?.click()}
+                                className="w-full h-32 rounded-2xl border-2 border-dashed border-violet-100 bg-slate-50 flex flex-col items-center justify-center gap-2 hover:bg-violet-50 hover:border-violet-200 transition-all group"
                               >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                                <div className="p-2 rounded-full bg-white text-violet-600 shadow-sm group-hover:scale-110 transition-transform">
+                                  <Upload className="h-5 w-5" />
+                                </div>
+                                <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Upload Topic PDF</span>
+                              </button>
+                            ) : (
+                              <div className="h-32 p-4 rounded-2xl bg-blue-50 border border-blue-100 flex flex-col justify-between group">
+                                <div className="flex items-center gap-3">
+                                  <div className="p-2 rounded-lg bg-blue-100 text-blue-600">
+                                    <FileText className="h-5 w-5" />
+                                  </div>
+                                  <div className="flex-1 overflow-hidden">
+                                    <span className="block text-[10px] font-black text-blue-900 uppercase truncate">PDF Ready</span>
+                                    <a href={editingTopic.pdfUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-blue-600 hover:underline truncate block">
+                                      View Document
+                                    </a>
+                                  </div>
+                                </div>
+                                <div className="flex gap-2">
+                                  <button onClick={() => pdfInputRef.current?.click()} type="button" className="flex-1 py-2 rounded-lg bg-white text-[10px] font-black text-slate-600 uppercase tracking-widest shadow-sm hover:bg-slate-50 transition-colors">Replace</button>
+                                  <button onClick={() => setEditingTopic({ ...editingTopic, pdfUrl: '' })} type="button" className="px-3 py-2 rounded-lg bg-white text-rose-500 shadow-sm hover:bg-rose-50 transition-colors"><Trash2 className="h-4 w-4" /></button>
+                                </div>
+                              </div>
                             )}
                           </div>
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Infographic Image URL</label>
-                          <div className="flex gap-2">
-                            <input type="text" className="flex-1 h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.infographicUrl || ''} onChange={e => setEditingTopic({...editingTopic, infographicUrl: e.target.value})} placeholder="https://..." />
+
+                          {/* Topic Infographic */}
+                          <div className="space-y-2">
                             <input type="file" ref={imgInputRef} accept="image/*" className="hidden" onChange={handleImageUpload} />
-                            <button type="button" onClick={() => imgInputRef.current?.click()} className="flex items-center justify-center h-12 px-4 rounded-xl bg-violet-100 text-violet-600 font-bold cursor-pointer hover:bg-violet-200 transition-colors">
-                              <Upload className="h-4 w-4 mr-2" />
-                              Upload
-                            </button>
-                            {editingTopic.infographicUrl && (
-                              <Button
+                            {!editingTopic.infographicUrl ? (
+                              <button
                                 type="button"
-                                variant="outline"
-                                onClick={() => setEditingTopic({ ...editingTopic, infographicUrl: '' })}
-                                className="h-12 w-12 p-0 border-rose-200 text-rose-500 hover:bg-rose-50"
-                                title="Remove Infographic"
+                                onClick={() => imgInputRef.current?.click()}
+                                className="w-full h-32 rounded-2xl border-2 border-dashed border-amber-100 bg-amber-50/30 flex flex-col items-center justify-center gap-2 hover:bg-amber-50 hover:border-amber-200 transition-all group"
                               >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                                <div className="p-2 rounded-full bg-white text-amber-600 shadow-sm group-hover:scale-110 transition-transform">
+                                  <Image className="h-5 w-5" />
+                                </div>
+                                <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Upload Infographic</span>
+                              </button>
+                            ) : (
+                              <div className="h-32 p-4 rounded-2xl bg-amber-50 border border-amber-100 flex flex-col justify-between group">
+                                <div className="flex items-center gap-3">
+                                  <div className="p-2 rounded-lg bg-amber-100 text-amber-600">
+                                    <Image className="h-5 w-5" />
+                                  </div>
+                                  <div className="flex-1 overflow-hidden">
+                                    <span className="block text-[10px] font-black text-amber-900 uppercase truncate">Image Ready</span>
+                                    <a href={editingTopic.infographicUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-amber-600 hover:underline truncate block">
+                                      View Preview
+                                    </a>
+                                  </div>
+                                </div>
+                                <div className="flex gap-2">
+                                  <button onClick={() => imgInputRef.current?.click()} type="button" className="flex-1 py-2 rounded-lg bg-white text-[10px] font-black text-slate-600 uppercase tracking-widest shadow-sm hover:bg-slate-50 transition-colors">Replace</button>
+                                  <button onClick={() => setEditingTopic({ ...editingTopic, infographicUrl: '' })} type="button" className="px-3 py-2 rounded-lg bg-white text-rose-500 shadow-sm hover:bg-rose-50 transition-colors"><Trash2 className="h-4 w-4" /></button>
+                                </div>
+                              </div>
                             )}
                           </div>
+                        </div>
                       </div>
                     </div>
                   </section>

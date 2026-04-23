@@ -1,5 +1,7 @@
+import { useEffect } from 'react';
 import { useLocation, BrowserRouter, Route, Routes } from 'react-router-dom';
 import { Toaster } from 'sonner';
+import { setupErrorHandling } from './lib/errorReporter';
 import { Footer, Navbar } from './components/Layout';
 import { AdminPanel } from './pages/AdminPanel';
 import { Dashboard } from './pages/Dashboard';
@@ -25,6 +27,10 @@ import { cn } from './lib/utils';
 
 export default function App() {
   const { settings } = useSettings();
+
+  useEffect(() => {
+    setupErrorHandling();
+  }, []);
 
   return (
     <ErrorBoundary>

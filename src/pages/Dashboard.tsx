@@ -1,4 +1,4 @@
-import { AlertCircle, ArrowRight, BookOpen, FileText, Lock, Sparkles, ChevronRight, Target, CheckCircle2 } from 'lucide-react';
+import { AlertCircle, ArrowRight, BookOpen, FileText, Lock, Sparkles, ChevronRight, Target, CheckCircle2, Clock } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Badge, Card, Skeleton, Button } from '../components/UI';
 import { useDashboardData } from '../hooks/useData';
