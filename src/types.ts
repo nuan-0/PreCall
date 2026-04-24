@@ -7,6 +7,7 @@ export interface Subject {
   order: number;
   pdfTitle?: string;
   pdfUrl?: string;
+  pdfPassword?: string;
   pdfVisible?: boolean;
   pdfAccessType?: 'free' | 'premium';
 }
@@ -24,6 +25,7 @@ export interface Topic {
   estimatedTime: string;
   lastUpdated: string;
   pdfUrl?: string;
+  pdfPassword?: string;
   infographicUrl?: string;
   
   // Content Sections

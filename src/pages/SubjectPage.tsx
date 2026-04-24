@@ -1,13 +1,14 @@
 import { ArrowLeft, FileText, Lock, ChevronRight, BookOpen, CheckCircle2, Download } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { Badge, Button, Card, Skeleton } from '../components/UI';
-import { useSubjects, useTopics } from '../hooks/useData';
+import { useSubjects, useTopics, useSettings } from '../hooks/useData';
 import { useAuth } from '../contexts/AuthContext';
 import { cn } from '../lib/utils';
 
 export function SubjectPage() {
   const { slug } = useParams();
   const { subjects } = useSubjects();
+  const { settings } = useSettings();
   const subject = subjects.find(s => s.slug === slug);
   const { user, profile, isAdmin, isPremium: userIsPremium, openAuthModal } = useAuth();
 
@@ -69,15 +70,24 @@ export function SubjectPage() {
         
         {subject.pdfVisible && subject.pdfUrl ? (
           hasPdfAccess ? (
-            <a href={subject.pdfUrl} target="_blank" rel="noopener noreferrer" className="w-full md:w-auto">
-              <Button variant="outline" icon={Download} className="w-full h-16 px-10 text-base shadow-xl shadow-slate-200/20 bg-white border-slate-200 hover:border-violet-300 hover:text-violet-600">
-                {subject.pdfTitle || 'Download PDF'}
-              </Button>
-            </a>
+            <div className="w-full md:w-auto flex flex-col gap-3">
+              <a href={subject.pdfUrl} target="_blank" rel="noopener noreferrer">
+                <Button variant="outline" icon={Download} className="w-full h-16 px-10 text-base shadow-xl shadow-slate-200/20 bg-white border-slate-200 hover:border-violet-300 hover:text-violet-600">
+                  {subject.pdfTitle || 'Download PDF'}
+                </Button>
+              </a>
+              {subject.pdfPassword && (
+                <div className="flex items-center justify-center gap-2 py-2 px-4 rounded-xl bg-violet-50 border border-violet-100 text-violet-700 animate-in fade-in slide-in-from-top-1 duration-500">
+                  <Lock className="h-3.5 w-3.5" />
+                  <span className="text-[10px] font-black uppercase tracking-widest">Password:</span>
+                  <span className="text-sm font-black font-mono">{subject.pdfPassword}</span>
+                </div>
+              )}
+            </div>
           ) : (
-            <Link to="/premium" onClick={handlePdfClick} className="w-full md:w-auto">
+            <Link to={`/pdf-store?select=${subject.slug}`} onClick={handlePdfClick} className="w-full md:w-auto">
               <Button variant="outline" icon={Lock} className="w-full h-16 px-10 text-base shadow-xl shadow-amber-100/20 bg-amber-50/30 border-amber-200 text-amber-700 hover:bg-amber-50">
-                Unlock PDF (₹149)
+                Unlock PDF (₹{settings?.pdfPrice || '149'})
               </Button>
             </Link>
           )

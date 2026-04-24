@@ -7,28 +7,18 @@ import {
 } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
-// In AI Studio, we use the generated config file.
-// In production, we prefer environment variables.
-let firebaseConfig: any = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  firestoreDatabaseId: import.meta.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID,
-};
+// In AI Studio, we use the generated config file if it exists.
+import localConfig from '../firebase-applet-config.json';
 
-// Prioritize auto-generated config from AI Studio setup
-try {
-  // @ts-ignore
-  const localConfig = await import('../firebase-applet-config.json');
-  if (localConfig && localConfig.default) {
-    firebaseConfig = { ...firebaseConfig, ...localConfig.default };
-  }
-} catch (e) {
-  // Fallback to environment variables or ignore if not available
-}
+let firebaseConfig: any = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || localConfig?.apiKey,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || localConfig?.authDomain,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || localConfig?.projectId,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || localConfig?.storageBucket,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || localConfig?.messagingSenderId,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || localConfig?.appId,
+  firestoreDatabaseId: import.meta.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID || localConfig?.firestoreDatabaseId,
+};
 
 // Initialize Firebase SDK (ensure it's only initialized once)
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();

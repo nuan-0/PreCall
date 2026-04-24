@@ -91,6 +91,7 @@ D. Article 22
   const topic: any = fetchedTopic || defaultTopic;
   const subject = subjects.find(s => s.slug === topic.subjectSlug);
   const isLocked = topic.status === 'premium' && !isPremium && !isAdmin;
+  const hasPdfAccess = isPremium || isAdmin || subject?.pdfAccessType === 'free' || profile?.ownedPdfs?.includes(subject?.slug || '');
 
   const isCompleted = profile?.completedTopics?.includes(topic.id);
 
@@ -328,8 +329,8 @@ D. Article 22
               </div>
             )}
 
-            {topic.pdfUrl && (
-              <div className="pt-8">
+            {topic.pdfUrl && hasPdfAccess && (
+              <div className="pt-8 space-y-3">
                 <a 
                   href={topic.pdfUrl} 
                   target="_blank" 
@@ -339,6 +340,23 @@ D. Article 22
                   <BookOpen className="h-6 w-6" />
                   Download Topic PDF
                 </a>
+                {topic.pdfPassword && (
+                  <div className="flex items-center justify-center gap-2 py-3 px-6 rounded-2xl bg-violet-50 border border-violet-100 text-violet-700 shadow-sm animate-in fade-in slide-in-from-top-1 duration-500">
+                    <Lock className="h-4 w-4" />
+                    <span className="text-xs font-black uppercase tracking-widest">Password:</span>
+                    <span className="text-lg font-black font-mono">{topic.pdfPassword}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {topic.pdfUrl && !hasPdfAccess && (
+              <div className="pt-8">
+                <Link to={`/pdf-store?select=${subject?.slug}`}>
+                  <Button variant="outline" icon={Lock} className="w-full h-16 text-lg font-black border-amber-200 text-amber-700 bg-amber-50/30 hover:bg-amber-50 rounded-[2rem]">
+                    Unlock Topic PDF
+                  </Button>
+                </Link>
               </div>
             )}
 

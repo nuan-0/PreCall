@@ -49,10 +49,15 @@ async function startServer() {
       let config: any = {};
       
       if (fs.existsSync(configPath)) {
-        config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-        firestoreDatabaseId = config.firestoreDatabaseId;
+        try {
+          config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+          firestoreDatabaseId = config.firestoreDatabaseId;
+        } catch (e) {
+          console.error('Failed to parse firebase-applet-config.json:', e);
+        }
       }
 
+      // Priority 1: Service Account
       if (process.env.FIREBASE_SERVICE_ACCOUNT) {
         try {
           const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
@@ -66,13 +71,17 @@ async function startServer() {
           console.error('❌ Failed to parse FIREBASE_SERVICE_ACCOUNT:', parseError);
           admin.initializeApp();
         }
-      } else if (config.projectId) {
+      } 
+      // Priority 2: Local Config (for development)
+      else if (config.projectId) {
         admin.initializeApp({
           projectId: config.projectId,
           storageBucket: config.storageBucket
         });
         console.log('✅ Firebase Admin initialized via local config');
-      } else {
+      } 
+      // Priority 3: Default Environment (Cloud/AI Studio)
+      else {
         admin.initializeApp();
         console.log('✅ Firebase Admin initialized via default credentials');
       }
@@ -82,7 +91,8 @@ async function startServer() {
   }
 
   // Use the specific database ID if available, otherwise default
-  const db = firestoreDatabaseId ? getFirestore(admin.app(), firestoreDatabaseId) : getFirestore(admin.app());
+  // We wrap db to be able to fallback if permission denied
+  let db = firestoreDatabaseId ? getFirestore(admin.app(), firestoreDatabaseId) : getFirestore(admin.app());
   console.log(`✅ Firestore initialized (Database: ${firestoreDatabaseId || '(default)'})`);
 
   // Help function for Telegram Notifications
@@ -125,32 +135,48 @@ async function startServer() {
                .replace(/</g, '&lt;')
                .replace(/>/g, '&gt;');
   };
-
-  // Helper: Resilient Admin Check
   const checkIsAdmin = async (userId: string): Promise<boolean> => {
     if (!userId) return false;
-    try {
-      // 1. Primary Check: Firestore (Works even if Identity Toolkit API is disabled)
-      const userDoc = await db.collection('users').doc(userId).get();
-      if (userDoc.exists) {
-        const userData = userDoc.data();
-        // Role 'admin' is protected by firestore.rules (users cannot set it themselves)
-        if (userData?.role === 'admin' || userData?.email === 'precall.admin@gmail.com') return true;
-      }
+    
+    console.log(`[Admin Check] Verifying admin status for userId: ${userId}`);
+    
+    const adminEmails = ['precall.admin@gmail.com', 'precall.founder@gmail.com'];
 
-      // 2. Secondary Check: Firebase Auth (Fallback)
+    // Part A: Firestore Check
+    const tryFirestoreCheck = async (dbInstance: any, label: string) => {
       try {
-        const user = await admin.auth().getUser(userId);
-        return user.email === 'precall.admin@gmail.com';
-      } catch (authErr: any) {
-        // Log but don't crash if it's the specific "API Disabled" error
-        if (authErr.code === 'auth/internal-error' || authErr.message?.includes('Identity Toolkit API')) {
-          console.warn('[Admin Check] Identity Toolkit API disabled, relying on Firestore fallback');
+        const userDoc = await dbInstance.collection('users').doc(userId).get();
+        if (userDoc.exists) {
+          const userData = userDoc.data();
+          console.log(`[Admin Check ${label}] Found user profile. Role: ${userData?.role}, Email: ${userData?.email}`);
+          if (userData?.role === 'admin' || adminEmails.includes(userData?.email)) return true;
         }
+      } catch (err: any) {
+        console.warn(`[Admin Check ${label}] Failed for ${userId}:`, err.message || err);
       }
-    } catch (err) {
-      console.error('[Admin Check] Fatal error:', err);
+      return false;
+    };
+
+    // 1. Try with primary db
+    if (await tryFirestoreCheck(db, 'Primary')) return true;
+
+    // 2. If primary db failed or didn't find, try default db (if primary was specific)
+    if (firestoreDatabaseId) {
+      const defaultDb = getFirestore(admin.app());
+      if (await tryFirestoreCheck(defaultDb, 'Default')) return true;
     }
+
+    // Part B: Firebase Auth (Fallback)
+    try {
+      const user = await admin.auth().getUser(userId);
+      console.log(`[Admin Check Auth] Email: ${user.email}`);
+      if (adminEmails.includes(user.email)) return true;
+    } catch (authErr: any) {
+      console.warn(`[Admin Check Auth] Failed for ${userId}:`, authErr.message || authErr);
+      // NOTE: Identity Toolkit API might be disabled, causing this to fail
+    }
+    
+    console.warn(`[Admin Check] Denying access for ${userId} - no admin verification succeeded.`);
     return false;
   };
 
@@ -279,13 +305,27 @@ async function startServer() {
   // API: Get Coupons (Admin only)
   app.get('/api/admin/coupons', async (req: any, res) => {
     const { userId } = req.query;
+    const authHeader = req.headers.authorization;
     try {
-      if (userId) {
-        const isAdmin = await checkIsAdmin(userId as string);
-        if (!isAdmin) {
-          return res.status(403).json({ error: 'Unauthorized: Admin access required' });
-        }
+      let isAdmin = false;
+      const adminEmails = ['precall.admin@gmail.com', 'precall.founder@gmail.com'];
+
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.split('Bearer ')[1];
+        try {
+          const decodedToken = await admin.auth().verifyIdToken(token);
+          if (adminEmails.includes(decodedToken.email || '')) isAdmin = true;
+        } catch (e) {}
       }
+
+      if (!isAdmin && userId) {
+        isAdmin = await checkIsAdmin(userId as string);
+      }
+
+      if (!isAdmin) {
+        return res.status(403).json({ error: 'Unauthorized: Admin access required' });
+      }
+
       const couponsSnap = await db.collection('coupons').orderBy('createdAt', 'desc').get();
       const coupons = couponsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       res.json(coupons);
@@ -297,8 +337,23 @@ async function startServer() {
   // API: Upsert Coupon (Admin only)
   app.post('/api/admin/coupons', async (req, res) => {
     const { userId, coupon } = req.body;
+    const authHeader = req.headers.authorization;
     try {
-      const isAdmin = await checkIsAdmin(userId);
+      let isAdmin = false;
+      const adminEmails = ['precall.admin@gmail.com', 'precall.founder@gmail.com'];
+
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.split('Bearer ')[1];
+        try {
+          const decodedToken = await admin.auth().verifyIdToken(token);
+          if (adminEmails.includes(decodedToken.email || '')) isAdmin = true;
+        } catch (e) {}
+      }
+
+      if (!isAdmin && userId) {
+        isAdmin = await checkIsAdmin(userId);
+      }
+
       if (!isAdmin) {
         return res.status(403).json({ error: 'Unauthorized: Admin access required' });
       }
@@ -334,34 +389,65 @@ async function startServer() {
     try {
       const { userId, folder = 'uploads' } = req.body;
       const file = req.file;
+      const authHeader = req.headers.authorization;
 
       if (!file) {
         console.error('[Upload Proxy] No file received');
         return res.status(400).json({ error: 'No file uploaded' });
       }
 
-      console.log(`[Upload Proxy] Received ${file.originalname} (${file.size} bytes) for user: ${userId}`);
+      console.log(`[Upload Proxy] Request starting for userId: ${userId}, file: ${file.originalname}`);
 
-      // Basic Admin Check
-      const isAdmin = await checkIsAdmin(userId);
+      // Admin verification
+      let isAdmin = false;
+      const adminEmails = ['precall.admin@gmail.com', 'precall.founder@gmail.com'];
+
+      // Priority 1: Token verification
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.split('Bearer ')[1];
+        try {
+          const decodedToken = await admin.auth().verifyIdToken(token);
+          if (adminEmails.includes(decodedToken.email || '')) {
+            console.log(`[Upload Proxy] Admin verified via ID token: ${decodedToken.email}`);
+            isAdmin = true;
+          }
+        } catch (tokenErr: any) {
+          console.warn('[Upload Proxy] Token verification failed:', tokenErr.message);
+        }
+      }
+
+      // Priority 2: Fallback to UID check
+      if (!isAdmin && userId) {
+        isAdmin = await checkIsAdmin(userId);
+      }
+
       if (!isAdmin) {
         console.warn(`[Upload Proxy] Permission denied for ${userId}. Identity Toolkit API might be disabled.`);
         return res.status(403).json({ error: 'Only authorized admins can upload files' });
       }
 
-      const bucketName = (admin.app().options as any).storageBucket;
-      const bucket = admin.storage().bucket(bucketName);
+      const configBucket = (admin.app().options as any).storageBucket;
+      const bucket = admin.storage().bucket(configBucket);
+      
+      if (!bucket.name) {
+        console.error('[Upload Proxy] Storage bucket name is missing');
+        return res.status(500).json({ error: 'Storage not configured properly on server' });
+      }
+
       const fileName = `${folder}/${Date.now()}-${file.originalname.replace(/\s+/g, '_')}`;
       const blob = bucket.file(fileName);
 
-      console.log(`[Upload Proxy] Target bucket: ${bucket.name}, File: ${fileName}`);
+      console.log(`[Upload Proxy] Uploading to bucket: ${bucket.name}, path: ${fileName}`);
 
       // Using blob.save instead of createWriteStream for more reliability
       await blob.save(file.buffer, {
         metadata: {
           contentType: file.mimetype,
-        }
+        },
+        resumable: false
       });
+
+      console.log(`[Upload Proxy] File saved. Attempting to get public URL...`);
 
       try {
         // Attempt to make public, ignore if it fails (bucket might be Uniform bucket-level access)
@@ -371,19 +457,48 @@ async function startServer() {
       }
 
       const publicUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
-      console.log(`[Upload Proxy] Upload successfully processed: ${publicUrl}`);
+      console.log(`[Upload Proxy] FINAL SUCCESS: ${publicUrl}`);
       res.json({ url: publicUrl });
 
     } catch (err: any) {
-      console.error('[Upload Proxy] Catch error:', err);
-      res.status(500).json({ error: 'Upload proxy failed', details: err.message });
+      console.error('[Upload Proxy] FATAL ERROR:', err);
+      res.status(500).json({ 
+        error: 'Upload proxy failed', 
+        details: err.message,
+        code: err.code 
+      });
     }
   });
 
   // API: Create Order
   app.post('/api/create-order', async (req, res) => {
-    const { amount, couponCode, productType } = req.body;
-    let finalAmount = amount; // in paise
+    const { amount, couponCode, productType, productSlugs } = req.body;
+    let finalAmount = amount; // default to what client sent, but we will verify for PDFs
+
+    // Verify Amount for PDF/Bundle to prevent manipulation
+    if (productType === 'pdf' || productType === 'pdf_bundle') {
+      try {
+        const settingsSnap = await db.collection('settings').doc('global').get();
+        const settingsData = settingsSnap.data();
+        const serverUnitPrice = parseInt(settingsData?.pdfPrice || '199');
+        
+        const count = productType === 'pdf' ? 1 : (productSlugs?.length || 0);
+        if (count === 0) return res.status(400).json({ error: 'No items selected' });
+        
+        // Base amount in paise
+        finalAmount = count * serverUnitPrice * 100;
+        console.log(`[Payment] Server-calculated amount for ${count} PDFs: ${finalAmount} paise`);
+      } catch (err) {
+        console.error('Price fetch error:', err);
+      }
+    } else if (productType === 'premium') {
+      try {
+        const settingsSnap = await db.collection('settings').doc('global').get();
+        const settingsData = settingsSnap.data();
+        const serverPremiumPrice = parseInt(settingsData?.price?.replace(/,/g, '') || '999');
+        finalAmount = serverPremiumPrice * 100;
+      } catch (err) {}
+    }
 
     // Strict rule: No coupon discounts for PDF bundles
     const isBundle = productType === 'pdf_bundle';

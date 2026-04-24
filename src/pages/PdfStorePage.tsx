@@ -1,5 +1,6 @@
 import { Check, Crown, ShieldCheck, Zap, FileText, ArrowRight, PartyPopper, ShoppingCart, Info, Lock } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Button, Card, Badge, Skeleton } from '../components/UI';
 import { useSettings, useSubjects } from '../hooks/useData';
 import { useAuth } from '../contexts/AuthContext';
@@ -19,13 +20,26 @@ export function PdfStorePage() {
   const { settings } = useSettings();
   const { subjects, loading: subjectsLoading } = useSubjects();
   const { user, profile, isPremium, isAdmin, openAuthModal } = useAuth();
+  const location = useLocation();
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [selectedPdfSlugs, setSelectedPdfSlugs] = useState<string[]>([]);
   const [couponCode, setCouponCode] = useState('');
-  const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
+  const [appliedCoupon, setAppliedCoupon] = useState<any>(null);
   const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
   const processingRef = useRef(false);
+
+  // Handle URL param selection
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const select = params.get('select');
+    if (select && subjects.length > 0) {
+      const subject = subjects.find(s => s.slug === select);
+      if (subject && subject.pdfVisible && subject.pdfUrl) {
+        setSelectedPdfSlugs(prev => prev.includes(select) ? prev : [...prev, select]);
+      }
+    }
+  }, [location.search, subjects]);
   
   const unitPrice = parseInt(settings?.pdfPrice || '199');
   const premiumPrice = parseInt(settings?.price?.replace(/,/g, '') || '999');
@@ -94,8 +108,8 @@ export function PdfStorePage() {
       });
       const data = await res.json();
       if (res.ok) {
-        setAppliedCoupon(data.coupon);
-        toast.success(`Coupon applied: ${data.message}`);
+        setAppliedCoupon(data);
+        toast.success(`Coupon applied: ${data.code}`);
       } else {
         setAppliedCoupon(null);
         toast.error(data.error || 'Invalid coupon');
@@ -164,7 +178,8 @@ export function PdfStorePage() {
         body: JSON.stringify({ 
           amount: amountInPaise,
           couponCode: appliedCoupon?.code,
-          productType: selectedPdfSlugs.length > 1 ? 'pdf_bundle' : 'pdf'
+          productType: selectedPdfSlugs.length > 1 ? 'pdf_bundle' : 'pdf',
+          productSlugs: selectedPdfSlugs
         })
       });
       

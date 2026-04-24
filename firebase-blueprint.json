@@ -12,6 +12,7 @@
         "order": { "type": "integer", "description": "The order in which to display the subject" },
         "pdfTitle": { "type": "string", "description": "The title of the PDF" },
         "pdfUrl": { "type": "string", "description": "The URL of the PDF" },
+        "pdfPassword": { "type": "string", "description": "Optional password to open the PDF" },
         "pdfVisible": { "type": "boolean", "description": "Whether the PDF is visible" },
         "pdfAccessType": { "type": "string", "enum": ["free", "premium"], "description": "Access level for the PDF" }
       },
@@ -36,7 +37,9 @@
         "quickEliminationLogic": { "type": "string", "description": "Logic for quick elimination" },
         "miniMcqQuestion": { "type": "string", "description": "A mini MCQ question" },
         "miniMcqAnswer": { "type": "string", "description": "The answer to the mini MCQ" },
-        "infographicUrl": { "type": "string", "description": "URL of the topic infographic" }
+        "infographicUrl": { "type": "string", "description": "URL of the topic infographic" },
+        "pdfUrl": { "type": "string", "description": "URL of the topic PDF" },
+        "pdfPassword": { "type": "string", "description": "Optional password to open the PDF" }
       },
       "required": ["title", "slug", "subjectSlug", "status", "order"]
     },
