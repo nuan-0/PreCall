@@ -45,7 +45,7 @@ async function startServer() {
   
   try {
     if (admin.apps.length === 0) {
-      const configPath = path.join(__dirname, 'firebase-applet-config.json');
+      const configPath = path.join(__dirname, '../firebase-applet-config.json');
       let config: any = {};
       
       if (fs.existsSync(configPath)) {
@@ -189,7 +189,7 @@ async function startServer() {
     
     const testEmail = 'razorpaytest.precall@gmail.com';
     const testPassword = 'razorpay999';
-    const logPath = path.join(__dirname, 'seed-log.txt');
+    const logPath = path.join(__dirname, '../seed-log.txt');
     
     const log = (msg: string) => {
       console.log(`[Seed] ${msg}`);
@@ -688,7 +688,7 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(__dirname, 'dist');
+    const distPath = path.join(__dirname, '../dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
