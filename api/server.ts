@@ -45,7 +45,7 @@ async function startServer() {
   
   try {
     if (admin.apps.length === 0) {
-      const configPath = path.join(__dirname, '../firebase-applet-config.json');
+      const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
       let config: any = {};
       
       if (fs.existsSync(configPath)) {
@@ -182,14 +182,14 @@ async function startServer() {
 
   // Seed Razorpay Test Account
   const seedRazorpayTestAccount = async () => {
-    // Skip seeding on Vercel/Production to prevent timeouts and unnecessary writes
-    if (process.env.NODE_ENV === 'production' || !process.env.VITE) {
+    // Skip seeding on Vercel to prevent timeouts
+    if (process.env.VERCEL) {
       return;
     }
     
     const testEmail = 'razorpaytest.precall@gmail.com';
     const testPassword = 'razorpay999';
-    const logPath = path.join(__dirname, '../seed-log.txt');
+    const logPath = path.join(process.cwd(), 'seed-log.txt');
     
     const log = (msg: string) => {
       console.log(`[Seed] ${msg}`);
@@ -681,14 +681,17 @@ async function startServer() {
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+    console.log('🚀 Starting Vite in middleware mode...');
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
+      root: process.cwd(),
       server: { middlewareMode: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(__dirname, '../dist');
+    console.log('📦 Serving production assets from dist...');
+    const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
