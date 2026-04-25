@@ -70,6 +70,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
+      if (firebaseUser) {
+        (window as any)._userId = firebaseUser.uid;
+      } else {
+        (window as any)._userId = undefined;
+      }
       
       if (firebaseUser) {
         // Close modal on successful login

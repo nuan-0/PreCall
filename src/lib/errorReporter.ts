@@ -24,11 +24,11 @@ export async function reportError(error: Error | any, userId?: string) {
 
 export function setupErrorHandling(userId?: string) {
   window.onerror = (message, source, lineno, colno, error) => {
-    reportError(error || { message }, userId);
+    reportError(error || { message }, userId || (window as any)._userId);
     return false; // Let default browser handling continue
   };
 
   window.onunhandledrejection = (event) => {
-    reportError(event.reason, userId);
+    reportError(event.reason, userId || (window as any)._userId);
   };
 }
