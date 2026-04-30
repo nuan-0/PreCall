@@ -18,6 +18,8 @@ const upload = multer({ storage: multer.memoryStorage() });
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const ADMIN_EMAILS = ['precall.admin@gmail.com', 'precall.founder@gmail.com'];
+
 // Helper to check Razorpay keys
 const checkRazorpayConfig = () => {
   const keyId = process.env.VITE_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID || process.env.RAZORPAY_LIVE_KEY_ID;
@@ -69,31 +71,57 @@ async function startServer() {
           console.log('✅ Firebase Admin initialized via Service Account');
         } catch (parseError) {
           console.error('❌ Failed to parse FIREBASE_SERVICE_ACCOUNT:', parseError);
-          admin.initializeApp();
         }
       } 
-      // Priority 2: Local Config (for development)
-      else if (config.projectId) {
-        admin.initializeApp({
-          projectId: config.projectId,
-          storageBucket: config.storageBucket
-        });
-        console.log('✅ Firebase Admin initialized via local config');
-      } 
-      // Priority 3: Default Environment (Cloud/AI Studio)
-      else {
-        admin.initializeApp();
-        console.log('✅ Firebase Admin initialized via default credentials');
+      
+      // Priority 2: Default Credentials (best for Cloud Run/AI Studio)
+      if (admin.apps.length === 0) {
+        try {
+          // If in AI Studio, sometimes providing project ID from config helps, 
+          // but sometimes it causes issues if the config is stale.
+          admin.initializeApp();
+          console.log('✅ Firebase Admin initialized via default credentials');
+        } catch (error) {
+          if (config.projectId) {
+            admin.initializeApp({
+              projectId: config.projectId,
+              storageBucket: config.storageBucket
+            });
+            console.log('✅ Firebase Admin initialized via local config');
+          } else {
+            throw error;
+          }
+        }
       }
     }
   } catch (error) {
     console.error('Firebase Admin initialization error:', error);
   }
 
-  // Use the specific database ID if available, otherwise default
-  // We wrap db to be able to fallback if permission denied
-  let db = firestoreDatabaseId ? getFirestore(admin.app(), firestoreDatabaseId) : getFirestore(admin.app());
-  console.log(`✅ Firestore initialized (Database: ${firestoreDatabaseId || '(default)'})`);
+  // Direct initialization of the database instance
+  let db: admin.firestore.Firestore;
+  try {
+    if (firestoreDatabaseId) {
+      db = getFirestore(admin.app(), firestoreDatabaseId);
+      console.log(`✅ Using specific Firestore database: ${firestoreDatabaseId}`);
+    } else {
+      db = getFirestore(admin.app());
+      console.log('✅ Using default Firestore database');
+    }
+  } catch (err: any) {
+    console.warn('⚠️ Initial database acquisition failed, trying fallback to default admin.firestore():', err.message);
+    db = admin.firestore();
+  }
+
+  // Direct and simple helper for Firestore operations
+  const runFirestoreOp = async (op: (dbInstance: admin.firestore.Firestore) => Promise<any>, label: string): Promise<any> => {
+    try {
+      return await op(db);
+    } catch (err: any) {
+      console.error(`[Firestore ${label}] Operation failed:`, err.message);
+      throw err;
+    }
+  };
 
   // Help function for Telegram Notifications
   const sendTelegramNotification = async (message: string) => {
@@ -108,16 +136,22 @@ async function startServer() {
     console.log(`📡 Sending Telegram notification... (ChatID: ${chatId})`);
 
     try {
-      // Using global fetch (Node 18+)
+      // Using global fetch (Node 18+) with timeout to prevent hanging the request
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+
       const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           chat_id: chatId,
           text: message,
           parse_mode: 'HTML'
         })
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
@@ -153,40 +187,28 @@ async function startServer() {
     
     console.log(`[Admin Check] Verifying admin status for userId: ${userId}`);
     
-    const adminEmails = ['precall.admin@gmail.com', 'precall.founder@gmail.com'];
-
-    // Part A: Firestore Check
-    const tryFirestoreCheck = async (dbInstance: any, label: string) => {
-      try {
-        const userDoc = await dbInstance.collection('users').doc(userId).get();
-        if (userDoc.exists) {
-          const userData = userDoc.data();
-          console.log(`[Admin Check ${label}] Found user profile. Role: ${userData?.role}, Email: ${userData?.email}`);
-          if (userData?.role === 'admin' || adminEmails.includes(userData?.email)) return true;
-        }
-      } catch (err: any) {
-        console.warn(`[Admin Check ${label}] Failed for ${userId}:`, err.message || err);
+    // Part A: Firestore Check (Robust)
+    try {
+      const userDoc = await runFirestoreOp(async (dbInstance) => {
+        return await dbInstance.collection('users').doc(userId).get();
+      }, 'AdminCheck');
+      
+      if (userDoc.exists) {
+        const userData = userDoc.data();
+        console.log(`[Admin Check] Found user profile. Role: ${userData?.role}, Email: ${userData?.email}`);
+        if (userData?.role === 'admin' || ADMIN_EMAILS.includes(userData?.email)) return true;
       }
-      return false;
-    };
-
-    // 1. Try with primary db
-    if (await tryFirestoreCheck(db, 'Primary')) return true;
-
-    // 2. If primary db failed or didn't find, try default db (if primary was specific)
-    if (firestoreDatabaseId) {
-      const defaultDb = getFirestore(admin.app());
-      if (await tryFirestoreCheck(defaultDb, 'Default')) return true;
+    } catch (err: any) {
+      console.warn(`[Admin Check] Firestore check failed for ${userId}:`, err.message || err);
     }
 
     // Part B: Firebase Auth (Fallback)
     try {
       const user = await admin.auth().getUser(userId);
       console.log(`[Admin Check Auth] Email: ${user.email}`);
-      if (adminEmails.includes(user.email)) return true;
+      if (ADMIN_EMAILS.includes(user.email || '')) return true;
     } catch (authErr: any) {
       console.warn(`[Admin Check Auth] Failed for ${userId}:`, authErr.message || authErr);
-      // NOTE: Identity Toolkit API might be disabled, causing this to fail
     }
     
     console.warn(`[Admin Check] Denying access for ${userId} - no admin verification succeeded.`);
@@ -233,14 +255,14 @@ async function startServer() {
           
           log(`User created: ${userRecord.uid}. Creating Firestore profile...`);
           // Create profile in Firestore
-          await db.collection('users').doc(userRecord.uid).set({
+          await runFirestoreOp(dbInstance => dbInstance.collection('users').doc(userRecord.uid).set({
             uid: userRecord.uid,
             email: testEmail,
             displayName: 'Razorpay Tester',
             role: 'user',
             isPremium: false,
             createdAt: new Date().toISOString()
-          }, { merge: true });
+          }, { merge: true }), 'SeedUserProfile');
           
           log('Razorpay test account seeded successfully');
         } else {
@@ -285,11 +307,11 @@ async function startServer() {
     if (!code) return res.status(400).json({ error: 'Coupon code is required' });
 
     try {
-      const couponSnap = await db.collection('coupons')
+      const couponSnap = await runFirestoreOp(dbInstance => dbInstance.collection('coupons')
         .where('code', '==', code.toUpperCase())
         .where('isActive', '==', true)
         .limit(1)
-        .get();
+        .get(), 'ValidateCoupon');
 
       if (couponSnap.empty) {
         return res.status(404).json({ error: 'Invalid or inactive coupon code' });
@@ -321,13 +343,12 @@ async function startServer() {
     const authHeader = req.headers.authorization;
     try {
       let isAdmin = false;
-      const adminEmails = ['precall.admin@gmail.com', 'precall.founder@gmail.com'];
 
       if (authHeader && authHeader.startsWith('Bearer ')) {
         const token = authHeader.split('Bearer ')[1];
         try {
           const decodedToken = await admin.auth().verifyIdToken(token);
-          if (adminEmails.includes(decodedToken.email || '')) isAdmin = true;
+          if (ADMIN_EMAILS.includes(decodedToken.email || '')) isAdmin = true;
         } catch (e) {}
       }
 
@@ -343,6 +364,7 @@ async function startServer() {
       const coupons = couponsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       res.json(coupons);
     } catch (error) {
+      console.error('[Coupons] Error fetching coupons:', error);
       res.status(500).json({ error: 'Failed to fetch coupons' });
     }
   });
@@ -351,16 +373,28 @@ async function startServer() {
   app.post('/api/admin/coupons', async (req, res) => {
     const { userId, coupon } = req.body;
     const authHeader = req.headers.authorization;
+    
+    console.log(`[Coupons] Save request received from userId: ${userId}`);
+
+    if (!coupon || !coupon.code) {
+      console.error('[Coupons] Missing coupon data or code');
+      return res.status(400).json({ error: 'Coupon code is required' });
+    }
+
     try {
       let isAdmin = false;
-      const adminEmails = ['precall.admin@gmail.com', 'precall.founder@gmail.com'];
 
       if (authHeader && authHeader.startsWith('Bearer ')) {
         const token = authHeader.split('Bearer ')[1];
         try {
           const decodedToken = await admin.auth().verifyIdToken(token);
-          if (adminEmails.includes(decodedToken.email || '')) isAdmin = true;
-        } catch (e) {}
+          if (ADMIN_EMAILS.includes(decodedToken.email || '')) {
+            console.log(`[Coupons] Admin verified via ID token: ${decodedToken.email}`);
+            isAdmin = true;
+          }
+        } catch (e: any) {
+          console.warn('[Coupons] Token verification skipped/failed:', e.message);
+        }
       }
 
       if (!isAdmin && userId) {
@@ -368,23 +402,39 @@ async function startServer() {
       }
 
       if (!isAdmin) {
+        console.warn(`[Coupons] Unauthorized access attempt by userId: ${userId}`);
         return res.status(403).json({ error: 'Unauthorized: Admin access required' });
       }
 
       const couponId = coupon.id || db.collection('coupons').doc().id;
       const data = {
         ...coupon,
-        code: coupon.code.toUpperCase(),
+        code: coupon.code.toUpperCase().trim(),
         updatedAt: new Date().toISOString(),
         createdAt: coupon.createdAt || new Date().toISOString(),
         usageCount: coupon.usageCount || 0
       };
+      
+      // Ensure specific fields have correct types
+      if (data.type === 'percentage') {
+        data.discountPercentage = Number(data.discountPercentage) || 0;
+        data.discountAmount = 0;
+      } else {
+        data.discountAmount = Number(data.discountAmount) || 0;
+        data.discountPercentage = 0;
+      }
+      
+      if (data.maxUsage) data.maxUsage = Number(data.maxUsage);
+      
       delete data.id;
 
+      console.log(`[Coupons] Saving coupon ${data.code} (ID: ${couponId})`);
       await db.collection('coupons').doc(couponId).set(data, { merge: true });
+      console.log(`[Coupons] Successfully saved coupon ${data.code}`);
       res.json({ id: couponId, ...data });
-    } catch (error) {
-      res.status(500).json({ error: 'Failed to save coupon' });
+    } catch (error: any) {
+      console.error('[Coupons] Fatal error saving coupon:', error);
+      res.status(500).json({ error: 'Failed to save coupon', details: error.message });
     }
   });
 
@@ -417,14 +467,13 @@ async function startServer() {
 
       // Admin verification
       let isAdmin = false;
-      const adminEmails = ['precall.admin@gmail.com', 'precall.founder@gmail.com'];
 
       // Priority 1: Token verification
       if (authHeader && authHeader.startsWith('Bearer ')) {
         const token = authHeader.split('Bearer ')[1];
         try {
           const decodedToken = await admin.auth().verifyIdToken(token);
-          if (adminEmails.includes(decodedToken.email || '')) {
+          if (ADMIN_EMAILS.includes(decodedToken.email || '')) {
             console.log(`[Upload Proxy] Admin verified via ID token: ${decodedToken.email}`);
             isAdmin = true;
           }
@@ -490,7 +539,7 @@ async function startServer() {
   // API: Create Order
   app.post('/api/create-order', async (req, res) => {
     console.log('[Order] Request received:', JSON.stringify(req.body));
-    const { amount, couponCode, productType, productSlugs, productSlug } = req.body;
+    const { amount, couponCode, productType, productSlugs, productSlug, userId } = req.body;
     let finalAmount = amount; // default to what client sent, but we will verify for PDFs
 
     // Normalizing slugs if single one sent
@@ -499,7 +548,7 @@ async function startServer() {
     // Verify Amount for PDF/Bundle to prevent manipulation
     if (productType === 'pdf' || productType === 'pdf_bundle') {
       try {
-        const settingsSnap = await db.collection('settings').doc('global').get();
+        const settingsSnap = await runFirestoreOp(dbInstance => dbInstance.collection('settings').doc('global').get(), 'GetPriceSettings');
         const settingsData = settingsSnap.data();
         const serverUnitPrice = parseInt(settingsData?.pdfPrice || '199');
         
@@ -515,7 +564,7 @@ async function startServer() {
       }
     } else if (productType === 'premium') {
       try {
-        const settingsSnap = await db.collection('settings').doc('global').get();
+        const settingsSnap = await runFirestoreOp(dbInstance => dbInstance.collection('settings').doc('global').get(), 'GetPremiumPrice');
         const settingsData = settingsSnap.data();
         const priceStr = settingsData?.price || '999';
         const serverPremiumPrice = parseInt(priceStr.toString().replace(/,/g, ''));
@@ -538,34 +587,17 @@ async function startServer() {
     // Strict rule: No coupon discounts for PDF bundles
     const isBundle = productType === 'pdf_bundle';
 
+    // --- HARDCODED COUPON LOGIC ---
+    // If user enters PRECALL10, they get 10% off automatically (except for bundles).
     if (couponCode && !isBundle) {
-      try {
-        const couponSnap = await db.collection('coupons')
-          .where('code', '==', couponCode.toUpperCase())
-          .where('isActive', '==', true)
-          .limit(1)
-          .get();
-
-        if (!couponSnap.empty) {
-          const couponData = couponSnap.docs[0].data();
-          const isValid = !couponData.expiresAt || new Date(couponData.expiresAt) > new Date();
-          const underLimit = !couponData.maxUsage || couponData.usageCount < couponData.maxUsage;
-
-          if (isValid && underLimit) {
-            if (couponData.type === 'flat') {
-              const discountPaise = (couponData.discountAmount || 0) * 100;
-              finalAmount = Math.max(0, finalAmount - discountPaise);
-            } else if (couponData.type === 'percentage') {
-              const multiplier = (100 - (couponData.discountPercentage || 0)) / 100;
-              finalAmount = Math.round(finalAmount * multiplier);
-            }
-          }
-        }
-      } catch (err: any) {
-        console.error('Coupon apply error:', err);
-        await notifyFailure('Coupon Query Failed', err, { couponCode });
+      if (couponCode.toUpperCase().trim() === 'PRECALL10') {
+        console.log(`[Payment] Hardcoded coupon PRECALL10 applied for ${userId}`);
+        finalAmount = Math.round(finalAmount * 0.9); // 10% discount
+      } else {
+        console.warn(`[Payment] Unrecognized coupon code: ${couponCode}. Proceeding with full price.`);
       }
     }
+    // ------------------------------
 
     const keyId = (process.env.VITE_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID || process.env.RAZORPAY_LIVE_KEY_ID)?.trim();
     const keySecret = (process.env.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_LIVE_KEY_SECRET)?.trim();
@@ -648,7 +680,6 @@ async function startServer() {
       try {
         console.log(`[Payment] Signature verified for user: ${userId}. Product: ${productType} ${productSlug || productSlugs.join(',')}. Updating Firestore...`);
         
-        const userRef = db.collection('users').doc(userId);
         const updateData: any = {
           premiumPaymentId: razorpay_payment_id,
           premiumOrderId: razorpay_order_id,
@@ -674,23 +705,23 @@ async function startServer() {
         }
 
         // Update user status in Firestore
-        await userRef.set(updateData, { merge: true });
+        await runFirestoreOp(dbInstance => dbInstance.collection('users').doc(userId).set(updateData, { merge: true }), 'UpdateUserPaymentStatus');
 
         // Increment coupon usage if provided
         const { couponCode } = req.body;
         if (couponCode) {
           try {
-            const couponSnap = await db.collection('coupons')
+            const couponSnap = await runFirestoreOp(dbInstance => dbInstance.collection('coupons')
               .where('code', '==', couponCode.toUpperCase())
               .limit(1)
-              .get();
+              .get(), 'GetCouponForIncrement');
             
             if (!couponSnap.empty) {
-              const couponRef = couponSnap.docs[0].ref;
-              await couponRef.update({
+              const couponDoc = couponSnap.docs[0];
+              await runFirestoreOp(_ => couponDoc.ref.update({
                 usageCount: FieldValue.increment(1),
                 updatedAt: new Date().toISOString()
-              });
+              }), 'IncrementCoupon');
               console.log(`[Payment] Coupon ${couponCode} usage incremented.`);
             }
           } catch (err) {
@@ -699,16 +730,16 @@ async function startServer() {
         }
 
         // Add notification
-        await db.collection('notifications').add({
+        await runFirestoreOp(dbInstance => dbInstance.collection('notifications').add({
           userId: userId,
           title: notificationTitle,
           message: notificationMessage,
           type: productType === 'premium' ? 'premium' : 'welcome',
           createdAt: new Date().toISOString()
-        });
+        }), 'AddPaymentNotification');
 
         // Get Summary for Telegram Update
-        const premiumSnap = await db.collection('users').where('isPremium', '==', true).count().get();
+        const premiumSnap = await runFirestoreOp(dbInstance => dbInstance.collection('users').where('isPremium', '==', true).count().get(), 'GetTotalPremiumCount');
         const totalPremium = premiumSnap.data().count;
 
         // Notify via Telegram
@@ -790,7 +821,7 @@ async function startServer() {
 
   // Test Telegram on Startup
   try {
-    const settingsSnap = await db.collection('settings').doc('global').get();
+    const settingsSnap = await runFirestoreOp(dbInstance => dbInstance.collection('settings').doc('global').get(), 'StartupSettings');
     const appName = settingsSnap.exists ? settingsSnap.data()?.appName : 'PreCall';
     
     sendTelegramNotification(`🚀 <b>${escapeHTML(appName || 'PreCall')} Server Started</b>\nEnvironment: <code>${process.env.NODE_ENV || 'development'}</code>`).catch(() => {});
