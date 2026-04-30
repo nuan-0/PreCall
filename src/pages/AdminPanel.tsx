@@ -1118,7 +1118,7 @@ function AdminSubjects({ showConfirm }: { showConfirm: any }) {
 
     const saveAction = async () => {
       setIsSaving(true);
-      const id = editingSubject.id || editingSubject.slug;
+      const id = (editingSubject.id || editingSubject.slug) as string;
       try {
         await setDoc(doc(db, 'subjects', id), { ...editingSubject, id });
         toast.success('Subject saved successfully!');
@@ -1516,7 +1516,7 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
 
     const saveAction = async () => {
       setIsSaving(true);
-      const id = editingTopic.id || editingTopic.slug;
+      const id = (editingTopic.id || editingTopic.slug) as string;
       try {
         await setDoc(doc(db, 'topics', id), { ...editingTopic, id });
         toast.success('Topic published successfully!');

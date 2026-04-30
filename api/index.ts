@@ -1,6 +1,6 @@
 import express from 'express';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath } from 'node:url';
 // @ts-ignore
 import RazorpayPkg from 'razorpay';
 const Razorpay = (RazorpayPkg as any).default || RazorpayPkg;
@@ -287,15 +287,17 @@ async function startServer() {
 
   // API: Report Client-Side Error
   app.post('/api/report-error', async (req, res) => {
-    const { message, stack, url, userAgent, userId } = req.body;
+    const { message, stack, url, userAgent, userId, source, lineno, colno, type } = req.body;
     
     await sendTelegramNotification(
       `🚨 <b>Client-Side Crash Detected</b>\n\n` +
       `👤 <b>User:</b> <code>${userId || 'Guest'}</code>\n` +
       `🛑 <b>Error:</b> <i>${message || 'Unknown'}</i>\n` +
       `🌐 <b>URL:</b> <code>${url || 'Unknown'}</code>\n` +
-      `📱 <b>UA:</b> <code>${userAgent || 'Unknown'}</code>\n\n` +
-      `<b>Trace:</b>\n<pre>${(stack || '').substring(0, 500)}...</pre>`
+      `📱 <b>UA:</b> <code>${userAgent || 'Unknown'}</code>\n` +
+      (source ? `📍 <b>Source:</b> <code>${source}:${lineno}:${colno}</code>\n` : '') +
+      (type ? `🏷️ <b>Type:</b> <code>${type}</code>\n` : '') +
+      `\n<b>Trace:</b>\n<pre>${(stack || '').substring(0, 500)}...</pre>`
     ).catch(() => {});
 
     res.json({ status: 'ok' });

@@ -50,13 +50,18 @@ export function PdfStorePage() {
         resolve(true);
         return;
       }
-      const script = document.createElement('script');
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-      script.async = true;
-      script.crossOrigin = 'anonymous';
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
-      document.body.appendChild(script);
+      // Script is now in index.html, but we wait just in case it's still loading
+      let attempts = 0;
+      const check = setInterval(() => {
+        if (window.Razorpay) {
+          clearInterval(check);
+          resolve(true);
+        } else if (attempts > 50) {
+          clearInterval(check);
+          resolve(false);
+        }
+        attempts++;
+      }, 200);
     });
   };
 
@@ -183,7 +188,8 @@ export function PdfStorePage() {
           amount: amountInPaise,
           couponCode: appliedCoupon?.code,
           productType: selectedPdfSlugs.length > 1 ? 'pdf_bundle' : 'pdf',
-          productSlugs: selectedPdfSlugs
+          productSlugs: selectedPdfSlugs,
+          userId: user?.uid
         })
       });
       

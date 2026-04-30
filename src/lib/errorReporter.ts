@@ -1,12 +1,13 @@
 
-export async function reportError(error: Error | any, userId?: string) {
+export async function reportError(error: Error | any, userId?: string, extra?: any) {
   try {
     const errorData = {
-      message: error.message || String(error),
-      stack: error.stack || '',
+      message: error?.message || String(error),
+      stack: error?.stack || '',
       url: window.location.href,
       userAgent: navigator.userAgent,
-      userId: userId || 'Anonymous'
+      userId: userId || 'Anonymous',
+      ...extra
     };
 
     console.error('[ErrorReporter]', errorData);
@@ -24,11 +25,17 @@ export async function reportError(error: Error | any, userId?: string) {
 
 export function setupErrorHandling(userId?: string) {
   window.onerror = (message, source, lineno, colno, error) => {
-    reportError(error || { message }, userId || (window as any)._userId);
+    reportError(error || { message }, userId || (window as any)._userId, {
+      source,
+      lineno,
+      colno
+    });
     return false; // Let default browser handling continue
   };
 
   window.onunhandledrejection = (event) => {
-    reportError(event.reason, userId || (window as any)._userId);
+    reportError(event.reason, userId || (window as any)._userId, {
+      type: 'unhandledrejection'
+    });
   };
 }

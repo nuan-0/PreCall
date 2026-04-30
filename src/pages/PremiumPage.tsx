@@ -39,13 +39,18 @@ export function PremiumPage() {
         resolve(true);
         return;
       }
-      const script = document.createElement('script');
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-      script.async = true;
-      script.crossOrigin = 'anonymous';
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
-      document.body.appendChild(script);
+      // Script is now in index.html, but we wait just in case it's still loading
+      let attempts = 0;
+      const check = setInterval(() => {
+        if (window.Razorpay) {
+          clearInterval(check);
+          resolve(true);
+        } else if (attempts > 50) {
+          clearInterval(check);
+          resolve(false);
+        }
+        attempts++;
+      }, 200);
     });
   };
 
@@ -303,7 +308,7 @@ export function PremiumPage() {
               <div className="mb-8">
                 <div className="flex items-baseline gap-2">
                   <span className="text-5xl font-bold text-violet-950">
-                    ₹{appliedCoupon ? Math.round(parseInt(price.replace(/,/g, '')) * 0.9) : price}
+                    ₹{appliedCoupon ? Math.round((parseInt(price.toString().replace(/[^0-9]/g, '')) || 999) * 0.9) : price}
                   </span>
                   <span className="text-slate-400 line-through font-bold text-lg">₹{originalPrice}</span>
                 </div>
