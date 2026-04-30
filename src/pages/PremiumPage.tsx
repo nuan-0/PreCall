@@ -150,7 +150,14 @@ export function PremiumPage() {
         })
       });
       
-      if (!orderRes.ok) throw new Error('Failed to create order');
+      if (!orderRes.ok) {
+        let errorMsg = 'Failed to create order';
+        try {
+          const errData = await orderRes.json();
+          errorMsg = errData.details || errData.error || errorMsg;
+        } catch (e) {}
+        throw new Error(errorMsg);
+      }
       const orderData = await orderRes.json();
 
       const options = {

@@ -10,7 +10,7 @@ import crypto from 'crypto';
 import admin from 'firebase-admin';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import fs from 'fs';
-import fetch from 'node-fetch';
+// import fetch from 'node-fetch'; // No longer needed in Node 18+
 
 import multer from 'multer';
 const upload = multer({ storage: multer.memoryStorage() });
@@ -97,8 +97,8 @@ async function startServer() {
 
   // Help function for Telegram Notifications
   const sendTelegramNotification = async (message: string) => {
-    const token = process.env.TELEGRAM_BOT_TOKEN;
-    const chatId = process.env.TELEGRAM_CHAT_ID;
+    const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
+    const chatId = process.env.TELEGRAM_CHAT_ID?.trim();
     
     if (!token || !chatId) {
       console.log(`⚠️ Telegram notification skipped: ${!token ? 'BOT_TOKEN missing' : ''} ${!chatId ? 'CHAT_ID missing' : ''}`);
@@ -108,6 +108,7 @@ async function startServer() {
     console.log(`📡 Sending Telegram notification... (ChatID: ${chatId})`);
 
     try {
+      // Using global fetch (Node 18+)
       const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -560,16 +561,22 @@ async function startServer() {
             }
           }
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Coupon apply error:', err);
+        await notifyFailure('Coupon Query Failed', err, { couponCode });
       }
     }
 
-    const keyId = process.env.VITE_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID || process.env.RAZORPAY_LIVE_KEY_ID;
-    const keySecret = process.env.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_LIVE_KEY_SECRET;
+    const keyId = (process.env.VITE_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID || process.env.RAZORPAY_LIVE_KEY_ID)?.trim();
+    const keySecret = (process.env.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_LIVE_KEY_SECRET)?.trim();
 
     console.log(`[Payment] Final calculated amount: ${finalAmount} paise`);
-    const integerAmount = Math.round(finalAmount);
+    let integerAmount = Math.round(finalAmount);
+    
+    if (isNaN(integerAmount)) {
+      console.error('[Payment] Amount is NaN, using fallback');
+      integerAmount = 99900;
+    }
 
     if (!keyId || !keySecret) {
       console.error('[Payment] Razorpay keys missing in environment');
@@ -754,9 +761,11 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
+  if (!process.env.VERCEL) {
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  }
 
   // Global Error Handler
   app.use((err: any, req: any, res: any, next: any) => {
@@ -793,15 +802,35 @@ async function startServer() {
   return app;
 }
 
-// For Vercel, we need to export the app directly if possible, 
-// but since we have async setup, we use this wrapper.
+// Vercel Serverless Function Handler
 let cachedApp: any;
-export default async (req: any, res: any) => {
-  if (!cachedApp) {
-    cachedApp = await startServer();
+export default async function handler(req: any, res: any) {
+  const requestId = Date.now().toString(36);
+  console.log(`[${requestId}] [Vercel] Incoming request: ${req.method} ${req.url}`);
+  
+  try {
+    if (!cachedApp) {
+      console.log(`[${requestId}] [Vercel] Initializing app instance...`);
+      cachedApp = await startServer();
+      console.log(`[${requestId}] [Vercel] App initialization complete.`);
+    }
+    
+    // Check if we are running in a state where we can handle requests
+    if (!cachedApp) {
+      throw new Error('Express app failed to initialize');
+    }
+
+    // Direct handle via Express instance
+    return cachedApp(req, res);
+  } catch (error: any) {
+    console.error(`[${requestId}] [Vercel] Critical Handler Error:`, error);
+    res.status(500).json({ 
+      error: 'Server failed to start or handle request', 
+      details: error.message,
+      requestId 
+    });
   }
-  return cachedApp(req, res);
-};
+}
 
 // Start the server immediately if not in production
 if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
