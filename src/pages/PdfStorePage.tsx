@@ -105,7 +105,10 @@ export function PdfStorePage() {
       const res = await fetch('/api/validate-coupon', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: couponCode.trim() })
+        body: JSON.stringify({ 
+          code: couponCode.trim(), 
+          productType: selectedPdfSlugs.length > 1 ? 'pdf_bundle' : 'pdf' 
+        })
       });
       const data = await res.json();
       if (res.ok) {

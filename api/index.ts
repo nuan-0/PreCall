@@ -303,12 +303,28 @@ async function startServer() {
 
   // API: Validate Coupon
   app.post('/api/validate-coupon', async (req, res) => {
-    const { code } = req.body;
+    const { code, productType } = req.body;
     if (!code) return res.status(400).json({ error: 'Coupon code is required' });
+
+    const normalizedCode = code.toUpperCase().trim();
+
+    // HARDCODED VALIDATION FOR PRECALL10
+    if (normalizedCode === 'PRECALL10') {
+      if (productType !== 'premium') {
+        return res.status(400).json({ error: 'This coupon code is valid only for Premium Upgrade' });
+      }
+      return res.json({
+        valid: true,
+        code: 'PRECALL10',
+        type: 'percentage',
+        discountPercentage: 10,
+        description: 'Hardcoded 10% Discount'
+      });
+    }
 
     try {
       const couponSnap = await runFirestoreOp(dbInstance => dbInstance.collection('coupons')
-        .where('code', '==', code.toUpperCase())
+        .where('code', '==', normalizedCode)
         .where('isActive', '==', true)
         .limit(1)
         .get(), 'ValidateCoupon');
@@ -588,11 +604,22 @@ async function startServer() {
     const isBundle = productType === 'pdf_bundle';
 
     // --- HARDCODED COUPON LOGIC ---
-    // If user enters PRECALL10, they get 10% off automatically (except for bundles).
-    if (couponCode && !isBundle) {
-      if (couponCode.toUpperCase().trim() === 'PRECALL10') {
-        console.log(`[Payment] Hardcoded coupon PRECALL10 applied for ${userId}`);
-        finalAmount = Math.round(finalAmount * 0.9); // 10% discount
+    // If user enters PRECALL10, they get 10% off automatically (ONLY FOR PREMIUM).
+    if (couponCode) {
+      const normalizedCoupon = couponCode.toUpperCase().trim();
+      if (normalizedCoupon === 'PRECALL10') {
+        if (productType === 'premium') {
+          console.log(`[Payment] Hardcoded coupon PRECALL10 applied for premium product (User: ${userId})`);
+          // Discount calculation: Round final amount (in Rs) to nearest integer
+          const amountInRupees = finalAmount / 100;
+          const discountedRupees = Math.round(amountInRupees * 0.9);
+          finalAmount = discountedRupees * 100;
+          console.log(`[Payment] Original: ${amountInRupees} INR -> Discounted (Rounded): ${discountedRupees} INR`);
+        } else {
+          console.warn(`[Payment] Coupon PRECALL10 only applies to premium plans. Current product: ${productType}`);
+          // Optional: We could return an error here, but user said "don't disturb normal process"
+          // So we just proceed with full price for other products even if code is PRECALL10
+        }
       } else {
         console.warn(`[Payment] Unrecognized coupon code: ${couponCode}. Proceeding with full price.`);
       }

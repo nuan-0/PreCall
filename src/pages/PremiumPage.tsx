@@ -73,7 +73,7 @@ export function PremiumPage() {
       const res = await fetch('/api/validate-coupon', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: couponCode.trim() })
+        body: JSON.stringify({ code: couponCode.trim(), productType: 'premium' })
       });
       const data = await res.json();
       if (res.ok) {
@@ -146,7 +146,8 @@ export function PremiumPage() {
           amount: amountInPaise,
           couponCode: appliedCoupon?.code,
           productType: type,
-          productSlug: pdfSlug || null
+          productSlug: pdfSlug || null,
+          userId: user?.uid
         })
       });
       
@@ -301,7 +302,9 @@ export function PremiumPage() {
               
               <div className="mb-8">
                 <div className="flex items-baseline gap-2">
-                  <span className="text-5xl font-bold text-violet-950">₹{price}</span>
+                  <span className="text-5xl font-bold text-violet-950">
+                    ₹{appliedCoupon ? Math.round(parseInt(price.replace(/,/g, '')) * 0.9) : price}
+                  </span>
                   <span className="text-slate-400 line-through font-bold text-lg">₹{originalPrice}</span>
                 </div>
                 <div className="mt-3 inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase tracking-widest">
