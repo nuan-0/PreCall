@@ -77,8 +77,8 @@ export function PremiumPage() {
       });
       const data = await res.json();
       if (res.ok) {
-        setAppliedCoupon(data.coupon);
-        toast.success(`Coupon applied: ${data.message}`);
+        setAppliedCoupon(data);
+        toast.success(`Coupon applied: ${data.code}`);
       } else {
         setAppliedCoupon(null);
         toast.error(data.error || 'Invalid coupon');
@@ -145,7 +145,8 @@ export function PremiumPage() {
         body: JSON.stringify({ 
           amount: amountInPaise,
           couponCode: appliedCoupon?.code,
-          productType: 'premium'
+          productType: type,
+          productSlug: pdfSlug || null
         })
       });
       

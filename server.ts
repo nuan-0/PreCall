@@ -101,9 +101,11 @@ async function startServer() {
     const chatId = process.env.TELEGRAM_CHAT_ID;
     
     if (!token || !chatId) {
-      console.log('⚠️ Telegram notification skipped: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not found in environment.');
+      console.log(`⚠️ Telegram notification skipped: ${!token ? 'BOT_TOKEN missing' : ''} ${!chatId ? 'CHAT_ID missing' : ''}`);
       return;
     }
+
+    console.log(`📡 Sending Telegram notification... (ChatID: ${chatId})`);
 
     try {
       const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
@@ -125,6 +127,16 @@ async function startServer() {
     } catch (err) {
       console.error('❌ Failed to send Telegram notification:', err);
     }
+  };
+
+  const notifyFailure = async (title: string, error: any, context?: any) => {
+    const contextStr = context ? `\n\n<b>Context:</b>\n<pre>${JSON.stringify(context, null, 2).substring(0, 500)}</pre>` : '';
+    await sendTelegramNotification(
+      `🚨 <b>${title}</b>\n\n` +
+      `🛑 <b>Error:</b> <i>${escapeHTML(error.message || error)}</i>\n` +
+      `💻 <b>Env:</b> <code>${process.env.NODE_ENV || 'dev'}</code>` +
+      contextStr
+    ).catch(() => {});
   };
 
   // help handle escaping for Telegram HTML mode
@@ -378,9 +390,13 @@ async function startServer() {
   // API: Config
   app.get('/api/config', (req, res) => {
     const keyId = process.env.VITE_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID || process.env.RAZORPAY_LIVE_KEY_ID;
+    const keySecret = process.env.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_LIVE_KEY_SECRET;
+    
     console.log(`[Config] Serving Razorpay Key ID: ${keyId ? keyId.substring(0, 8) + '...' : 'MISSING'}`);
     res.json({
-      razorpayKeyId: keyId
+      razorpayKeyId: keyId,
+      hasKeySecret: !!keySecret,
+      env: process.env.NODE_ENV || 'development'
     });
   });
 
@@ -472,8 +488,12 @@ async function startServer() {
 
   // API: Create Order
   app.post('/api/create-order', async (req, res) => {
-    const { amount, couponCode, productType, productSlugs } = req.body;
+    console.log('[Order] Request received:', JSON.stringify(req.body));
+    const { amount, couponCode, productType, productSlugs, productSlug } = req.body;
     let finalAmount = amount; // default to what client sent, but we will verify for PDFs
+
+    // Normalizing slugs if single one sent
+    const actualSlugs = productSlugs || (productSlug ? [productSlug] : []);
 
     // Verify Amount for PDF/Bundle to prevent manipulation
     if (productType === 'pdf' || productType === 'pdf_bundle') {
@@ -482,11 +502,12 @@ async function startServer() {
         const settingsData = settingsSnap.data();
         const serverUnitPrice = parseInt(settingsData?.pdfPrice || '199');
         
-        const count = productType === 'pdf' ? 1 : (productSlugs?.length || 0);
-        if (count === 0) return res.status(400).json({ error: 'No items selected' });
+        const count = productType === 'pdf' ? 1 : (actualSlugs?.length || 0);
+        if (count === 0 && productType === 'pdf_bundle') return res.status(400).json({ error: 'No items selected' });
         
         // Base amount in paise
-        finalAmount = count * serverUnitPrice * 100;
+        const unitPrice = isNaN(serverUnitPrice) ? 199 : serverUnitPrice;
+        finalAmount = count * unitPrice * 100;
         console.log(`[Payment] Server-calculated amount for ${count} PDFs: ${finalAmount} paise`);
       } catch (err) {
         console.error('Price fetch error:', err);
@@ -495,9 +516,22 @@ async function startServer() {
       try {
         const settingsSnap = await db.collection('settings').doc('global').get();
         const settingsData = settingsSnap.data();
-        const serverPremiumPrice = parseInt(settingsData?.price?.replace(/,/g, '') || '999');
-        finalAmount = serverPremiumPrice * 100;
-      } catch (err) {}
+        const priceStr = settingsData?.price || '999';
+        const serverPremiumPrice = parseInt(priceStr.toString().replace(/,/g, ''));
+        
+        const premiumPrice = isNaN(serverPremiumPrice) ? 999 : serverPremiumPrice;
+        finalAmount = premiumPrice * 100;
+        console.log(`[Payment] Server-calculated premium amount: ${finalAmount} paise`);
+      } catch (err) {
+        console.error('[Payment] Error fetching premium price:', err);
+        finalAmount = 99900; // fallback to 999 INR
+      }
+    }
+
+    // Fallback if finalAmount is still NaN or invalid
+    if (isNaN(finalAmount) || finalAmount <= 0) {
+      finalAmount = amount || 99900;
+      console.warn(`[Payment] finalAmount was invalid (${finalAmount}), using client amount or fallback`);
     }
 
     // Strict rule: No coupon discounts for PDF bundles
@@ -534,7 +568,8 @@ async function startServer() {
     const keyId = process.env.VITE_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID || process.env.RAZORPAY_LIVE_KEY_ID;
     const keySecret = process.env.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_LIVE_KEY_SECRET;
 
-    console.log(`[Payment] Attempting to create order for amount: ${amount}`);
+    console.log(`[Payment] Final calculated amount: ${finalAmount} paise`);
+    const integerAmount = Math.round(finalAmount);
 
     if (!keyId || !keySecret) {
       console.error('[Payment] Razorpay keys missing in environment');
@@ -547,10 +582,10 @@ async function startServer() {
         key_secret: keySecret,
       });
 
-      console.log('[Payment] Razorpay instance initialized. Calling razorpay.orders.create...');
+      console.log(`[Payment] Razorpay instance initialized. Calling razorpay.orders.create for amount: ${integerAmount}...`);
 
       const order = await razorpay.orders.create({
-        amount: amount, // already in paise
+        amount: integerAmount, // MUST be integer
         currency: "INR",
         receipt: `receipt_${Date.now()}`,
       });
@@ -559,6 +594,16 @@ async function startServer() {
       res.json(order);
     } catch (error: any) {
       console.error('[Payment] Error creating Razorpay order:', error);
+      
+      // Notify admin of payment failure
+      await notifyFailure('Order Creation Failed', error, {
+        amount,
+        finalAmount,
+        productType,
+        couponCode,
+        keyId: keyId.substring(0, 8) + '...'
+      });
+
       res.status(500).json({ 
         error: 'Failed to create order', 
         details: error.message,
@@ -579,10 +624,10 @@ async function startServer() {
       productSlugs = []        // if productType is 'pdf_bundle'
     } = req.body;
 
-    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+    const keySecret = process.env.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_LIVE_KEY_SECRET;
 
     if (!keySecret) {
-      console.error('RAZORPAY_KEY_SECRET missing');
+      console.error('RAZORPAY_KEY_SECRET missing during verification');
       return res.status(500).json({ error: 'Payment verification not configured on server' });
     }
 
@@ -672,9 +717,20 @@ async function startServer() {
         res.json({ status: 'ok', message: 'Payment verified and status updated' });
       } catch (error) {
         console.error('Error updating premium status:', error);
+        
+        await notifyFailure('Payment Verification Update Failed', error, {
+          userId,
+          paymentId: razorpay_payment_id,
+          productType
+        });
+
         res.status(500).json({ error: 'Failed to update premium status' });
       }
     } else {
+      await notifyFailure('Invalid Payment Signature', 'Verification failed', {
+        orderId: razorpay_order_id,
+        paymentId: razorpay_payment_id
+      });
       res.status(400).json({ error: 'Invalid signature' });
     }
   });
@@ -725,7 +781,7 @@ async function startServer() {
 
   // Test Telegram on Startup
   try {
-    const settingsSnap = await db.collection('settings').doc('general').get();
+    const settingsSnap = await db.collection('settings').doc('global').get();
     const appName = settingsSnap.exists ? settingsSnap.data()?.appName : 'PreCall';
     
     sendTelegramNotification(`🚀 <b>${escapeHTML(appName || 'PreCall')} Server Started</b>\nEnvironment: <code>${process.env.NODE_ENV || 'development'}</code>`).catch(() => {});
