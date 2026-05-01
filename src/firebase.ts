@@ -6,6 +6,7 @@ import {
   persistentMultipleTabManager 
 } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
+import { setQuotaStatus } from './lib/quota';
 
 // In AI Studio, we use the generated config file if it exists.
 import localConfig from '../firebase-applet-config.json';
