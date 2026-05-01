@@ -576,7 +576,8 @@ function AdminOverview({ showConfirm }: { showConfirm: any }) {
             premiumCtaLine: 'Unlock 100+ High-Yield Topics',
             footerText: 'Built for UPSC Aspirants by Founders who care.',
             price: '999',
-            originalPrice: '2,499'
+            originalPrice: '2,499',
+            pdfPrice: '199'
           }, { merge: true });
 
           let addedSubjects = 0;

@@ -87,7 +87,7 @@ export function SubjectPage() {
           ) : (
             <Link to={`/pdf-store?select=${subject.slug}`} onClick={handlePdfClick} className="w-full md:w-auto">
               <Button variant="outline" icon={Lock} className="w-full h-16 px-10 text-base shadow-xl shadow-amber-100/20 bg-amber-50/30 border-amber-200 text-amber-700 hover:bg-amber-50">
-                Unlock PDF (₹{settings?.pdfPrice || '149'})
+                Unlock PDF (₹{settings?.pdfPrice || '199'})
               </Button>
             </Link>
           )
