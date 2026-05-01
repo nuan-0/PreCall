@@ -214,8 +214,17 @@ export function LandingPage() {
                 </Link>
               ))
             ) : (
-              <div className="col-span-full py-20 text-center">
-                <p className="text-slate-400 font-bold uppercase tracking-widest">No subjects available yet.</p>
+              <div className="col-span-full py-24 text-center">
+                <div className="flex flex-col items-center gap-6">
+                  <p className="text-slate-400 font-bold uppercase tracking-widest">No subjects available yet.</p>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => window.location.reload()}
+                    className="rounded-full px-8 py-6 text-lg border-2"
+                  >
+                    Refresh Content
+                  </Button>
+                </div>
               </div>
             )}
           </div>

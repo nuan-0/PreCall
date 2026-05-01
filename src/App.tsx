@@ -17,7 +17,7 @@ import ContactPage from './pages/ContactPage';
 import TermsPage from './pages/TermsPage';
 import PrivacyPage from './pages/PrivacyPage';
 import QRCodePage from './pages/QRCodePage';
-import { useSettings } from './hooks/useData';
+import { useSettings, useSubjects } from './hooks/useData';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AuthProvider } from './contexts/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -26,11 +26,25 @@ import { ScrollToTop } from './components/ScrollToTop';
 import { cn } from './lib/utils';
 
 export default function App() {
-  const { settings } = useSettings();
+  const { settings, loading: settingsLoading } = useSettings();
+  const { loading: subjectsLoading } = useSubjects();
 
   useEffect(() => {
     setupErrorHandling();
   }, []);
+
+  const totalLoading = settingsLoading || subjectsLoading;
+
+  if (totalLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-12 w-12 border-4 border-violet-200 border-t-violet-600 rounded-full animate-spin" />
+          <p className="text-sm font-bold text-slate-500 animate-pulse">Initializing PreCall...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <ErrorBoundary>

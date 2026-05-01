@@ -52,9 +52,24 @@ export function useSubjects() {
   const [loading, setLoading] = useState(!subjects.length);
 
   useEffect(() => {
+    if (getQuotaStatus()) {
+      console.warn("[useSubjects] Quota previously exceeded, skipping network fetch and using cache only.");
+      setLoading(false);
+      return;
+    }
+
+    console.log("[useSubjects] Starting fetch...");
+    const timeout = setTimeout(() => {
+      if (loading) {
+        console.warn("[useSubjects] Timeout reached, forcing loading false");
+        setLoading(false);
+      }
+    }, 10000);
+
     // 1. First, try to get from the bundle for efficiency (1 read)
     const bundleRef = doc(db, 'bundles', 'subjects');
     const unsubscribeBundle = onSnapshot(bundleRef, (bundleSnap) => {
+      console.log("[useSubjects] Bundle snapshot received, exists:", bundleSnap.exists());
       if (bundleSnap.exists()) {
         const bundleData = bundleSnap.data();
         if (bundleData.data) {
@@ -62,6 +77,7 @@ export function useSubjects() {
           setSubjects(sortedData);
           setCache('subjects', sortedData);
           setLoading(false);
+          clearTimeout(timeout);
           return;
         }
       }
@@ -71,21 +87,43 @@ export function useSubjects() {
       const q = query(collection(db, path), orderBy('order', 'asc'));
       
       getDocs(q).then((snapshot) => {
+        console.log("[useSubjects] Collection fetch completed, empty:", snapshot.empty);
         if (!snapshot.empty) {
           const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Subject));
           setSubjects(data);
           setCache('subjects', data);
         }
         setLoading(false);
+        clearTimeout(timeout);
       }).catch((error) => {
+        console.error("[useSubjects] Collection fetch failed:", error);
         setLoading(false);
+        clearTimeout(timeout);
         handleFirestoreError(error, OperationType.LIST, path);
       });
     }, (error) => {
-      console.warn("Bundle not accessible or missing:", error);
+      console.warn("[useSubjects] Bundle snapshot error:", error);
+      // Fallback on error too
+      const path = 'subjects';
+      const q = query(collection(db, path), orderBy('order', 'asc'));
+      getDocs(q).then((snapshot) => {
+        if (!snapshot.empty) {
+          const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Subject));
+          setSubjects(data);
+          setCache('subjects', data);
+        }
+        setLoading(false);
+        clearTimeout(timeout);
+      }).catch(() => {
+        setLoading(false);
+        clearTimeout(timeout);
+      });
     });
 
-    return unsubscribeBundle;
+    return () => {
+      unsubscribeBundle();
+      clearTimeout(timeout);
+    };
   }, []);
 
   return { subjects, loading };
@@ -99,6 +137,12 @@ export function useDashboardData() {
   const [loading, setLoading] = useState(!data.subjects.length || !data.topics.length);
 
   useEffect(() => {
+    if (getQuotaStatus()) {
+      console.warn("[useDashboardData] Quota exceeded, using cache.");
+      setLoading(false);
+      return;
+    }
+
     const fetchAll = async () => {
       try {
         // Try to get subjects from bundle first
@@ -157,6 +201,12 @@ export function useTopics(subjectSlug?: string) {
   const [loading, setLoading] = useState(!topics.length);
 
   useEffect(() => {
+    if (getQuotaStatus()) {
+      console.warn("[useTopics] Quota exceeded, using cache.");
+      setLoading(false);
+      return;
+    }
+
     // 1. If subject specific, try topic metadata bundle first (fast list)
     if (subjectSlug) {
       const metaRef = doc(db, 'bundles', `topics_${subjectSlug}_metadata`);
@@ -199,6 +249,9 @@ export function useTopics(subjectSlug?: string) {
           setCache(cacheKey, d);
           setLoading(false);
         }
+      }, (error) => {
+        console.error("Topics bundle fetch failed:", error);
+        setLoading(false);
       });
       return unsubscribe;
     }
@@ -267,20 +320,41 @@ export function useSettings() {
   const [loading, setLoading] = useState(!settings);
 
   useEffect(() => {
+    if (getQuotaStatus()) {
+      console.warn("[useSettings] Quota previously exceeded, skipping network fetch and using cache only.");
+      setLoading(false);
+      return;
+    }
+
+    console.log("[useSettings] Starting fetch...");
+    const timeout = setTimeout(() => {
+      if (loading) {
+        console.warn("[useSettings] Timeout reached, forcing loading false");
+        setLoading(false);
+      }
+    }, 10000);
+
     const path = 'settings/global';
     const docRef = doc(db, 'settings', 'global');
     const unsubscribe = onSnapshot(docRef, (doc) => {
+      console.log("[useSettings] Snapshot received, exists:", doc.exists());
       if (doc.exists()) {
         const data = doc.data() as AppSettings;
         setSettings(data);
         setCache('settings', data);
       }
       setLoading(false);
+      clearTimeout(timeout);
     }, (error) => {
+      console.error("[useSettings] Snapshot error:", error);
       setLoading(false);
+      clearTimeout(timeout);
       handleFirestoreError(error, OperationType.GET, path);
     });
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+      clearTimeout(timeout);
+    };
   }, []);
 
   return { settings, loading };

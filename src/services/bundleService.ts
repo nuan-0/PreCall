@@ -73,8 +73,8 @@ export const bundleService = {
       const updatedAt = new Date().toISOString();
 
       batch.set(doc(db, 'bundles', `topics_${subjectSlug}_metadata`), sanitize({ updatedAt, data: metadata }));
-      batch.set(doc(db, 'bundles', `topics_${subjectSlug}_free`), { updatedAt, data: freeContent });
-      batch.set(doc(db, 'bundles', `topics_${subjectSlug}_premium`), { updatedAt, data: premiumContent });
+      batch.set(doc(db, 'bundles', `topics_${subjectSlug}_free`), sanitize({ updatedAt, data: freeContent }));
+      batch.set(doc(db, 'bundles', `topics_${subjectSlug}_premium`), sanitize({ updatedAt, data: premiumContent }));
 
       await batch.commit();
       console.log(`Split topic bundles for ${subjectSlug} rebuilt successfully`);
