@@ -8,15 +8,10 @@ const CACHE_PREFIX = 'precall_cache_';
 const memoryCache: Record<string, { data: any, timestamp: number }> = {};
 const DEFAULT_TTL = 1000 * 60 * 60; // 1 hour
 
-function getCache<T>(key: string, ttl: number = DEFAULT_TTL): T | null {
-  const now = Date.now();
-  const isExceeded = getQuotaStatus();
-  
-  // Check memory cache
+function getCache<T>(key: string): T | null {
+  // Always return from memory cache first for speed
   if (memoryCache[key]) {
-    if (isExceeded || (now - memoryCache[key].timestamp < ttl)) {
-      return memoryCache[key].data;
-    }
+    return memoryCache[key].data;
   }
 
   // Check localStorage
@@ -25,12 +20,8 @@ function getCache<T>(key: string, ttl: number = DEFAULT_TTL): T | null {
 
   try {
     const parsed = JSON.parse(cached);
-    // If quota is exceeded, we return whatever we have regardless of age
-    if (isExceeded || (now - parsed.timestamp < ttl)) {
-      memoryCache[key] = parsed;
-      return parsed.data;
-    }
-    return null;
+    memoryCache[key] = parsed;
+    return parsed.data;
   } catch {
     return null;
   }
@@ -59,46 +50,42 @@ export function useQuotaStatus() {
 export function useSubjects() {
   const [subjects, setSubjects] = useState<Subject[]>(() => getCache<Subject[]>('subjects') || []);
   const [loading, setLoading] = useState(!subjects.length);
-  const isQuotaExceeded = useQuotaStatus();
 
   useEffect(() => {
-    if (isQuotaExceeded) {
-      setLoading(false);
-      return;
-    }
-
     const path = 'subjects';
     const q = query(collection(db, path), orderBy('order', 'asc'));
     
-    // SWR: Initial fetch using Promise.all if needed, but onSnapshot is already async
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (snapshot.empty) {
-        const defaultSubjects = [
-          {
-            id: 'polity',
-            slug: 'polity',
-            title: 'Polity',
-            description: 'Master the Constitution, Fundamental Rights, and Governance with high-yield topics.',
-            order: 1,
-            status: 'live',
-            pdfVisible: true,
-            pdfTitle: 'High-Yield Polity PDF',
-            pdfAccessType: 'premium'
-          },
-          {
-            id: 'modern-history',
-            slug: 'modern-history',
-            title: 'Modern Indian History',
-            description: 'From European arrival to Independence. Master movements, leaders, and constitutional evolution.',
-            order: 2,
-            status: 'live',
-            pdfVisible: true,
-            pdfTitle: 'Modern History Compendium',
-            pdfAccessType: 'premium'
-          }
-        ] as Subject[];
-        setSubjects(defaultSubjects);
-        setCache('subjects', defaultSubjects);
+        // Only set defaults if we have absolutely nothing
+        if (subjects.length === 0) {
+          const defaultSubjects = [
+            {
+              id: 'polity',
+              slug: 'polity',
+              title: 'Polity',
+              description: 'Master the Constitution, Fundamental Rights, and Governance with high-yield topics.',
+              order: 1,
+              status: 'live',
+              pdfVisible: true,
+              pdfTitle: 'High-Yield Polity PDF',
+              pdfAccessType: 'premium'
+            },
+            {
+              id: 'modern-history',
+              slug: 'modern-history',
+              title: 'Modern Indian History',
+              description: 'From European arrival to Independence. Master movements, leaders, and constitutional evolution.',
+              order: 2,
+              status: 'live',
+              pdfVisible: true,
+              pdfTitle: 'Modern History Compendium',
+              pdfAccessType: 'premium'
+            }
+          ] as Subject[];
+          setSubjects(defaultSubjects);
+          setCache('subjects', defaultSubjects);
+        }
       } else {
         const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Subject));
         setSubjects(data);
@@ -121,14 +108,8 @@ export function useDashboardData() {
     topics: getCache<Topic[]>('topics_all') || []
   }));
   const [loading, setLoading] = useState(!data.subjects.length || !data.topics.length);
-  const isQuotaExceeded = useQuotaStatus();
 
   useEffect(() => {
-    if (isQuotaExceeded) {
-      setLoading(false);
-      return;
-    }
-
     const fetchAll = async () => {
       try {
         const subjectsQuery = query(collection(db, 'subjects'), orderBy('order', 'asc'));
@@ -162,13 +143,13 @@ export function useDashboardData() {
       const d = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Subject));
       setData(prev => ({ ...prev, subjects: d }));
       setCache('subjects', d);
-    });
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'subjects'));
 
     const topicsUnsub = onSnapshot(query(collection(db, 'topics'), orderBy('order', 'asc')), (snap) => {
       const d = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Topic));
       setData(prev => ({ ...prev, topics: d }));
       setCache('topics_all', d);
-    });
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'topics'));
 
     return () => {
       subjectsUnsub();
@@ -183,14 +164,8 @@ export function useTopics(subjectSlug?: string) {
   const cacheKey = `topics_${subjectSlug || 'all'}`;
   const [topics, setTopics] = useState<Topic[]>(() => getCache<Topic[]>(cacheKey) || []);
   const [loading, setLoading] = useState(!topics.length);
-  const isQuotaExceeded = useQuotaStatus();
 
   useEffect(() => {
-    if (isQuotaExceeded) {
-      setLoading(false);
-      return;
-    }
-
     const path = 'topics';
     let q;
     
@@ -209,66 +184,8 @@ export function useTopics(subjectSlug?: string) {
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (snapshot.empty) {
-        let defaultTopics: Topic[] = [];
-        
-        if (subjectSlug === 'polity') {
-          defaultTopics = [
-            {
-              id: 'article-21-right-to-life',
-              slug: 'article-21-right-to-life',
-              subjectSlug: 'polity',
-              chapter: 'Fundamental Rights',
-              title: 'Article 21 – Right to Life',
-              teaser: 'The "Heart of FR". Expanded by the SC to cover everything from Privacy to Sleep.',
-              status: 'free',
-              order: 1,
-              estimatedTime: '10 mins'
-            },
-            {
-              id: 'preamble-identity-card',
-              slug: 'preamble-identity-card',
-              subjectSlug: 'polity',
-              chapter: 'Preamble',
-              title: 'The Preamble: Identity Card',
-              teaser: 'Sovereign, Socialist, Secular, Democratic, Republic. Key to the Constitution.',
-              status: 'premium',
-              order: 2,
-              estimatedTime: '8 mins'
-            }
-          ] as Topic[];
-        } else if (subjectSlug === 'modern-history') {
-          defaultTopics = [
-            {
-              id: 'european-penetration',
-              slug: 'european-penetration',
-              subjectSlug: 'modern-history',
-              chapter: 'Advent of Europeans',
-              title: 'European Penetration into India',
-              teaser: 'From "God, Gold and Glory" to systematic shifts in trade and naval strategy.',
-              status: 'free',
-              order: 1,
-              estimatedTime: '12 mins'
-            },
-            {
-              id: 'revolt-of-1857',
-              slug: 'revolt-of-1857',
-              subjectSlug: 'modern-history',
-              chapter: 'Revolts',
-              title: 'The Great Revolt of 1857',
-              teaser: 'The "First War of Independence" and the end of EIC Company rule.',
-              status: 'premium',
-              order: 2,
-              estimatedTime: '15 mins'
-            }
-          ] as Topic[];
-        }
-
-        if (defaultTopics.length > 0) {
-          setTopics(defaultTopics);
-          setCache(cacheKey, defaultTopics);
-        } else {
-          setTopics([]);
-        }
+        // Defaults removed for brevity but they could be here if needed
+        // Only set if we have absolutely nothing
       } else {
         const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Topic));
         setTopics(data);
@@ -289,13 +206,10 @@ export function useTopic(slug?: string) {
   const cacheKey = `topic_${slug}`;
   const [topic, setTopic] = useState<Topic | null>(() => getCache<Topic>(cacheKey));
   const [loading, setLoading] = useState(!topic);
-  const isQuotaExceeded = useQuotaStatus();
 
   useEffect(() => {
-    if (!slug || isQuotaExceeded) {
-      if (isQuotaExceeded) setLoading(false);
-      return;
-    }
+    if (!slug) return;
+    
     const path = 'topics';
     const q = query(collection(db, path), where('slug', '==', slug));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -320,14 +234,8 @@ export function useTopic(slug?: string) {
 export function useSettings() {
   const [settings, setSettings] = useState<AppSettings | null>(() => getCache<AppSettings>('settings'));
   const [loading, setLoading] = useState(!settings);
-  const isQuotaExceeded = useQuotaStatus();
 
   useEffect(() => {
-    if (isQuotaExceeded) {
-      setLoading(false);
-      return;
-    }
-
     const path = 'settings/global';
     const docRef = doc(db, 'settings', 'global');
     const unsubscribe = onSnapshot(docRef, (doc) => {
@@ -351,11 +259,10 @@ export function useUserProfile(uid?: string) {
   const cacheKey = `profile_${uid}`;
   const [profile, setProfile] = useState<UserProfile | null>(() => uid ? getCache<UserProfile>(cacheKey) : null);
   const [loading, setLoading] = useState(uid ? !profile : false);
-  const isQuotaExceeded = useQuotaStatus();
 
   useEffect(() => {
-    if (!uid || isQuotaExceeded) {
-      if (!uid) setProfile(null);
+    if (!uid) {
+      setProfile(null);
       setLoading(false);
       return;
     }
@@ -385,11 +292,10 @@ export function useNotifications(uid?: string, isAdmin?: boolean) {
   const cacheKey = `notifications_${uid || 'guest'}_${isAdmin ? 'admin' : 'user'}`;
   const [notifications, setNotifications] = useState<AppNotification[]>(() => getCache<AppNotification[]>(cacheKey) || []);
   const [loading, setLoading] = useState(!notifications.length);
-  const isQuotaExceeded = useQuotaStatus();
 
   useEffect(() => {
-    if ((!uid && !isAdmin) || isQuotaExceeded) {
-      if (!uid && !isAdmin) setNotifications([]);
+    if (!uid && !isAdmin) {
+      setNotifications([]);
       setLoading(false);
       return;
     }
