@@ -10,6 +10,7 @@ import { useSubjects, useTopics, useSettings, useNotifications } from '../hooks/
 import { useAuth } from '../contexts/AuthContext';
 import { Subject, Topic, AppSettings, AppNotification, Coupon } from '../types';
 import { cn } from '../lib/utils';
+import { bundleService } from '../services/bundleService';
 
 export const INITIAL_SUBJECTS = [
   { id: 'polity', slug: 'polity', title: 'Polity', description: 'Constitutional framework, Governance, and Rights.', status: 'live', order: 1 },
@@ -742,7 +743,8 @@ D. The Fundamental Duties
         });
 
         await batch.commit();
-        toast.success(`Seeded ${addedSubjects} subjects and ${addedTopics} topics!`);
+        await bundleService.rebuildAllBundles();
+        toast.success(`Seeded ${addedSubjects} subjects and ${addedTopics} topics! Bundles rebuilt.`);
       } catch (e) {
         handleFirestoreError(e, OperationType.WRITE, 'batch');
         toast.error('Failed to seed data');
@@ -810,7 +812,8 @@ D. The Fundamental Duties
             linkedTopics: 'Basic Structure Doctrine, 42nd Amendment, Objective Resolution'
           }, { merge: true });
 
-          toast.success('Preamble content added successfully!');
+          await bundleService.rebuildTopicBundle('polity');
+          toast.success('Preamble content added and bundle rebuilt!');
         } catch (e) {
           handleFirestoreError(e, OperationType.WRITE, 'topics/preamble');
           toast.error('Failed to add content');
@@ -894,7 +897,8 @@ D. Article 22
             linkedTopics: 'Article 14 (Equality), Article 19 (Freedoms), Emergency Provisions, Judicial Review'
           }, { merge: true });
 
-          toast.success('Article 21 content added successfully!');
+          await bundleService.rebuildTopicBundle('polity');
+          toast.success('Article 21 content added and bundle rebuilt!');
         } catch (e) {
           handleFirestoreError(e, OperationType.WRITE, 'topics/article-21');
           toast.error('Failed to add content');
@@ -1002,6 +1006,33 @@ D. Article 22
                 <div>
                   <span className="block text-sm font-bold text-slate-900">Add Preamble</span>
                   <span className="text-[10px] font-medium text-slate-500">Seed starter free content</span>
+                </div>
+              </button>
+
+              <button 
+                onClick={() => {
+                  showConfirm(
+                    'Rebuild All Bundles',
+                    'This will scan all subjects and topics to recreate optimized data bundles. This reduces Firestore reads for your users significantly. Proceed?',
+                    async () => {
+                      const toastId = toast.loading('Rebuilding bundles...');
+                      try {
+                        await bundleService.rebuildAllBundles();
+                        toast.success('All bundles rebuilt successfully!', { id: toastId });
+                      } catch (e) {
+                        toast.error('Failed to rebuild bundles', { id: toastId });
+                      }
+                    }
+                  );
+                }} 
+                className="flex items-center gap-4 p-5 rounded-2xl border border-emerald-100 bg-emerald-50 hover:bg-white hover:shadow-xl hover:shadow-emerald-200/50 transition-all group text-left w-full sm:col-span-2"
+              >
+                <div className="h-12 w-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300">
+                  <RefreshCw className="h-6 w-6" />
+                </div>
+                <div>
+                  <span className="block text-sm font-bold text-slate-900">Optimize App Performance (Rebuild Bundles)</span>
+                  <span className="text-[10px] font-medium text-slate-500">Reduces Firestore reads by up to 90% by bundling data</span>
                 </div>
               </button>
             </div>
@@ -1121,7 +1152,11 @@ function AdminSubjects({ showConfirm }: { showConfirm: any }) {
       const id = (editingSubject.id || editingSubject.slug) as string;
       try {
         await setDoc(doc(db, 'subjects', id), { ...editingSubject, id });
-        toast.success('Subject saved successfully!');
+        
+        // Rebuild subjects bundle
+        await bundleService.rebuildSubjectsBundle();
+        
+        toast.success('Subject saved and bundle rebuilt!');
         setEditingSubject(null);
       } catch (e) {
         handleFirestoreError(e, OperationType.WRITE, `subjects/${id}`);
@@ -1145,7 +1180,9 @@ function AdminSubjects({ showConfirm }: { showConfirm: any }) {
       async () => {
         try {
           await deleteDoc(doc(db, 'subjects', id));
-          toast.success('Subject deleted');
+          // Rebuild Subjects bundle
+          await bundleService.rebuildSubjectsBundle();
+          toast.success('Subject deleted and bundle updated');
         } catch (e) {
           handleFirestoreError(e, OperationType.DELETE, `subjects/${id}`);
           toast.error('Failed to delete subject');
@@ -1519,7 +1556,13 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
       const id = (editingTopic.id || editingTopic.slug) as string;
       try {
         await setDoc(doc(db, 'topics', id), { ...editingTopic, id });
-        toast.success('Topic published successfully!');
+        
+        // Rebuild the relevant topic bundle
+        if (editingTopic.subjectSlug) {
+          await bundleService.rebuildTopicBundle(editingTopic.subjectSlug);
+        }
+        
+        toast.success('Topic published and bundle rebuilt!');
         setEditingTopic(null);
       } catch (e) {
         handleFirestoreError(e, OperationType.WRITE, `topics/${id}`);
@@ -1543,7 +1586,12 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
       async () => {
         try {
           await deleteDoc(doc(db, 'topics', id));
-          toast.success('Topic deleted');
+          // Rebuild relevant topic bundle
+          const topicToDelete = topics.find(t => t.id === id);
+          if (topicToDelete?.subjectSlug) {
+             await bundleService.rebuildTopicBundle(topicToDelete.subjectSlug);
+          }
+          toast.success('Topic deleted and bundle updated');
         } catch (e) {
           handleFirestoreError(e, OperationType.DELETE, `topics/${id}`);
           toast.error('Failed to delete topic');

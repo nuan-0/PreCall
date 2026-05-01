@@ -79,6 +79,16 @@
       },
       "required": ["uid", "email", "role"]
     },
+    "DataBundle": {
+      "title": "DataBundle",
+      "description": "A bundled document of items to reduce reads",
+      "type": "object",
+      "properties": {
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "data": { "type": "array", "items": { "type": "object" } }
+      },
+      "required": ["updatedAt", "data"]
+    },
     "Notification": {
       "title": "Notification",
       "description": "A global notification message",
@@ -113,6 +123,10 @@
     "notifications": {
       "schema": "Notification",
       "description": "Collection of global notifications"
+    },
+    "bundles": {
+       "schema": "DataBundle",
+       "description": "Collection of data bundles to reduce Firestore reads"
     }
   }
 }

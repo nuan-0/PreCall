@@ -52,51 +52,40 @@ export function useSubjects() {
   const [loading, setLoading] = useState(!subjects.length);
 
   useEffect(() => {
-    const path = 'subjects';
-    const q = query(collection(db, path), orderBy('order', 'asc'));
-    
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      if (snapshot.empty) {
-        // Only set defaults if we have absolutely nothing
-        if (subjects.length === 0) {
-          const defaultSubjects = [
-            {
-              id: 'polity',
-              slug: 'polity',
-              title: 'Polity',
-              description: 'Master the Constitution, Fundamental Rights, and Governance with high-yield topics.',
-              order: 1,
-              status: 'live',
-              pdfVisible: true,
-              pdfTitle: 'High-Yield Polity PDF',
-              pdfAccessType: 'premium'
-            },
-            {
-              id: 'modern-history',
-              slug: 'modern-history',
-              title: 'Modern Indian History',
-              description: 'From European arrival to Independence. Master movements, leaders, and constitutional evolution.',
-              order: 2,
-              status: 'live',
-              pdfVisible: true,
-              pdfTitle: 'Modern History Compendium',
-              pdfAccessType: 'premium'
-            }
-          ] as Subject[];
-          setSubjects(defaultSubjects);
-          setCache('subjects', defaultSubjects);
+    // 1. First, try to get from the bundle for efficiency (1 read)
+    const bundleRef = doc(db, 'bundles', 'subjects');
+    const unsubscribeBundle = onSnapshot(bundleRef, (bundleSnap) => {
+      if (bundleSnap.exists()) {
+        const bundleData = bundleSnap.data();
+        if (bundleData.data) {
+          const sortedData = [...bundleData.data].sort((a, b) => (a.order || 0) - (b.order || 0));
+          setSubjects(sortedData);
+          setCache('subjects', sortedData);
+          setLoading(false);
+          return;
         }
-      } else {
-        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Subject));
-        setSubjects(data);
-        setCache('subjects', data);
       }
-      setLoading(false);
+      
+      // 2. Fallback to collection if bundle missing (only happens once during setup)
+      const path = 'subjects';
+      const q = query(collection(db, path), orderBy('order', 'asc'));
+      
+      getDocs(q).then((snapshot) => {
+        if (!snapshot.empty) {
+          const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Subject));
+          setSubjects(data);
+          setCache('subjects', data);
+        }
+        setLoading(false);
+      }).catch((error) => {
+        setLoading(false);
+        handleFirestoreError(error, OperationType.LIST, path);
+      });
     }, (error) => {
-      setLoading(false);
-      handleFirestoreError(error, OperationType.LIST, path);
+      console.warn("Bundle not accessible or missing:", error);
     });
-    return unsubscribe;
+
+    return unsubscribeBundle;
   }, []);
 
   return { subjects, loading };
@@ -112,16 +101,18 @@ export function useDashboardData() {
   useEffect(() => {
     const fetchAll = async () => {
       try {
-        const subjectsQuery = query(collection(db, 'subjects'), orderBy('order', 'asc'));
-        const topicsQuery = query(collection(db, 'topics'), orderBy('order', 'asc'));
+        // Try to get subjects from bundle first
+        const subjectsBundle = await getDoc(doc(db, 'bundles', 'subjects'));
+        let subjectsData: Subject[] = [];
+        
+        if (subjectsBundle.exists() && subjectsBundle.data().data) {
+          subjectsData = subjectsBundle.data().data;
+        } else {
+          const subjectsSnap = await getDocs(query(collection(db, 'subjects'), orderBy('order', 'asc')));
+          subjectsData = subjectsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Subject));
+        }
 
-        // Combine fetches into a single Promise.all() call for speed
-        const [subjectsSnap, topicsSnap] = await Promise.all([
-          getDocs(subjectsQuery),
-          getDocs(topicsQuery)
-        ]);
-
-        const subjectsData = subjectsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Subject));
+        const topicsSnap = await getDocs(query(collection(db, 'topics'), orderBy('order', 'asc')));
         const topicsData = topicsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Topic));
 
         const newData = { subjects: subjectsData, topics: topicsData };
@@ -166,36 +157,61 @@ export function useTopics(subjectSlug?: string) {
   const [loading, setLoading] = useState(!topics.length);
 
   useEffect(() => {
-    const path = 'topics';
-    let q;
-    
+    // 1. If subject specific, try topic metadata bundle first (fast list)
     if (subjectSlug) {
-      q = query(
-        collection(db, path),
-        where('subjectSlug', '==', subjectSlug),
-        orderBy('order', 'asc')
-      );
-    } else {
-      q = query(
-        collection(db, path),
-        orderBy('order', 'asc')
-      );
+      const metaRef = doc(db, 'bundles', `topics_${subjectSlug}_metadata`);
+      const freeRef = doc(db, 'bundles', `topics_${subjectSlug}_free`);
+      const premRef = doc(db, 'bundles', `topics_${subjectSlug}_premium`);
+
+      const unsubscribe = onSnapshot(metaRef, async (metaSnap) => {
+        if (metaSnap.exists()) {
+          const metaList = metaSnap.data().data as Topic[];
+          setTopics(metaList);
+          setCache(cacheKey, metaList);
+          setLoading(false);
+
+          // Proactively try to load full content bundles to cache for instant page loads
+          try {
+            const [freeSnap, premSnap] = await Promise.allSettled([
+              getDoc(freeRef),
+              getDoc(premRef)
+            ]);
+
+            if (freeSnap.status === 'fulfilled' && freeSnap.value.exists()) {
+              setCache(`bundle_content_free_${subjectSlug}`, freeSnap.value.data().data);
+            }
+            if (premSnap.status === 'fulfilled' && premSnap.value.exists()) {
+               setCache(`bundle_content_premium_${subjectSlug}`, premSnap.value.data().data);
+            }
+          } catch (e) {
+            console.log("Full bundle content load failed or restricted");
+          }
+        } else {
+           // Fallback to collection query
+           const q = query(
+            collection(db, 'topics'),
+            where('subjectSlug', '==', subjectSlug),
+            orderBy('order', 'asc')
+          );
+          const snap = await getDocs(q);
+          const d = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Topic));
+          setTopics(d);
+          setCache(cacheKey, d);
+          setLoading(false);
+        }
+      });
+      return unsubscribe;
     }
 
+    // 2. For "all" topics (admin panel)
+    const q = query(collection(db, 'topics'), orderBy('order', 'asc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      if (snapshot.empty) {
-        // Defaults removed for brevity but they could be here if needed
-        // Only set if we have absolutely nothing
-      } else {
-        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Topic));
-        setTopics(data);
-        setCache(cacheKey, data);
-      }
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Topic));
+      setTopics(data);
+      setCache(cacheKey, data);
       setLoading(false);
-    }, (error) => {
-      setLoading(false);
-      handleFirestoreError(error, OperationType.LIST, path);
     });
+    
     return unsubscribe;
   }, [subjectSlug]);
 
@@ -210,6 +226,21 @@ export function useTopic(slug?: string) {
   useEffect(() => {
     if (!slug) return;
     
+    // 1. Check if topic exists in any loaded bundle in memory cache
+    // We scan all cached bundle contents
+    const cachedBundles = Object.keys(memoryCache).filter(k => k.startsWith('bundle_content_'));
+    for (const key of cachedBundles) {
+      const bundleData = memoryCache[key].data as Topic[];
+      const found = bundleData.find(t => t.slug === slug);
+      if (found) {
+        setTopic(found);
+        setCache(cacheKey, found);
+        setLoading(false);
+        return;
+      }
+    }
+
+    // 2. Otherwise fetch individually
     const path = 'topics';
     const q = query(collection(db, path), where('slug', '==', slug));
     const unsubscribe = onSnapshot(q, (snapshot) => {
