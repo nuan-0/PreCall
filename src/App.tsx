@@ -24,6 +24,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { InstallPWA } from './components/InstallPWA';
 import { ScrollToTop } from './components/ScrollToTop';
 import { cn } from './lib/utils';
+import { QuotaBanner } from './components/QuotaBanner';
 
 export default function App() {
   const { settings } = useSettings();
@@ -50,6 +51,7 @@ function AppContent({ settings }: { settings: any }) {
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 flex flex-col">
+      <QuotaBanner />
       <Toaster position="top-center" richColors />
       {!isAdminRoute && <Navbar />}
       <main className={cn("flex-1", !isAdminRoute && "pt-0")}>

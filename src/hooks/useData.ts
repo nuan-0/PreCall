@@ -2,33 +2,69 @@ import { collection, doc, onSnapshot, query, where, orderBy, getDocs, getDoc } f
 import { useEffect, useState, useCallback } from 'react';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { Subject, Topic, AppSettings, UserProfile, AppNotification } from '../types';
+import { getQuotaStatus } from '../lib/quota';
 
 const CACHE_PREFIX = 'precall_cache_';
-const memoryCache: Record<string, any> = {};
+const memoryCache: Record<string, { data: any, timestamp: number }> = {};
+const DEFAULT_TTL = 1000 * 60 * 60; // 1 hour
 
-function getCache<T>(key: string): T | null {
-  if (memoryCache[key]) return memoryCache[key];
+function getCache<T>(key: string, ttl: number = DEFAULT_TTL): T | null {
+  const now = Date.now();
+  
+  // Check memory cache
+  if (memoryCache[key]) {
+    if (now - memoryCache[key].timestamp < ttl) {
+      return memoryCache[key].data;
+    }
+  }
+
+  // Check localStorage
   const cached = localStorage.getItem(CACHE_PREFIX + key);
   if (!cached) return null;
+
   try {
     const parsed = JSON.parse(cached);
-    memoryCache[key] = parsed;
-    return parsed;
+    if (now - parsed.timestamp < ttl) {
+      memoryCache[key] = parsed;
+      return parsed.data;
+    }
+    return null;
   } catch {
     return null;
   }
 }
 
 function setCache<T>(key: string, data: T) {
-  memoryCache[key] = data;
-  localStorage.setItem(CACHE_PREFIX + key, JSON.stringify(data));
+  const cacheObj = { data, timestamp: Date.now() };
+  memoryCache[key] = cacheObj;
+  localStorage.setItem(CACHE_PREFIX + key, JSON.stringify(cacheObj));
+}
+
+export function useQuotaStatus() {
+  const [isExceeded, setIsExceeded] = useState(getQuotaStatus());
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      setIsExceeded(e.detail);
+    };
+    window.addEventListener('precall_quota_change', handler);
+    return () => window.removeEventListener('precall_quota_change', handler);
+  }, []);
+
+  return isExceeded;
 }
 
 export function useSubjects() {
   const [subjects, setSubjects] = useState<Subject[]>(() => getCache<Subject[]>('subjects') || []);
   const [loading, setLoading] = useState(!subjects.length);
+  const isQuotaExceeded = useQuotaStatus();
 
   useEffect(() => {
+    if (isQuotaExceeded) {
+      setLoading(false);
+      return;
+    }
+
     const path = 'subjects';
     const q = query(collection(db, path), orderBy('order', 'asc'));
     
@@ -83,8 +119,14 @@ export function useDashboardData() {
     topics: getCache<Topic[]>('topics_all') || []
   }));
   const [loading, setLoading] = useState(!data.subjects.length || !data.topics.length);
+  const isQuotaExceeded = useQuotaStatus();
 
   useEffect(() => {
+    if (isQuotaExceeded) {
+      setLoading(false);
+      return;
+    }
+
     const fetchAll = async () => {
       try {
         const subjectsQuery = query(collection(db, 'subjects'), orderBy('order', 'asc'));
@@ -107,6 +149,7 @@ export function useDashboardData() {
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
         setLoading(false);
+        handleFirestoreError(error, OperationType.LIST, 'dashboard_data');
       }
     };
 
@@ -138,8 +181,14 @@ export function useTopics(subjectSlug?: string) {
   const cacheKey = `topics_${subjectSlug || 'all'}`;
   const [topics, setTopics] = useState<Topic[]>(() => getCache<Topic[]>(cacheKey) || []);
   const [loading, setLoading] = useState(!topics.length);
+  const isQuotaExceeded = useQuotaStatus();
 
   useEffect(() => {
+    if (isQuotaExceeded) {
+      setLoading(false);
+      return;
+    }
+
     const path = 'topics';
     let q;
     
@@ -238,9 +287,13 @@ export function useTopic(slug?: string) {
   const cacheKey = `topic_${slug}`;
   const [topic, setTopic] = useState<Topic | null>(() => getCache<Topic>(cacheKey));
   const [loading, setLoading] = useState(!topic);
+  const isQuotaExceeded = useQuotaStatus();
 
   useEffect(() => {
-    if (!slug) return;
+    if (!slug || isQuotaExceeded) {
+      if (isQuotaExceeded) setLoading(false);
+      return;
+    }
     const path = 'topics';
     const q = query(collection(db, path), where('slug', '==', slug));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -265,8 +318,14 @@ export function useTopic(slug?: string) {
 export function useSettings() {
   const [settings, setSettings] = useState<AppSettings | null>(() => getCache<AppSettings>('settings'));
   const [loading, setLoading] = useState(!settings);
+  const isQuotaExceeded = useQuotaStatus();
 
   useEffect(() => {
+    if (isQuotaExceeded) {
+      setLoading(false);
+      return;
+    }
+
     const path = 'settings/global';
     const docRef = doc(db, 'settings', 'global');
     const unsubscribe = onSnapshot(docRef, (doc) => {
@@ -290,10 +349,11 @@ export function useUserProfile(uid?: string) {
   const cacheKey = `profile_${uid}`;
   const [profile, setProfile] = useState<UserProfile | null>(() => uid ? getCache<UserProfile>(cacheKey) : null);
   const [loading, setLoading] = useState(uid ? !profile : false);
+  const isQuotaExceeded = useQuotaStatus();
 
   useEffect(() => {
-    if (!uid) {
-      setProfile(null);
+    if (!uid || isQuotaExceeded) {
+      if (!uid) setProfile(null);
       setLoading(false);
       return;
     }
@@ -323,10 +383,11 @@ export function useNotifications(uid?: string, isAdmin?: boolean) {
   const cacheKey = `notifications_${uid || 'guest'}_${isAdmin ? 'admin' : 'user'}`;
   const [notifications, setNotifications] = useState<AppNotification[]>(() => getCache<AppNotification[]>(cacheKey) || []);
   const [loading, setLoading] = useState(!notifications.length);
+  const isQuotaExceeded = useQuotaStatus();
 
   useEffect(() => {
-    if (!uid && !isAdmin) {
-      setNotifications([]);
+    if ((!uid && !isAdmin) || isQuotaExceeded) {
+      if (!uid && !isAdmin) setNotifications([]);
       setLoading(false);
       return;
     }
