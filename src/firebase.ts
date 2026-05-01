@@ -64,9 +64,10 @@ export interface FirestoreErrorInfo {
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
   const errorMessage = error instanceof Error ? error.message : String(error);
+  const isQuotaError = errorMessage.includes('Quota limit exceeded') || errorMessage.includes('Quota exceeded');
   
   // Track quota exceeded errors to allow app to fall back to cache gracefully
-  if (errorMessage.includes('Quota limit exceeded') || errorMessage.includes('Quota exceeded')) {
+  if (isQuotaError) {
     setQuotaStatus(true);
   }
 
@@ -88,6 +89,13 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path
   }
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  
+  const jsonError = JSON.stringify(errInfo);
+  console.error('Firestore Error: ', jsonError);
+  
+  // If it's a quota error, we don't throw. This prevents the app from "crashing" 
+  // and allows it to proceed with whatever data it has in its local state/cache.
+  if (!isQuotaError) {
+    throw new Error(jsonError);
+  }
 }

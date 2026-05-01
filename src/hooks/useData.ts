@@ -10,10 +10,11 @@ const DEFAULT_TTL = 1000 * 60 * 60; // 1 hour
 
 function getCache<T>(key: string, ttl: number = DEFAULT_TTL): T | null {
   const now = Date.now();
+  const isExceeded = getQuotaStatus();
   
   // Check memory cache
   if (memoryCache[key]) {
-    if (now - memoryCache[key].timestamp < ttl) {
+    if (isExceeded || (now - memoryCache[key].timestamp < ttl)) {
       return memoryCache[key].data;
     }
   }
@@ -24,7 +25,8 @@ function getCache<T>(key: string, ttl: number = DEFAULT_TTL): T | null {
 
   try {
     const parsed = JSON.parse(cached);
-    if (now - parsed.timestamp < ttl) {
+    // If quota is exceeded, we return whatever we have regardless of age
+    if (isExceeded || (now - parsed.timestamp < ttl)) {
       memoryCache[key] = parsed;
       return parsed.data;
     }
