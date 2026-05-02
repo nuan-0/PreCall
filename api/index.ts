@@ -73,35 +73,63 @@ async function startServer() {
   // Initialize Firebase Admin
   let firestoreDatabaseId: string | undefined;
   let configProjectId: string | undefined;
+  let config: any = {};
   
   try {
     const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
     if (fs.existsSync(configPath)) {
-      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
       firestoreDatabaseId = config.firestoreDatabaseId;
       configProjectId = config.projectId;
+      console.log(`[Firebase] Config loaded: Project=${configProjectId}, Database=${firestoreDatabaseId}`);
+    } else {
+      console.warn('[Firebase] Config file NOT found at:', configPath);
     }
 
     if (admin.apps.length === 0) {
       if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+        console.log('[Firebase] Initializing via Service Account... (found FIREBASE_SERVICE_ACCOUNT)');
         const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
         admin.initializeApp({
           credential: admin.credential.cert(sa),
-          projectId: sa.project_id || configProjectId
+          projectId: sa.project_id || configProjectId,
+          storageBucket: config.storageBucket || (sa.project_id ? `${sa.project_id}.firebasestorage.app` : undefined)
         });
+        console.log('✅ Firebase Admin initialized via Service Account. Project:', admin.app().options.projectId);
       } else {
+        console.log('[Firebase] RED ALERT: FIREBASE_SERVICE_ACCOUNT not found. Falling back to default credentials.');
+        console.log('[Firebase] Project ID from config:', configProjectId);
+        // Explicitly set the project ID even when using ADC
         admin.initializeApp({
-          projectId: configProjectId
+          projectId: configProjectId || undefined
         });
+        console.log('✅ Firebase Admin initialized. Project:', admin.app().options.projectId);
       }
+    } else {
+      console.log('[Firebase] Already initialized. Project:', admin.app().options.projectId);
     }
   } catch (error) {
     console.error('[Firebase] Init Error:', error);
   }
 
-  const db = firestoreDatabaseId 
-    ? getFirestore(admin.app(), firestoreDatabaseId)
-    : getFirestore(admin.app());
+  // Define DB with explicit database ID if present
+  let db: admin.firestore.Firestore;
+  try {
+    const app = admin.app();
+    if (firestoreDatabaseId) {
+      console.log(`[Firebase] Accessing specific database: ${firestoreDatabaseId}`);
+      db = getFirestore(app, firestoreDatabaseId);
+    } else {
+      console.log('[Firebase] Accessing default database');
+      db = getFirestore(app);
+    }
+    // Simple verification check (lazy, will fail on first access if permission denied)
+    console.log('✅ Firestore instance acquired');
+  } catch (err: any) {
+    console.error('❌ Failed to acquire Firestore instance:', err.message);
+    // Fallback to default
+    db = admin.firestore();
+  }
 
 
   // Direct and simple helper for Firestore operations
@@ -801,11 +829,12 @@ async function startServer() {
       });
       app.use(vite.middlewares);
 
-      // Re-add SPA fallback for dev to be safe
-      app.get('*', async (req, res, next) => {
+      // Use /(.*) for catch-all to be compatible across different path-to-regexp versions
+      app.get('(.*)', async (req, res, next) => {
         try {
+          const url = req.url || '/';
           let template = fs.readFileSync(path.resolve(process.cwd(), 'index.html'), 'utf-8');
-          template = await vite.transformIndexHtml(req.url, template);
+          template = await vite.transformIndexHtml(url, template);
           res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
         } catch (e) {
           vite.ssrFixStacktrace(e as Error);
@@ -816,7 +845,7 @@ async function startServer() {
       console.log('📦 Serving production assets from dist...');
       const distPath = path.join(process.cwd(), 'dist');
       app.use(express.static(distPath));
-      app.get('*', (req, res) => {
+      app.get('(.*)', (req, res) => {
         res.sendFile(path.join(distPath, 'index.html'));
       });
     }
