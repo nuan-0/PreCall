@@ -344,25 +344,46 @@ async function startServer() {
     contentCache.isRefreshing = true;
     
     activeRefreshPromise = (async () => {
-      console.log('[Cache] Refreshing content cache from Firestore...');
+      console.log('[Cache] Refreshing content cache from Firestore bundles...');
       try {
-        // Parallel fetch to be faster
-        const [subjectsSnap, topicsSnap] = await Promise.all([
-          runFirestoreOp(dbInstance => dbInstance.collection('subjects').orderBy('order', 'asc').get(), 'CacheSubjects'),
-          runFirestoreOp(dbInstance => dbInstance.collection('topics').orderBy('order', 'asc').get(), 'CacheTopics')
-        ]);
+        const bundlesSnap = await runFirestoreOp(dbInstance => dbInstance.collection('bundles').get(), 'CacheBundles');
+        
+        let subjects: any[] = [];
+        let topics: any[] = [];
+        let metadataTopics: any[] = [];
 
-        const subjects = subjectsSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
-        const topics = topicsSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+        bundlesSnap.docs.forEach(doc => {
+          const data = doc.data().data;
+          if (!data) return;
+          
+          if (doc.id === 'subjects') {
+            subjects = data;
+          } else if (doc.id.includes('_free') || doc.id.includes('_premium')) {
+            topics = topics.concat(data);
+          } else if (doc.id.includes('_metadata')) {
+            metadataTopics = metadataTopics.concat(data);
+          }
+        });
+
+        // Add topics that are ONLY in metadata (e.g. coming_soon)
+        const existingTopicIds = new Set(topics.map(t => t.id));
+        for (const metaT of metadataTopics) {
+          if (!existingTopicIds.has(metaT.id)) {
+            topics.push(metaT);
+          }
+        }
+
+        subjects.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+        topics.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
 
         contentCache.subjects = subjects;
         contentCache.topics = topics;
         contentCache.lastUpdated = Date.now();
         
-        console.log(`[Cache] Successfully cached ${subjects.length} subjects and ${topics.length} topics. (Reads: ${subjects.length + topics.length})`);
+        const reads = bundlesSnap.docs.length;
+        console.log(`[Cache] Successfully cached ${subjects.length} subjects and ${topics.length} topics. (Reads: ${reads})`);
         
-        // Update global usage tracker with these reads
-        usageTracker.reads += (subjects.length + topics.length);
+        usageTracker.reads += reads;
       } catch (err: any) {
         console.error('[Cache] Failed to refresh content cache:', err.message);
       } finally {
@@ -375,9 +396,6 @@ async function startServer() {
 
   // Initial refresh
   refreshContentCache().catch(console.error);
-  
-  // Refresh every 10 minutes
-  setInterval(refreshContentCache, 1000 * 60 * 10);
 
   // Startup verification
   const startupTest = async () => {
