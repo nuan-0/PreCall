@@ -121,13 +121,13 @@ export function useSubjects() {
   useEffect(() => {
     if (fetchInitiated.current) return;
 
-    // Check freshness
+    // Check freshness to mark as loaded instantly, but still fetch to revalidate
     const meta = getCacheMetadata('subjects');
     const isFresh = Date.now() - meta.timestamp < DEFAULT_TTL;
     
     if (isFresh && subjects.length > 0) {
       setLoading(false);
-      return;
+      // We no longer return here. Stale-while-revalidate ensures instant admin updates!
     }
 
     if (getQuotaStatus()) {
@@ -208,7 +208,7 @@ export function useDashboardData() {
 
     if (isFresh && data.subjects.length > 0 && data.topics.length > 0) {
       setLoading(false);
-      return;
+      // Removed return for stale-while-revalidate
     }
 
     if (getQuotaStatus()) {
@@ -293,7 +293,7 @@ export function useTopics(subjectSlug?: string) {
 
     if (isFresh && topics.length > 0) {
       setLoading(false);
-      return;
+      // Removed return for stale-while-revalidate
     }
 
     if (getQuotaStatus()) {
@@ -382,10 +382,13 @@ export function useTopic(slug?: string) {
     if (!slug || fetchInitiated.current) return;
     
     const cached = getCache<Topic>(cacheKey);
-    if (cached) {
-      setTopic(cached);
+    const stale = getStaleCache<Topic>(cacheKey);
+    if (cached || stale) {
+      setTopic(cached || stale || null);
       setLoading(false);
-      return;
+      if (cached) {
+         // It's fully fresh in memory, but we'll still silently revalidate
+      }
     }
 
     fetchInitiated.current = true;
@@ -470,10 +473,11 @@ export function useSettings() {
     if (fetchInitiated.current) return;
 
     const cached = getCache<AppSettings>('settings');
-    if (cached) {
-      setSettings(cached);
+    const stale = getStaleCache<AppSettings>('settings');
+    if (cached || stale) {
+      setSettings((cached || stale) as AppSettings);
       setLoading(false);
-      return;
+      // Removed early return to allow stale-while-revalidate for settings
     }
 
     if (getQuotaStatus()) {

@@ -395,6 +395,7 @@ async function startServer() {
   startupTest();
 
   app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
 
   // API: Get all cached content
   app.get('/api/content/all', async (req, res) => {
@@ -428,7 +429,7 @@ async function startServer() {
 
   // API: Force refresh content cache (Admin only)
   app.post('/api/admin/refresh-cache', async (req, res) => {
-    const { userId } = req.body;
+    const { userId } = req.body || {};
     const isAdmin = await checkIsAdmin(userId);
     if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
 
