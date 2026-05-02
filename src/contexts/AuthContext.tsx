@@ -153,25 +153,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
-    const fetchProfile = async () => {
-      try {
-        const userRef = doc(db, 'users', user.uid);
-        const snapshot = await getDoc(userRef);
-        
-        if (snapshot.exists()) {
-          const data = snapshot.data() as UserProfile;
-          setProfile(data);
-          setIsPremium(data.isPremium || isAdmin);
-        } else {
-          setProfile(null);
-          setIsPremium(isAdmin);
-        }
-      } catch (error) {
-        console.error("Error fetching user profile:", error);
+    const unsubscribe = onSnapshot(doc(db, 'users', user.uid), (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data() as UserProfile;
+        setProfile(data);
+        setIsPremium(data.isPremium || isAdmin);
+      } else {
+        setProfile(null);
+        setIsPremium(isAdmin);
       }
-    };
+    }, (error) => {
+      console.error("Error listening to user profile:", error);
+    });
 
-    fetchProfile();
+    return () => unsubscribe();
   }, [user]);
 
   const toggleTopicCompletion = async (topicId: string) => {

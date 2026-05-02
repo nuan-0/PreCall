@@ -308,7 +308,11 @@ export function PremiumPage() {
               <div className="mb-8">
                 <div className="flex items-baseline gap-2">
                   <span className="text-5xl font-bold text-violet-950">
-                    ₹{appliedCoupon ? Math.round((parseInt(price.toString().replace(/[^0-9]/g, '')) || 999) * 0.9) : price}
+                    ₹{appliedCoupon ? (
+                      appliedCoupon.type === 'flat' 
+                        ? (parseInt(price.toString().replace(/[^0-9]/g, '')) || 999) - (appliedCoupon.discountAmount || 0)
+                        : Math.round((parseInt(price.toString().replace(/[^0-9]/g, '')) || 999) * (1 - (appliedCoupon.discountPercentage || 0) / 100))
+                    ) : price}
                   </span>
                   <span className="text-slate-400 line-through font-bold text-lg">₹{originalPrice}</span>
                 </div>

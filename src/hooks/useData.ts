@@ -1,11 +1,11 @@
 import { collection, doc, onSnapshot, query, where, orderBy, getDocs, getDoc } from 'firebase/firestore';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { Subject, Topic, AppSettings, UserProfile, AppNotification } from '../types';
 import { getQuotaStatus } from '../lib/quota';
 
 const CACHE_PREFIX = 'precall_cache_';
-const memoryCache: Record<string, { data: any, timestamp: number }> = {};
+const memoryCache: Record<string, { data: any, timestamp: number, lastUpdated?: number }> = {};
 const DEFAULT_TTL = 1000 * 60 * 15; // 15 minutes TTL for most data
 
 function getCache<T>(key: string, ttl = DEFAULT_TTL): T | null {
@@ -27,17 +27,43 @@ function getCache<T>(key: string, ttl = DEFAULT_TTL): T | null {
       memoryCache[key] = parsed;
       return parsed.data;
     }
-    // Expired
-    localStorage.removeItem(CACHE_PREFIX + key);
-    delete memoryCache[key];
+    // Expired - but we might still return it if requested by the hook as "stale"
     return null;
   } catch {
     return null;
   }
 }
 
-function setCache<T>(key: string, data: T) {
-  const cacheObj = { data, timestamp: Date.now() };
+function getStaleCache<T>(key: string): T | null {
+  const mem = memoryCache[key];
+  if (mem) return mem.data;
+
+  const cached = localStorage.getItem(CACHE_PREFIX + key);
+  if (!cached) return null;
+  try {
+    const parsed = JSON.parse(cached);
+    return parsed.data;
+  } catch {
+    return null;
+  }
+}
+
+function getCacheMetadata(key: string) {
+  const cached = localStorage.getItem(CACHE_PREFIX + key);
+  if (!cached) return { timestamp: 0, lastUpdated: 0 };
+  try {
+    const parsed = JSON.parse(cached);
+    return { 
+      timestamp: parsed.timestamp || 0, 
+      lastUpdated: parsed.lastUpdated || 0 
+    };
+  } catch {
+    return { timestamp: 0, lastUpdated: 0 };
+  }
+}
+
+function setCache<T>(key: string, data: T, lastUpdated?: number) {
+  const cacheObj = { data, timestamp: Date.now(), lastUpdated };
   memoryCache[key] = cacheObj;
   localStorage.setItem(CACHE_PREFIX + key, JSON.stringify(cacheObj));
 }
@@ -87,14 +113,19 @@ async function reportError(error: any) {
 }
 
 export function useSubjects() {
-  const [subjects, setSubjects] = useState<Subject[]>(() => getCache<Subject[]>('subjects') || []);
+  const [subjects, setSubjects] = useState<Subject[]>(() => getStaleCache<Subject[]>('subjects') || []);
   const [loading, setLoading] = useState(subjects.length === 0);
 
+  const fetchInitiated = useRef(false);
+
   useEffect(() => {
-    // If we have valid cache, don't fetch from network
-    const cached = getCache<Subject[]>('subjects');
-    if (cached) {
-      setSubjects(cached);
+    if (fetchInitiated.current) return;
+
+    // Check freshness
+    const meta = getCacheMetadata('subjects');
+    const isFresh = Date.now() - meta.timestamp < DEFAULT_TTL;
+    
+    if (isFresh && subjects.length > 0) {
       setLoading(false);
       return;
     }
@@ -104,34 +135,51 @@ export function useSubjects() {
       return;
     }
 
+    fetchInitiated.current = true;
     const fetchSubjects = async () => {
       try {
-        // Try bundle first
-        const bundleRef = doc(db, 'bundles', 'subjects');
-        const bundleSnap = await getDoc(bundleRef);
+        const lastUpdatedCurrent = meta.lastUpdated || 0;
+        const response = await fetch(`/api/content/all?lastUpdated=${lastUpdatedCurrent}`);
+        if (!response.ok) throw new Error('Failed to fetch from content API');
         
-        if (bundleSnap.exists()) {
-          const bundleData = bundleSnap.data();
-          if (bundleData.data) {
-            const sortedData = [...bundleData.data].sort((a, b) => (a.order || 0) - (b.order || 0));
-            setSubjects(sortedData);
-            setCache('subjects', sortedData);
-            setLoading(false);
-            reportUsage(1);
-            return;
-          }
+        const content = await response.json();
+        
+        if (content.status === 'unchanged') {
+          // Just update the timestamp to prolong "freshness"
+          const currentSubjects = getStaleCache<Subject[]>('subjects') || [];
+          setCache('subjects', currentSubjects, content.lastUpdated);
+          setLoading(false);
+          return;
         }
 
-        // Fallback to collection
-        const q = query(collection(db, 'subjects'), orderBy('order', 'asc'));
-        const snapshot = await getDocs(q);
-        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Subject));
-        setSubjects(data);
-        setCache('subjects', data);
-        reportUsage(snapshot.size || 1);
+        const sortedSubjects = [...content.subjects].sort((a, b) => (a.order || 0) - (b.order || 0));
+        setSubjects(sortedSubjects);
+        setCache('subjects', sortedSubjects, content.lastUpdated);
+        setCache('topics_all', content.topics, content.lastUpdated);
+        
       } catch (error: any) {
-        console.error("Error fetching subjects:", error);
-        if (error.message?.includes('quota')) reportError(error);
+        console.error("Error fetching subjects from API:", error);
+        
+        // Fallback to Firestore only if API fails and no cache exists
+        if (subjects.length === 0) {
+          try {
+            const bundleRef = doc(db, 'bundles', 'subjects');
+            const bundleSnap = await getDoc(bundleRef);
+            
+            if (bundleSnap.exists()) {
+              const bundleData = bundleSnap.data();
+              if (bundleData.data) {
+                const sortedData = [...bundleData.data].sort((a, b) => (a.order || 0) - (b.order || 0));
+                setSubjects(sortedData);
+                setCache('subjects', sortedData);
+                reportUsage(1);
+                return;
+              }
+            }
+          } catch (fbError: any) {
+            if (fbError.message?.includes('quota')) reportError(fbError);
+          }
+        }
       } finally {
         setLoading(false);
       }
@@ -145,18 +193,20 @@ export function useSubjects() {
 
 export function useDashboardData() {
   const [data, setData] = useState<{ subjects: Subject[], topics: Topic[] }>(() => ({
-    subjects: getCache<Subject[]>('subjects') || [],
-    topics: getCache<Topic[]>('topics_all') || []
+    subjects: getStaleCache<Subject[]>('subjects') || [],
+    topics: getStaleCache<Topic[]>('topics_all') || []
   }));
   const [loading, setLoading] = useState(data.subjects.length === 0 || data.topics.length === 0);
 
+  const fetchInitiated = useRef(false);
+
   useEffect(() => {
-    // Check if we have both in cache
-    const cachedSubjects = getCache<Subject[]>('subjects');
-    const cachedTopics = getCache<Topic[]>('topics_all');
-    
-    if (cachedSubjects && cachedTopics) {
-      setData({ subjects: cachedSubjects, topics: cachedTopics });
+    if (fetchInitiated.current) return;
+
+    const meta = getCacheMetadata('subjects');
+    const isFresh = Date.now() - meta.timestamp < DEFAULT_TTL;
+
+    if (isFresh && data.subjects.length > 0 && data.topics.length > 0) {
       setLoading(false);
       return;
     }
@@ -166,34 +216,57 @@ export function useDashboardData() {
       return;
     }
 
+    fetchInitiated.current = true;
     const fetchAll = async () => {
       try {
-        // Parallel fetches using getDocs instead of onSnapshot
-        const [subjectsBundle, topicsSnap] = await Promise.all([
-          getDoc(doc(db, 'bundles', 'subjects')),
-          getDocs(query(collection(db, 'topics'), orderBy('order', 'asc')))
-        ]);
+        const lastUpdatedCurrent = meta.lastUpdated || 0;
+        const response = await fetch(`/api/content/all?lastUpdated=${lastUpdatedCurrent}`);
+        if (!response.ok) throw new Error('Failed to fetch from content API');
+        const content = await response.json();
 
-        let subjectsData: Subject[] = [];
-        if (subjectsBundle.exists() && subjectsBundle.data().data) {
-          subjectsData = subjectsBundle.data().data;
-        } else {
-          // Fallback if bundle fails
-          const subjectsSnap = await getDocs(query(collection(db, 'subjects'), orderBy('order', 'asc')));
-          subjectsData = subjectsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Subject));
+        if (content.status === 'unchanged') {
+          setCache('subjects', data.subjects, content.lastUpdated);
+          setCache('topics_all', data.topics, content.lastUpdated);
+          setLoading(false);
+          return;
         }
 
-        const topicsData = topicsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Topic));
+        const subjectsData = [...content.subjects].sort((a, b) => (a.order || 0) - (b.order || 0));
+        const topicsData = content.topics;
 
         const newData = { subjects: subjectsData, topics: topicsData };
         setData(newData);
-        setCache('subjects', subjectsData);
-        setCache('topics_all', topicsData);
-        reportUsage(1 + topicsSnap.size);
+        setCache('subjects', subjectsData, content.lastUpdated);
+        setCache('topics_all', topicsData, content.lastUpdated);
       } catch (error: any) {
-        console.error("Error fetching dashboard data:", error);
-        handleFirestoreError(error, OperationType.LIST, 'dashboard_data');
-        if (error.message?.includes('quota')) reportError(error);
+        console.error("Error fetching dashboard data from API:", error);
+        
+        if (data.subjects.length === 0) {
+          try {
+            const [subjectsBundle, topicsSnap] = await Promise.all([
+              getDoc(doc(db, 'bundles', 'subjects')),
+              getDocs(query(collection(db, 'topics'), orderBy('order', 'asc')))
+            ]);
+
+            let subjectsData: Subject[] = [];
+            if (subjectsBundle.exists() && subjectsBundle.data().data) {
+              subjectsData = subjectsBundle.data().data;
+            } else {
+              const subjectsSnap = await getDocs(query(collection(db, 'subjects'), orderBy('order', 'asc')));
+              subjectsData = subjectsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Subject));
+            }
+
+            const topicsData = topicsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Topic));
+            const newData = { subjects: subjectsData, topics: topicsData };
+            setData(newData);
+            setCache('subjects', subjectsData);
+            setCache('topics_all', topicsData);
+            reportUsage(1 + topicsSnap.size);
+          } catch (fbError: any) {
+            handleFirestoreError(fbError, OperationType.LIST, 'dashboard_data');
+            if (fbError.message?.includes('quota')) reportError(fbError);
+          }
+        }
       } finally {
         setLoading(false);
       }
@@ -207,13 +280,18 @@ export function useDashboardData() {
 
 export function useTopics(subjectSlug?: string) {
   const cacheKey = `topics_${subjectSlug || 'all'}`;
-  const [topics, setTopics] = useState<Topic[]>(() => getCache<Topic[]>(cacheKey) || []);
+  const [topics, setTopics] = useState<Topic[]>(() => getStaleCache<Topic[]>(cacheKey) || []);
   const [loading, setLoading] = useState(topics.length === 0);
 
+  const fetchInitiated = useRef(false);
+
   useEffect(() => {
-    const cached = getCache<Topic[]>(cacheKey);
-    if (cached) {
-      setTopics(cached);
+    if (fetchInitiated.current) return;
+
+    const meta = getCacheMetadata('subjects');
+    const isFresh = Date.now() - meta.timestamp < DEFAULT_TTL;
+
+    if (isFresh && topics.length > 0) {
       setLoading(false);
       return;
     }
@@ -223,43 +301,65 @@ export function useTopics(subjectSlug?: string) {
       return;
     }
 
+    fetchInitiated.current = true;
     const fetchTopics = async () => {
       try {
-        if (subjectSlug) {
-          const metaRef = doc(db, 'bundles', `topics_${subjectSlug}_metadata`);
-          const metaSnap = await getDoc(metaRef);
-          
-          if (metaSnap.exists()) {
-            const metaList = metaSnap.data().data as Topic[];
-            setTopics(metaList);
-            setCache(cacheKey, metaList);
-            setLoading(false);
-            reportUsage(1);
-            return;
-          }
+        const lastUpdatedCurrent = meta.lastUpdated || 0;
+        const response = await fetch(`/api/content/all?lastUpdated=${lastUpdatedCurrent}`);
+        if (!response.ok) throw new Error('Failed to fetch from content API');
+        const content = await response.json();
+        
+        if (content.status === 'unchanged') {
+          // Prolong subjects cache too
+          const currentSubjects = getStaleCache<Subject[]>('subjects') || [];
+          setCache('subjects', currentSubjects, content.lastUpdated);
+          setCache('topics_all', getStaleCache<Topic[]>('topics_all') || [], content.lastUpdated);
+          setLoading(false);
+          return;
+        }
 
-          // Fallback
-          const q = query(
-            collection(db, 'topics'),
-            where('subjectSlug', '==', subjectSlug),
-            orderBy('order', 'asc')
-          );
-          const snap = await getDocs(q);
-          const d = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Topic));
-          setTopics(d);
-          setCache(cacheKey, d);
-          reportUsage(snap.size || 1);
+        let allTopics = content.topics;
+        setCache('topics_all', allTopics, content.lastUpdated);
+        setCache('subjects', content.subjects, content.lastUpdated);
+
+        if (subjectSlug) {
+          const filtered = allTopics.filter((t: Topic) => t.subjectSlug === subjectSlug)
+            .sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+          setTopics(filtered);
+          setCache(cacheKey, filtered, content.lastUpdated);
         } else {
-          const q = query(collection(db, 'topics'), orderBy('order', 'asc'));
-          const snap = await getDocs(q);
-          const d = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Topic));
-          setTopics(d);
-          setCache(cacheKey, d);
-          reportUsage(snap.size || 1);
+          setTopics(allTopics);
+          setCache(cacheKey, allTopics, content.lastUpdated);
         }
       } catch (error: any) {
-        console.error("Error fetching topics:", error);
-        if (error.message?.includes('quota')) reportError(error);
+        console.error("Error fetching topics from API:", error);
+        
+        if (topics.length === 0) {
+          // Fallback to Firestore
+          try {
+            if (subjectSlug) {
+              const q = query(
+                collection(db, 'topics'),
+                where('subjectSlug', '==', subjectSlug),
+                orderBy('order', 'asc')
+              );
+              const snap = await getDocs(q);
+              const d = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Topic));
+              setTopics(d);
+              setCache(cacheKey, d);
+              reportUsage(snap.size || 1);
+            } else {
+              const q = query(collection(db, 'topics'), orderBy('order', 'asc'));
+              const snap = await getDocs(q);
+              const d = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Topic));
+              setTopics(d);
+              setCache(cacheKey, d);
+              reportUsage(snap.size || 1);
+            }
+          } catch (fbError: any) {
+            if (fbError.message?.includes('quota')) reportError(fbError);
+          }
+        }
       } finally {
         setLoading(false);
       }
@@ -276,8 +376,10 @@ export function useTopic(slug?: string) {
   const [topic, setTopic] = useState<Topic | null>(() => getCache<Topic>(cacheKey));
   const [loading, setLoading] = useState(!topic);
 
+  const fetchInitiated = useRef(false);
+
   useEffect(() => {
-    if (!slug) return;
+    if (!slug || fetchInitiated.current) return;
     
     const cached = getCache<Topic>(cacheKey);
     if (cached) {
@@ -286,34 +388,67 @@ export function useTopic(slug?: string) {
       return;
     }
 
+    fetchInitiated.current = true;
     const fetchTopic = async () => {
       try {
-        // Check in loaded content bundles first (already in memory cache logic)
-        const cachedBundles = Object.keys(memoryCache).filter(k => k.startsWith('bundle_content_'));
-        for (const key of cachedBundles) {
-          const bundleData = memoryCache[key].data as Topic[];
-          const found = bundleData.find(t => t.slug === slug);
+        // Try searching our existing cache first (topics_all)
+        const allTopics = getStaleCache<Topic[]>('topics_all');
+        if (allTopics) {
+          const found = allTopics.find(t => t.slug === slug);
           if (found) {
             setTopic(found);
             setCache(cacheKey, found);
             setLoading(false);
-            return;
+            
+            // Still check for updates if stale
+            const meta = getCacheMetadata('subjects');
+            if (Date.now() - meta.timestamp < DEFAULT_TTL) return;
           }
         }
 
-        const q = query(collection(db, 'topics'), where('slug', '==', slug));
-        const snapshot = await getDocs(q);
-        if (!snapshot.empty) {
-          const data = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as Topic;
-          setTopic(data);
-          setCache(cacheKey, data);
-          reportUsage(1);
+        // If not in cache or stale, check API
+        const meta = getCacheMetadata('subjects');
+        const lastUpdatedCurrent = meta.lastUpdated || 0;
+        const response = await fetch(`/api/content/all?lastUpdated=${lastUpdatedCurrent}`);
+        if (!response.ok) throw new Error('Failed to fetch from content API');
+        const content = await response.json();
+        
+        if (content.status === 'unchanged') {
+          // Cache verified as current
+          setCache('topics_all', allTopics || [], content.lastUpdated);
+          setLoading(false);
+          return;
+        }
+        
+        setCache('topics_all', content.topics, content.lastUpdated);
+        setCache('subjects', content.subjects, content.lastUpdated);
+
+        const found = content.topics.find((t: Topic) => t.slug === slug);
+        if (found) {
+          setTopic(found);
+          setCache(cacheKey, found, content.lastUpdated);
         } else {
           setTopic(null);
         }
       } catch (error: any) {
-        console.error("Error fetching topic:", error);
-        if (error.message?.includes('quota')) reportError(error);
+        console.error("Error fetching topic from API:", error);
+        
+        // Final fallback to direct Firestore
+        if (!topic) {
+          try {
+            const q = query(collection(db, 'topics'), where('slug', '==', slug));
+            const snapshot = await getDocs(q);
+            if (!snapshot.empty) {
+              const data = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as Topic;
+              setTopic(data);
+              setCache(cacheKey, data);
+            } else {
+              setTopic(null);
+            }
+          } catch (fbError: any) {
+            if (fbError.message?.includes('quota')) reportError(fbError);
+          }
+        }
       } finally {
         setLoading(false);
       }
@@ -329,7 +464,11 @@ export function useSettings() {
   const [settings, setSettings] = useState<AppSettings | null>(() => getCache<AppSettings>('settings'));
   const [loading, setLoading] = useState(!settings);
 
+  const fetchInitiated = useRef(false);
+
   useEffect(() => {
+    if (fetchInitiated.current) return;
+
     const cached = getCache<AppSettings>('settings');
     if (cached) {
       setSettings(cached);
@@ -342,6 +481,7 @@ export function useSettings() {
       return;
     }
 
+    fetchInitiated.current = true;
     const fetchSettings = async () => {
       try {
         const docRef = doc(db, 'settings', 'global');
@@ -371,10 +511,14 @@ export function useUserProfile(uid?: string) {
   const [profile, setProfile] = useState<UserProfile | null>(() => uid ? getCache<UserProfile>(cacheKey, 1000 * 60 * 5) : null); // Profile TTL 5 mins
   const [loading, setLoading] = useState(uid ? !profile : false);
 
+  const fetchInitiated = useRef(false);
+
   useEffect(() => {
-    if (!uid) {
-      setProfile(null);
-      setLoading(false);
+    if (!uid || fetchInitiated.current) {
+      if (!uid) {
+        setProfile(null);
+        setLoading(false);
+      }
       return;
     }
 
@@ -385,6 +529,7 @@ export function useUserProfile(uid?: string) {
       return;
     }
 
+    fetchInitiated.current = true;
     const fetchProfile = async () => {
       try {
         const docRef = doc(db, 'users', uid);
@@ -416,10 +561,14 @@ export function useNotifications(uid?: string, isAdmin?: boolean) {
   const [notifications, setNotifications] = useState<AppNotification[]>(() => getCache<AppNotification[]>(cacheKey, 1000 * 60 * 5) || []);
   const [loading, setLoading] = useState(notifications.length === 0);
 
+  const fetchInitiated = useRef(false);
+
   useEffect(() => {
-    if (!uid && !isAdmin) {
-      setNotifications([]);
-      setLoading(false);
+    if ((!uid && !isAdmin) || fetchInitiated.current) {
+      if (!uid && !isAdmin) {
+        setNotifications([]);
+        setLoading(false);
+      }
       return;
     }
 
@@ -430,6 +579,7 @@ export function useNotifications(uid?: string, isAdmin?: boolean) {
       return;
     }
 
+    fetchInitiated.current = true;
     const fetchNotifications = async () => {
       try {
         const path = 'notifications';

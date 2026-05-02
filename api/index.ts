@@ -278,6 +278,82 @@ async function startServer() {
 
   seedRazorpayTestAccount();
 
+  // --- CONTENT CACHE LOGIC ---
+  const contentCache = {
+    subjects: [] as any[],
+    topics: [] as any[],
+    lastUpdated: 0,
+    isRefreshing: false
+  };
+
+  const refreshContentCache = async () => {
+    if (contentCache.isRefreshing) return;
+    contentCache.isRefreshing = true;
+    
+    console.log('[Cache] Refreshing content cache from Firestore...');
+    try {
+      // Parallel fetch to be faster
+      const [subjectsSnap, topicsSnap] = await Promise.all([
+        runFirestoreOp(dbInstance => dbInstance.collection('subjects').orderBy('order', 'asc').get(), 'CacheSubjects'),
+        runFirestoreOp(dbInstance => dbInstance.collection('topics').orderBy('order', 'asc').get(), 'CacheTopics')
+      ]);
+
+      const subjects = subjectsSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+      const topics = topicsSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+
+      contentCache.subjects = subjects;
+      contentCache.topics = topics;
+      contentCache.lastUpdated = Date.now();
+      
+      console.log(`[Cache] Successfully cached ${subjects.length} subjects and ${topics.length} topics. (Reads: ${subjects.length + topics.length})`);
+      
+      // Update global usage tracker with these reads
+      usageTracker.reads += (subjects.length + topics.length);
+    } catch (err: any) {
+      console.error('[Cache] Failed to refresh content cache:', err.message);
+    } finally {
+      contentCache.isRefreshing = false;
+    }
+  };
+
+  // Initial refresh
+  refreshContentCache().catch(console.error);
+  
+  // Refresh every 10 minutes
+  setInterval(refreshContentCache, 1000 * 60 * 10);
+
+  // API: Get all cached content
+  app.get('/api/content/all', (req, res) => {
+    const clientLastUpdated = parseInt(req.query.lastUpdated as string || '0');
+
+    // If cache is empty, try to refresh once before responding
+    if (contentCache.subjects.length === 0 && !contentCache.isRefreshing) {
+      refreshContentCache().then(() => {
+        if (clientLastUpdated >= contentCache.lastUpdated && contentCache.lastUpdated > 0) {
+          return res.json({ status: 'unchanged', lastUpdated: contentCache.lastUpdated });
+        }
+        res.json({
+          subjects: contentCache.subjects,
+          topics: contentCache.topics,
+          lastUpdated: contentCache.lastUpdated
+        });
+      }).catch(() => res.status(500).json({ error: 'Cache is empty' }));
+      return;
+    }
+
+    // Check if client version is still valid
+    if (clientLastUpdated >= contentCache.lastUpdated && contentCache.lastUpdated > 0) {
+      return res.json({ status: 'unchanged', lastUpdated: contentCache.lastUpdated });
+    }
+
+    res.json({
+      subjects: contentCache.subjects,
+      topics: contentCache.topics,
+      lastUpdated: contentCache.lastUpdated
+    });
+  });
+  // ---------------------------
+
   app.use(express.json());
 
   // API: Health Check
@@ -299,14 +375,15 @@ async function startServer() {
     // Find the current threshold (multiple of 20)
     const threshold = Math.floor(currentPercent / 20) * 20;
 
-    if (threshold > usageTracker.lastNotifiedThreshold && threshold <= 100) {
+    if (threshold > usageTracker.lastNotifiedThreshold && threshold <= 100 && threshold % 20 === 0) {
+      const notifiedThreshold = threshold;
       usageTracker.lastNotifiedThreshold = threshold;
       
-      const emoji = threshold >= 80 ? '⚠️' : threshold >= 40 ? '📊' : 'ℹ️';
+      const emoji = notifiedThreshold >= 80 ? '⚠️' : notifiedThreshold >= 40 ? '📊' : 'ℹ️';
       await sendTelegramNotification(
         `${emoji} <b>Firestore Usage Update</b>\n\n` +
         `📉 <b>Estimated Reads:</b> <code>${usageTracker.reads.toLocaleString()}</code>\n` +
-        `📈 <b>Capacity:</b> <code>${threshold}%</code> used\n` +
+        `📈 <b>Capacity:</b> <code>${notifiedThreshold}%</code> used\n` +
         `⏳ <b>Uptime:</b> <code>${Math.floor((Date.now() - usageTracker.startTime) / (1000 * 60 * 60))}h</code>`
       );
     }
@@ -342,25 +419,22 @@ async function startServer() {
     res.json({ status: 'ok' });
   });
 
-  // API: Validate Coupon
-  app.post('/api/validate-coupon', async (req, res) => {
-    const { code, productType } = req.body;
-    if (!code) return res.status(400).json({ error: 'Coupon code is required' });
-
+  // Helper to validate coupon
+  const validateCoupon = async (code: string, productType: string) => {
     const normalizedCode = code.toUpperCase().trim();
 
     // HARDCODED VALIDATION FOR PRECALL10
     if (normalizedCode === 'PRECALL10') {
       if (productType !== 'premium') {
-        return res.status(400).json({ error: 'This coupon code is valid only for Premium Upgrade' });
+        return { valid: false, error: 'This coupon code is valid only for Premium Upgrade' };
       }
-      return res.json({
+      return {
         valid: true,
         code: 'PRECALL10',
         type: 'percentage',
         discountPercentage: 10,
         description: 'Hardcoded 10% Discount'
-      });
+      };
     }
 
     try {
@@ -371,27 +445,39 @@ async function startServer() {
         .get(), 'ValidateCoupon');
 
       if (couponSnap.empty) {
-        return res.status(404).json({ error: 'Invalid or inactive coupon code' });
+        return { valid: false, error: 'Invalid or inactive coupon code' };
       }
 
       const couponData = couponSnap.docs[0].data();
       if (couponData.expiresAt && new Date(couponData.expiresAt) < new Date()) {
-        return res.status(400).json({ error: 'Coupon has expired' });
+        return { valid: false, error: 'Coupon has expired' };
       }
-      if (couponData.maxUsage && couponData.usageCount >= couponData.maxUsage) {
-        return res.status(400).json({ error: 'Coupon usage limit reached' });
+      if (couponData.maxUsage && (couponData.usageCount || 0) >= couponData.maxUsage) {
+        return { valid: false, error: 'Coupon usage limit reached' };
       }
 
-      res.json({
+      return {
         valid: true,
         code: couponData.code,
         type: couponData.type,
         discountAmount: couponData.discountAmount,
         discountPercentage: couponData.discountPercentage
-      });
+      };
     } catch (error) {
-      res.status(500).json({ error: 'Failed to validate coupon' });
+      return { valid: false, error: 'Failed to validate coupon' };
     }
+  };
+
+  // API: Validate Coupon
+  app.post('/api/validate-coupon', async (req, res) => {
+    const { code, productType } = req.body;
+    if (!code) return res.status(400).json({ error: 'Coupon code is required' });
+
+    const result = await validateCoupon(code, productType);
+    if (!result.valid) {
+      return res.status(400).json({ error: result.error });
+    }
+    res.json(result);
   });
 
   // API: Config
@@ -543,25 +629,26 @@ async function startServer() {
     // Strict rule: No coupon discounts for PDF bundles
     const isBundle = productType === 'pdf_bundle';
 
-    // --- HARDCODED COUPON LOGIC ---
-    // If user enters PRECALL10, they get 10% off automatically (ONLY FOR PREMIUM).
+    // --- COUPON LOGIC ---
     if (couponCode) {
-      const normalizedCoupon = couponCode.toUpperCase().trim();
-      if (normalizedCoupon === 'PRECALL10') {
-        if (productType === 'premium') {
-          console.log(`[Payment] Hardcoded coupon PRECALL10 applied for premium product (User: ${userId})`);
-          // Discount calculation: Round final amount (in Rs) to nearest integer
-          const amountInRupees = finalAmount / 100;
-          const discountedRupees = Math.round(amountInRupees * 0.9);
-          finalAmount = discountedRupees * 100;
-          console.log(`[Payment] Original: ${amountInRupees} INR -> Discounted (Rounded): ${discountedRupees} INR`);
-        } else {
-          console.warn(`[Payment] Coupon PRECALL10 only applies to premium plans. Current product: ${productType}`);
-          // Optional: We could return an error here, but user said "don't disturb normal process"
-          // So we just proceed with full price for other products even if code is PRECALL10
+      const couponResult = await validateCoupon(couponCode, productType);
+      
+      if (couponResult.valid) {
+        console.log(`[Payment] Applying coupon ${couponCode} for ${productType} (User: ${userId})`);
+        const amountInRupees = finalAmount / 100;
+        let discountedRupees = amountInRupees;
+
+        if (couponResult.type === 'percentage') {
+          discountedRupees = Math.round(amountInRupees * (1 - (couponResult.discountPercentage || 0) / 100));
+        } else if (couponResult.type === 'flat') {
+          discountedRupees = Math.max(0, amountInRupees - (couponResult.discountAmount || 0));
         }
+
+        finalAmount = discountedRupees * 100;
+        console.log(`[Payment] Original: ${amountInRupees} INR -> Discounted: ${discountedRupees} INR`);
       } else {
-        console.warn(`[Payment] Unrecognized coupon code: ${couponCode}. Proceeding with full price.`);
+        console.warn(`[Payment] Coupon validation failed for ${couponCode}: ${couponResult.error}`);
+        // Proceed with full price if coupon is invalid (as per user preference not to break flow)
       }
     }
     // ------------------------------
