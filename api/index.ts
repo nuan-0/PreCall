@@ -89,13 +89,22 @@ async function startServer() {
     if (admin.apps.length === 0) {
       if (process.env.FIREBASE_SERVICE_ACCOUNT) {
         console.log('[Firebase] Initializing via Service Account... (found FIREBASE_SERVICE_ACCOUNT)');
-        const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-        admin.initializeApp({
-          credential: admin.credential.cert(sa),
-          projectId: sa.project_id || configProjectId,
-          storageBucket: config.storageBucket || (sa.project_id ? `${sa.project_id}.firebasestorage.app` : undefined)
-        });
-        console.log('✅ Firebase Admin initialized via Service Account. Project:', admin.app().options.projectId);
+        try {
+          const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+          admin.initializeApp({
+            credential: admin.credential.cert(sa),
+            projectId: sa.project_id || configProjectId,
+            storageBucket: config.storageBucket || (sa.project_id ? `${sa.project_id}.firebasestorage.app` : undefined)
+          });
+          console.log('✅ Firebase Admin initialized via Service Account. Project:', admin.app().options.projectId);
+        } catch (err: any) {
+          console.error('❌ CRITICAL: Failed to parse FIREBASE_SERVICE_ACCOUNT JSON:', err.message);
+          // Fallback to default credentials if JSON is invalid
+          admin.initializeApp({
+            projectId: configProjectId || undefined
+          });
+          console.log('⚠️ Falling back to default credentials due to JSON error. Project:', admin.app().options.projectId);
+        }
       } else {
         console.log('[Firebase] RED ALERT: FIREBASE_SERVICE_ACCOUNT not found. Falling back to default credentials.');
         console.log('[Firebase] Project ID from config:', configProjectId);
@@ -137,7 +146,16 @@ async function startServer() {
     try {
       return await op(db);
     } catch (err: any) {
-      console.error(`[Firestore ${label}] Operation failed:`, err.message);
+      if (err.message?.includes('PERMISSION_DENIED') || err.code === 7) {
+        console.error(`❌ CRITICAL: Firestore [${label}] failed with PERMISSION_DENIED.`);
+        console.error(`   Identity: ${admin.app().options.projectId || 'Unknown Project'}`);
+        console.error('   Action: Ensure FIREBASE_SERVICE_ACCOUNT is set in AI Studio Secrets.');
+        
+        // Notify via Telegram if possible
+        notifyFailure('Firestore Permission Denied', err, { label, project: admin.app().options.projectId }).catch(() => {});
+      } else {
+        console.error(`[Firestore ${label}] Operation failed (code: ${err.code}):`, err.message);
+      }
       throw err;
     }
   };
@@ -376,8 +394,25 @@ async function startServer() {
   app.use(express.json());
 
   // API: Health Check
-  app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', env: process.env.NODE_ENV });
+  app.get('/api/health', async (req, res) => {
+    let firebaseStatus = 'unknown';
+    try {
+      // Small check to see if Firestore is responsive
+      const testSnap = await db.collection('_health').limit(1).get().catch(() => null);
+      firebaseStatus = testSnap ? 'connected' : 'permission_denied_or_error';
+    } catch (e) {
+      firebaseStatus = 'error';
+    }
+
+    res.json({ 
+      status: 'ok', 
+      env: process.env.NODE_ENV,
+      firebase: firebaseStatus,
+      project: admin.app().options.projectId,
+      database: (admin.app().options as any).databaseId || 'default',
+      hasServiceAccount: !!process.env.FIREBASE_SERVICE_ACCOUNT,
+      uptime: Math.floor((Date.now() - usageTracker.startTime) / 1000) + 's'
+    });
   });
 
   app.post('/api/report-usage', (req, res) => {
@@ -829,10 +864,14 @@ async function startServer() {
       });
       app.use(vite.middlewares);
 
-      // Use /(.*) for catch-all to be compatible across different path-to-regexp versions
-      app.get('(.*)', async (req, res, next) => {
+      // Final catch-all for SPA fallback (Express 5 compatible)
+      app.get('*', async (req, res, next) => {
+        // Skip if path starts with /api
+        if (req.path.startsWith('/api')) return next();
+
         try {
           const url = req.url || '/';
+          console.log(`[SPA Fallback] Serving index.html (Dev) for: ${url}`);
           let template = fs.readFileSync(path.resolve(process.cwd(), 'index.html'), 'utf-8');
           template = await vite.transformIndexHtml(url, template);
           res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
@@ -845,7 +884,9 @@ async function startServer() {
       console.log('📦 Serving production assets from dist...');
       const distPath = path.join(process.cwd(), 'dist');
       app.use(express.static(distPath));
-      app.get('(.*)', (req, res) => {
+      
+      app.get('*', (req, res) => {
+        if (req.path.startsWith('/api')) return res.status(404).json({ error: 'API route not found' });
         res.sendFile(path.join(distPath, 'index.html'));
       });
     }
