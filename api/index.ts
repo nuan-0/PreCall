@@ -285,12 +285,51 @@ async function startServer() {
     res.json({ status: 'ok', env: process.env.NODE_ENV });
   });
 
+  // Use a persistent (for the life of the process) tracker for usage
+  const usageTracker = {
+    reads: 0,
+    lastNotifiedThreshold: 0,
+    startTime: Date.now()
+  };
+
+  const checkAndNotifyUsage = async () => {
+    const dailyLimit = 50000;
+    const currentPercent = (usageTracker.reads / dailyLimit) * 100;
+    
+    // Find the current threshold (multiple of 20)
+    const threshold = Math.floor(currentPercent / 20) * 20;
+
+    if (threshold > usageTracker.lastNotifiedThreshold && threshold <= 100) {
+      usageTracker.lastNotifiedThreshold = threshold;
+      
+      const emoji = threshold >= 80 ? '⚠️' : threshold >= 40 ? '📊' : 'ℹ️';
+      await sendTelegramNotification(
+        `${emoji} <b>Firestore Usage Update</b>\n\n` +
+        `📉 <b>Estimated Reads:</b> <code>${usageTracker.reads.toLocaleString()}</code>\n` +
+        `📈 <b>Capacity:</b> <code>${threshold}%</code> used\n` +
+        `⏳ <b>Uptime:</b> <code>${Math.floor((Date.now() - usageTracker.startTime) / (1000 * 60 * 60))}h</code>`
+      );
+    }
+  };
+
+  app.post('/api/report-usage', (req, res) => {
+    const { reads = 0 } = req.body;
+    usageTracker.reads += reads;
+    
+    // Asynchronously check threshold
+    checkAndNotifyUsage().catch(console.error);
+    
+    res.json({ status: 'ok', tracked: usageTracker.reads });
+  });
+
   // API: Report Client-Side Error
   app.post('/api/report-error', async (req, res) => {
     const { message, stack, url, userAgent, userId, source, lineno, colno, type } = req.body;
     
+    const isQuotaError = message?.toLowerCase().includes('quota') || message?.toLowerCase().includes('insufficient permissions');
+    
     await sendTelegramNotification(
-      `🚨 <b>Client-Side Crash Detected</b>\n\n` +
+      `${isQuotaError ? '🚨 <b>CRITICAL: FIREBASE QUOTA' : '🚨 <b>Client-Side Crash'} Detected</b>\n\n` +
       `👤 <b>User:</b> <code>${userId || 'Guest'}</code>\n` +
       `🛑 <b>Error:</b> <i>${message || 'Unknown'}</i>\n` +
       `🌐 <b>URL:</b> <code>${url || 'Unknown'}</code>\n` +

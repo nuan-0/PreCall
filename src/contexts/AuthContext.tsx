@@ -50,18 +50,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
-    const unsubscribe = onSnapshot(doc(db, 'settings', 'admins'), (snapshot) => {
-      if (snapshot.exists()) {
-        setDynamicAdmins(snapshot.data().emails || []);
-      } else {
+    const fetchAdmins = async () => {
+      try {
+        const adminDoc = await getDoc(doc(db, 'settings', 'admins'));
+        if (adminDoc.exists()) {
+          setDynamicAdmins(adminDoc.data().emails || []);
+        } else {
+          setDynamicAdmins([]);
+        }
+      } catch (error) {
+        console.error("Error fetching admins:", error);
         setDynamicAdmins([]);
       }
-    }, (error) => {
-      console.error("Error fetching admins:", error);
-      setDynamicAdmins([]);
-    });
+    };
 
-    return unsubscribe;
+    fetchAdmins();
   }, [user]);
 
   const allAdminEmails = Array.from(new Set([FOUNDER_EMAIL, ...dynamicAdmins]));
@@ -150,20 +153,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
-    const unsubscribe = onSnapshot(doc(db, 'users', user.uid), (snapshot) => {
-      if (snapshot.exists()) {
-        const data = snapshot.data() as UserProfile;
-        setProfile(data);
-        setIsPremium(data.isPremium || isAdmin);
-      } else {
-        setProfile(null);
-        setIsPremium(isAdmin);
+    const fetchProfile = async () => {
+      try {
+        const userRef = doc(db, 'users', user.uid);
+        const snapshot = await getDoc(userRef);
+        
+        if (snapshot.exists()) {
+          const data = snapshot.data() as UserProfile;
+          setProfile(data);
+          setIsPremium(data.isPremium || isAdmin);
+        } else {
+          setProfile(null);
+          setIsPremium(isAdmin);
+        }
+      } catch (error) {
+        console.error("Error fetching user profile:", error);
       }
-    }, (error) => {
-      console.error("Error fetching user profile:", error);
-    });
+    };
 
-    return unsubscribe;
+    fetchProfile();
   }, [user]);
 
   const toggleTopicCompletion = async (topicId: string) => {

@@ -6,12 +6,15 @@ import { getQuotaStatus } from '../lib/quota';
 
 const CACHE_PREFIX = 'precall_cache_';
 const memoryCache: Record<string, { data: any, timestamp: number }> = {};
-const DEFAULT_TTL = 1000 * 60 * 60; // 1 hour
+const DEFAULT_TTL = 1000 * 60 * 15; // 15 minutes TTL for most data
 
-function getCache<T>(key: string): T | null {
-  // Always return from memory cache first for speed
+function getCache<T>(key: string, ttl = DEFAULT_TTL): T | null {
+  // Check memory cache first
   if (memoryCache[key]) {
-    return memoryCache[key].data;
+    const { data, timestamp } = memoryCache[key];
+    if (Date.now() - timestamp < ttl) {
+      return data;
+    }
   }
 
   // Check localStorage
@@ -20,8 +23,14 @@ function getCache<T>(key: string): T | null {
 
   try {
     const parsed = JSON.parse(cached);
-    memoryCache[key] = parsed;
-    return parsed.data;
+    if (Date.now() - parsed.timestamp < ttl) {
+      memoryCache[key] = parsed;
+      return parsed.data;
+    }
+    // Expired
+    localStorage.removeItem(CACHE_PREFIX + key);
+    delete memoryCache[key];
+    return null;
   } catch {
     return null;
   }
@@ -47,83 +56,88 @@ export function useQuotaStatus() {
   return isExceeded;
 }
 
+async function reportUsage(reads: number) {
+  try {
+    fetch('/api/track-usage', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reads })
+    });
+  } catch (e) {
+    // Ignore reporting errors to not affect UX
+  }
+}
+
+async function reportError(error: any) {
+  try {
+    const errObj = error instanceof Error ? { message: error.message, stack: error.stack } : { message: String(error) };
+    fetch('/api/report-error', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        ...errObj,
+        userId: (window as any)._userId,
+        url: window.location.href,
+        userAgent: navigator.userAgent
+      })
+    });
+  } catch (e) {
+    // Ignore
+  }
+}
+
 export function useSubjects() {
   const [subjects, setSubjects] = useState<Subject[]>(() => getCache<Subject[]>('subjects') || []);
-  const [loading, setLoading] = useState(!subjects.length);
+  const [loading, setLoading] = useState(subjects.length === 0);
 
   useEffect(() => {
-    if (getQuotaStatus()) {
-      console.warn("[useSubjects] Quota previously exceeded, skipping network fetch and using cache only.");
+    // If we have valid cache, don't fetch from network
+    const cached = getCache<Subject[]>('subjects');
+    if (cached) {
+      setSubjects(cached);
       setLoading(false);
       return;
     }
 
-    console.log("[useSubjects] Starting fetch...");
-    const timeout = setTimeout(() => {
-      if (loading) {
-        console.warn("[useSubjects] Timeout reached, forcing loading false");
+    if (getQuotaStatus()) {
+      setLoading(false);
+      return;
+    }
+
+    const fetchSubjects = async () => {
+      try {
+        // Try bundle first
+        const bundleRef = doc(db, 'bundles', 'subjects');
+        const bundleSnap = await getDoc(bundleRef);
+        
+        if (bundleSnap.exists()) {
+          const bundleData = bundleSnap.data();
+          if (bundleData.data) {
+            const sortedData = [...bundleData.data].sort((a, b) => (a.order || 0) - (b.order || 0));
+            setSubjects(sortedData);
+            setCache('subjects', sortedData);
+            setLoading(false);
+            reportUsage(1);
+            return;
+          }
+        }
+
+        // Fallback to collection
+        const q = query(collection(db, 'subjects'), orderBy('order', 'asc'));
+        const snapshot = await getDocs(q);
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Subject));
+        setSubjects(data);
+        setCache('subjects', data);
+        reportUsage(snapshot.size || 1);
+      } catch (error: any) {
+        console.error("Error fetching subjects:", error);
+        if (error.message?.includes('quota')) reportError(error);
+      } finally {
         setLoading(false);
       }
-    }, 10000);
-
-    // 1. First, try to get from the bundle for efficiency (1 read)
-    const bundleRef = doc(db, 'bundles', 'subjects');
-    const unsubscribeBundle = onSnapshot(bundleRef, (bundleSnap) => {
-      console.log("[useSubjects] Bundle snapshot received, exists:", bundleSnap.exists());
-      if (bundleSnap.exists()) {
-        const bundleData = bundleSnap.data();
-        if (bundleData.data) {
-          const sortedData = [...bundleData.data].sort((a, b) => (a.order || 0) - (b.order || 0));
-          setSubjects(sortedData);
-          setCache('subjects', sortedData);
-          setLoading(false);
-          clearTimeout(timeout);
-          return;
-        }
-      }
-      
-      // 2. Fallback to collection if bundle missing (only happens once during setup)
-      const path = 'subjects';
-      const q = query(collection(db, path), orderBy('order', 'asc'));
-      
-      getDocs(q).then((snapshot) => {
-        console.log("[useSubjects] Collection fetch completed, empty:", snapshot.empty);
-        if (!snapshot.empty) {
-          const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Subject));
-          setSubjects(data);
-          setCache('subjects', data);
-        }
-        setLoading(false);
-        clearTimeout(timeout);
-      }).catch((error) => {
-        console.error("[useSubjects] Collection fetch failed:", error);
-        setLoading(false);
-        clearTimeout(timeout);
-        handleFirestoreError(error, OperationType.LIST, path);
-      });
-    }, (error) => {
-      console.warn("[useSubjects] Bundle snapshot error:", error);
-      // Fallback on error too
-      const path = 'subjects';
-      const q = query(collection(db, path), orderBy('order', 'asc'));
-      getDocs(q).then((snapshot) => {
-        if (!snapshot.empty) {
-          const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Subject));
-          setSubjects(data);
-          setCache('subjects', data);
-        }
-        setLoading(false);
-        clearTimeout(timeout);
-      }).catch(() => {
-        setLoading(false);
-        clearTimeout(timeout);
-      });
-    });
-
-    return () => {
-      unsubscribeBundle();
-      clearTimeout(timeout);
     };
+
+    fetchSubjects();
   }, []);
 
   return { subjects, loading };
@@ -134,62 +148,58 @@ export function useDashboardData() {
     subjects: getCache<Subject[]>('subjects') || [],
     topics: getCache<Topic[]>('topics_all') || []
   }));
-  const [loading, setLoading] = useState(!data.subjects.length || !data.topics.length);
+  const [loading, setLoading] = useState(data.subjects.length === 0 || data.topics.length === 0);
 
   useEffect(() => {
+    // Check if we have both in cache
+    const cachedSubjects = getCache<Subject[]>('subjects');
+    const cachedTopics = getCache<Topic[]>('topics_all');
+    
+    if (cachedSubjects && cachedTopics) {
+      setData({ subjects: cachedSubjects, topics: cachedTopics });
+      setLoading(false);
+      return;
+    }
+
     if (getQuotaStatus()) {
-      console.warn("[useDashboardData] Quota exceeded, using cache.");
       setLoading(false);
       return;
     }
 
     const fetchAll = async () => {
       try {
-        // Try to get subjects from bundle first
-        const subjectsBundle = await getDoc(doc(db, 'bundles', 'subjects'));
+        // Parallel fetches using getDocs instead of onSnapshot
+        const [subjectsBundle, topicsSnap] = await Promise.all([
+          getDoc(doc(db, 'bundles', 'subjects')),
+          getDocs(query(collection(db, 'topics'), orderBy('order', 'asc')))
+        ]);
+
         let subjectsData: Subject[] = [];
-        
         if (subjectsBundle.exists() && subjectsBundle.data().data) {
           subjectsData = subjectsBundle.data().data;
         } else {
+          // Fallback if bundle fails
           const subjectsSnap = await getDocs(query(collection(db, 'subjects'), orderBy('order', 'asc')));
           subjectsData = subjectsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Subject));
         }
 
-        const topicsSnap = await getDocs(query(collection(db, 'topics'), orderBy('order', 'asc')));
         const topicsData = topicsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Topic));
 
         const newData = { subjects: subjectsData, topics: topicsData };
         setData(newData);
         setCache('subjects', subjectsData);
         setCache('topics_all', topicsData);
-        setLoading(false);
-      } catch (error) {
+        reportUsage(1 + topicsSnap.size);
+      } catch (error: any) {
         console.error("Error fetching dashboard data:", error);
-        setLoading(false);
         handleFirestoreError(error, OperationType.LIST, 'dashboard_data');
+        if (error.message?.includes('quota')) reportError(error);
+      } finally {
+        setLoading(false);
       }
     };
 
     fetchAll();
-
-    // Still use listeners for "seamless" real-time updates
-    const subjectsUnsub = onSnapshot(query(collection(db, 'subjects'), orderBy('order', 'asc')), (snap) => {
-      const d = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Subject));
-      setData(prev => ({ ...prev, subjects: d }));
-      setCache('subjects', d);
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'subjects'));
-
-    const topicsUnsub = onSnapshot(query(collection(db, 'topics'), orderBy('order', 'asc')), (snap) => {
-      const d = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Topic));
-      setData(prev => ({ ...prev, topics: d }));
-      setCache('topics_all', d);
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'topics'));
-
-    return () => {
-      subjectsUnsub();
-      topicsUnsub();
-    };
   }, []);
 
   return { ...data, loading };
@@ -198,47 +208,38 @@ export function useDashboardData() {
 export function useTopics(subjectSlug?: string) {
   const cacheKey = `topics_${subjectSlug || 'all'}`;
   const [topics, setTopics] = useState<Topic[]>(() => getCache<Topic[]>(cacheKey) || []);
-  const [loading, setLoading] = useState(!topics.length);
+  const [loading, setLoading] = useState(topics.length === 0);
 
   useEffect(() => {
-    if (getQuotaStatus()) {
-      console.warn("[useTopics] Quota exceeded, using cache.");
+    const cached = getCache<Topic[]>(cacheKey);
+    if (cached) {
+      setTopics(cached);
       setLoading(false);
       return;
     }
 
-    // 1. If subject specific, try topic metadata bundle first (fast list)
-    if (subjectSlug) {
-      const metaRef = doc(db, 'bundles', `topics_${subjectSlug}_metadata`);
-      const freeRef = doc(db, 'bundles', `topics_${subjectSlug}_free`);
-      const premRef = doc(db, 'bundles', `topics_${subjectSlug}_premium`);
+    if (getQuotaStatus()) {
+      setLoading(false);
+      return;
+    }
 
-      const unsubscribe = onSnapshot(metaRef, async (metaSnap) => {
-        if (metaSnap.exists()) {
-          const metaList = metaSnap.data().data as Topic[];
-          setTopics(metaList);
-          setCache(cacheKey, metaList);
-          setLoading(false);
-
-          // Proactively try to load full content bundles to cache for instant page loads
-          try {
-            const [freeSnap, premSnap] = await Promise.allSettled([
-              getDoc(freeRef),
-              getDoc(premRef)
-            ]);
-
-            if (freeSnap.status === 'fulfilled' && freeSnap.value.exists()) {
-              setCache(`bundle_content_free_${subjectSlug}`, freeSnap.value.data().data);
-            }
-            if (premSnap.status === 'fulfilled' && premSnap.value.exists()) {
-               setCache(`bundle_content_premium_${subjectSlug}`, premSnap.value.data().data);
-            }
-          } catch (e) {
-            console.log("Full bundle content load failed or restricted");
+    const fetchTopics = async () => {
+      try {
+        if (subjectSlug) {
+          const metaRef = doc(db, 'bundles', `topics_${subjectSlug}_metadata`);
+          const metaSnap = await getDoc(metaRef);
+          
+          if (metaSnap.exists()) {
+            const metaList = metaSnap.data().data as Topic[];
+            setTopics(metaList);
+            setCache(cacheKey, metaList);
+            setLoading(false);
+            reportUsage(1);
+            return;
           }
-        } else {
-           // Fallback to collection query
-           const q = query(
+
+          // Fallback
+          const q = query(
             collection(db, 'topics'),
             where('subjectSlug', '==', subjectSlug),
             orderBy('order', 'asc')
@@ -247,25 +248,24 @@ export function useTopics(subjectSlug?: string) {
           const d = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Topic));
           setTopics(d);
           setCache(cacheKey, d);
-          setLoading(false);
+          reportUsage(snap.size || 1);
+        } else {
+          const q = query(collection(db, 'topics'), orderBy('order', 'asc'));
+          const snap = await getDocs(q);
+          const d = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Topic));
+          setTopics(d);
+          setCache(cacheKey, d);
+          reportUsage(snap.size || 1);
         }
-      }, (error) => {
-        console.error("Topics bundle fetch failed:", error);
+      } catch (error: any) {
+        console.error("Error fetching topics:", error);
+        if (error.message?.includes('quota')) reportError(error);
+      } finally {
         setLoading(false);
-      });
-      return unsubscribe;
-    }
+      }
+    };
 
-    // 2. For "all" topics (admin panel)
-    const q = query(collection(db, 'topics'), orderBy('order', 'asc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Topic));
-      setTopics(data);
-      setCache(cacheKey, data);
-      setLoading(false);
-    });
-    
-    return unsubscribe;
+    fetchTopics();
   }, [subjectSlug]);
 
   return { topics, loading };
@@ -279,37 +279,47 @@ export function useTopic(slug?: string) {
   useEffect(() => {
     if (!slug) return;
     
-    // 1. Check if topic exists in any loaded bundle in memory cache
-    // We scan all cached bundle contents
-    const cachedBundles = Object.keys(memoryCache).filter(k => k.startsWith('bundle_content_'));
-    for (const key of cachedBundles) {
-      const bundleData = memoryCache[key].data as Topic[];
-      const found = bundleData.find(t => t.slug === slug);
-      if (found) {
-        setTopic(found);
-        setCache(cacheKey, found);
-        setLoading(false);
-        return;
-      }
+    const cached = getCache<Topic>(cacheKey);
+    if (cached) {
+      setTopic(cached);
+      setLoading(false);
+      return;
     }
 
-    // 2. Otherwise fetch individually
-    const path = 'topics';
-    const q = query(collection(db, path), where('slug', '==', slug));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      if (!snapshot.empty) {
-        const data = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as Topic;
-        setTopic(data);
-        setCache(cacheKey, data);
-      } else {
-        setTopic(null);
+    const fetchTopic = async () => {
+      try {
+        // Check in loaded content bundles first (already in memory cache logic)
+        const cachedBundles = Object.keys(memoryCache).filter(k => k.startsWith('bundle_content_'));
+        for (const key of cachedBundles) {
+          const bundleData = memoryCache[key].data as Topic[];
+          const found = bundleData.find(t => t.slug === slug);
+          if (found) {
+            setTopic(found);
+            setCache(cacheKey, found);
+            setLoading(false);
+            return;
+          }
+        }
+
+        const q = query(collection(db, 'topics'), where('slug', '==', slug));
+        const snapshot = await getDocs(q);
+        if (!snapshot.empty) {
+          const data = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as Topic;
+          setTopic(data);
+          setCache(cacheKey, data);
+          reportUsage(1);
+        } else {
+          setTopic(null);
+        }
+      } catch (error: any) {
+        console.error("Error fetching topic:", error);
+        if (error.message?.includes('quota')) reportError(error);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
-    }, (error) => {
-      setLoading(false);
-      handleFirestoreError(error, OperationType.GET, path);
-    });
-    return unsubscribe;
+    };
+
+    fetchTopic();
   }, [slug]);
 
   return { topic, loading };
@@ -320,41 +330,37 @@ export function useSettings() {
   const [loading, setLoading] = useState(!settings);
 
   useEffect(() => {
-    if (getQuotaStatus()) {
-      console.warn("[useSettings] Quota previously exceeded, skipping network fetch and using cache only.");
+    const cached = getCache<AppSettings>('settings');
+    if (cached) {
+      setSettings(cached);
       setLoading(false);
       return;
     }
 
-    console.log("[useSettings] Starting fetch...");
-    const timeout = setTimeout(() => {
-      if (loading) {
-        console.warn("[useSettings] Timeout reached, forcing loading false");
+    if (getQuotaStatus()) {
+      setLoading(false);
+      return;
+    }
+
+    const fetchSettings = async () => {
+      try {
+        const docRef = doc(db, 'settings', 'global');
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+          const data = snap.data() as AppSettings;
+          setSettings(data);
+          setCache('settings', data);
+          reportUsage(1);
+        }
+      } catch (error: any) {
+        console.error("Error fetching settings:", error);
+        if (error.message?.includes('quota')) reportError(error);
+      } finally {
         setLoading(false);
       }
-    }, 10000);
-
-    const path = 'settings/global';
-    const docRef = doc(db, 'settings', 'global');
-    const unsubscribe = onSnapshot(docRef, (doc) => {
-      console.log("[useSettings] Snapshot received, exists:", doc.exists());
-      if (doc.exists()) {
-        const data = doc.data() as AppSettings;
-        setSettings(data);
-        setCache('settings', data);
-      }
-      setLoading(false);
-      clearTimeout(timeout);
-    }, (error) => {
-      console.error("[useSettings] Snapshot error:", error);
-      setLoading(false);
-      clearTimeout(timeout);
-      handleFirestoreError(error, OperationType.GET, path);
-    });
-    return () => {
-      unsubscribe();
-      clearTimeout(timeout);
     };
+
+    fetchSettings();
   }, []);
 
   return { settings, loading };
@@ -362,7 +368,7 @@ export function useSettings() {
 
 export function useUserProfile(uid?: string) {
   const cacheKey = `profile_${uid}`;
-  const [profile, setProfile] = useState<UserProfile | null>(() => uid ? getCache<UserProfile>(cacheKey) : null);
+  const [profile, setProfile] = useState<UserProfile | null>(() => uid ? getCache<UserProfile>(cacheKey, 1000 * 60 * 5) : null); // Profile TTL 5 mins
   const [loading, setLoading] = useState(uid ? !profile : false);
 
   useEffect(() => {
@@ -372,22 +378,34 @@ export function useUserProfile(uid?: string) {
       return;
     }
 
-    const path = `users/${uid}`;
-    const docRef = doc(db, 'users', uid);
-    const unsubscribe = onSnapshot(docRef, (doc) => {
-      if (doc.exists()) {
-        const data = doc.data() as UserProfile;
-        setProfile(data);
-        setCache(cacheKey, data);
-      } else {
-        setProfile(null);
+    const cached = getCache<UserProfile>(cacheKey, 1000 * 60 * 5);
+    if (cached) {
+      setProfile(cached);
+      setLoading(false);
+      return;
+    }
+
+    const fetchProfile = async () => {
+      try {
+        const docRef = doc(db, 'users', uid);
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+          const data = snap.data() as UserProfile;
+          setProfile(data);
+          setCache(cacheKey, data);
+          reportUsage(1);
+        } else {
+          setProfile(null);
+        }
+      } catch (error: any) {
+        console.error("Error fetching profile:", error);
+        if (error.message?.includes('quota')) reportError(error);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
-    }, (error) => {
-      setLoading(false);
-      handleFirestoreError(error, OperationType.GET, path);
-    });
-    return unsubscribe;
+    };
+
+    fetchProfile();
   }, [uid]);
 
   return { profile, loading };
@@ -395,8 +413,8 @@ export function useUserProfile(uid?: string) {
 
 export function useNotifications(uid?: string, isAdmin?: boolean) {
   const cacheKey = `notifications_${uid || 'guest'}_${isAdmin ? 'admin' : 'user'}`;
-  const [notifications, setNotifications] = useState<AppNotification[]>(() => getCache<AppNotification[]>(cacheKey) || []);
-  const [loading, setLoading] = useState(!notifications.length);
+  const [notifications, setNotifications] = useState<AppNotification[]>(() => getCache<AppNotification[]>(cacheKey, 1000 * 60 * 5) || []);
+  const [loading, setLoading] = useState(notifications.length === 0);
 
   useEffect(() => {
     if (!uid && !isAdmin) {
@@ -405,29 +423,40 @@ export function useNotifications(uid?: string, isAdmin?: boolean) {
       return;
     }
 
-    const path = 'notifications';
-    let q;
-    
-    if (isAdmin) {
-      q = query(collection(db, path), orderBy('createdAt', 'desc'));
-    } else {
-      q = query(
-        collection(db, path), 
-        where('userId', 'in', [uid || 'guest', 'all']),
-        orderBy('createdAt', 'desc')
-      );
+    const cached = getCache<AppNotification[]>(cacheKey, 1000 * 60 * 5);
+    if (cached) {
+      setNotifications(cached);
+      setLoading(false);
+      return;
     }
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
-      setNotifications(data as AppNotification[]);
-      setCache(cacheKey, data);
-      setLoading(false);
-    }, (error) => {
-      setLoading(false);
-      handleFirestoreError(error, OperationType.LIST, path);
-    });
-    return unsubscribe;
+    const fetchNotifications = async () => {
+      try {
+        const path = 'notifications';
+        let q;
+        if (isAdmin) {
+            q = query(collection(db, path), orderBy('createdAt', 'desc'));
+        } else {
+            q = query(
+              collection(db, path), 
+              where('userId', 'in', [uid || 'guest', 'all']),
+              orderBy('createdAt', 'desc')
+            );
+        }
+        const snap = await getDocs(q);
+        const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+        setNotifications(data);
+        setCache(cacheKey, data);
+        reportUsage(snap.size || 1);
+      } catch (error: any) {
+        console.error("Error fetching notifications:", error);
+        if (error.message?.includes('quota')) reportError(error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchNotifications();
   }, [uid, isAdmin]);
 
   return { notifications, loading };
