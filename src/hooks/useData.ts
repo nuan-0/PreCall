@@ -58,7 +58,7 @@ export function useQuotaStatus() {
 
 async function reportUsage(reads: number) {
   try {
-    fetch('/api/track-usage', {
+    fetch('/api/report-usage', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ reads })

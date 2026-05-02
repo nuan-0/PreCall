@@ -165,11 +165,11 @@ async function startServer() {
   };
 
   const notifyFailure = async (title: string, error: any, context?: any) => {
-    const contextStr = context ? `\n\n<b>Context:</b>\n<pre>${JSON.stringify(context, null, 2).substring(0, 500)}</pre>` : '';
+    const contextStr = context ? `\n\n<b>Context:</b>\n<pre>${escapeHTML(JSON.stringify(context, null, 2)).substring(0, 500)}</pre>` : '';
     await sendTelegramNotification(
-      `🚨 <b>${title}</b>\n\n` +
+      `🚨 <b>${escapeHTML(title)}</b>\n\n` +
       `🛑 <b>Error:</b> <i>${escapeHTML(error.message || error)}</i>\n` +
-      `💻 <b>Env:</b> <code>${process.env.NODE_ENV || 'dev'}</code>` +
+      `💻 <b>Env:</b> <code>${escapeHTML(process.env.NODE_ENV || 'dev')}</code>` +
       contextStr
     ).catch(() => {});
   };
@@ -330,13 +330,13 @@ async function startServer() {
     
     await sendTelegramNotification(
       `${isQuotaError ? '🚨 <b>CRITICAL: FIREBASE QUOTA' : '🚨 <b>Client-Side Crash'} Detected</b>\n\n` +
-      `👤 <b>User:</b> <code>${userId || 'Guest'}</code>\n` +
-      `🛑 <b>Error:</b> <i>${message || 'Unknown'}</i>\n` +
-      `🌐 <b>URL:</b> <code>${url || 'Unknown'}</code>\n` +
-      `📱 <b>UA:</b> <code>${userAgent || 'Unknown'}</code>\n` +
-      (source ? `📍 <b>Source:</b> <code>${source}:${lineno}:${colno}</code>\n` : '') +
-      (type ? `🏷️ <b>Type:</b> <code>${type}</code>\n` : '') +
-      `\n<b>Trace:</b>\n<pre>${(stack || '').substring(0, 500)}...</pre>`
+      `👤 <b>User:</b> <code>${escapeHTML(userId) || 'Guest'}</code>\n` +
+      `🛑 <b>Error:</b> <i>${escapeHTML(message) || 'Unknown'}</i>\n` +
+      `🌐 <b>URL:</b> <code>${escapeHTML(url) || 'Unknown'}</code>\n` +
+      `📱 <b>UA:</b> <code>${escapeHTML(userAgent) || 'Unknown'}</code>\n` +
+      (source ? `📍 <b>Source:</b> <code>${escapeHTML(source)}:${lineno}:${colno}</code>\n` : '') +
+      (type ? `🏷️ <b>Type:</b> <code>${escapeHTML(type)}</code>\n` : '') +
+      `\n<b>Trace:</b>\n<pre>${escapeHTML((stack || '').substring(0, 500))}...</pre>`
     ).catch(() => {});
 
     res.json({ status: 'ok' });
@@ -713,7 +713,7 @@ async function startServer() {
         await sendTelegramNotification(
           `💰 <b>New ${productType === 'premium' ? 'Premium' : 'PDF'} Purchase!</b>\n\n` +
           `👤 <b>User ID:</b> <code>${escapeHTML(userId)}</code>\n` +
-          `📄 <b>Item:</b> ${productType === 'premium' ? 'Full Access' : `PDF: ${escapeHTML(productSlug || '')}`}\n` +
+          `📄 <b>Item:</b> ${productType === 'premium' ? 'Full Access' : `PDF: ${escapeHTML(productSlug || String(productSlugs))}`}\n` +
           `💳 <b>Order:</b> <code>${escapeHTML(razorpay_order_id)}</code>\n` +
           `📈 <b>Total Premium:</b> ${totalPremium}\n\n` +
           `<i>App: PreCall Revision</i>`
