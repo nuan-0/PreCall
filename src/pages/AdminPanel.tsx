@@ -546,6 +546,7 @@ function AdminNotifications({ showConfirm }: { showConfirm: any }) {
 }
 
 function AdminOverview({ showConfirm }: { showConfirm: any }) {
+  const { user } = useAuth();
   const { topics } = useTopics();
   const { subjects } = useSubjects();
   const { settings } = useSettings();
@@ -745,6 +746,14 @@ D. The Fundamental Duties
 
         await batch.commit();
         await bundleService.rebuildAllBundles();
+        
+        // Force server cache refresh
+        fetch('/api/admin/refresh-cache', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: user?.uid })
+        }).catch(err => console.warn('Cache refresh failed:', err));
+
         toast.success(`Seeded ${addedSubjects} subjects and ${addedTopics} topics! Bundles rebuilt.`);
       } catch (e) {
         handleFirestoreError(e, OperationType.WRITE, 'batch');
@@ -814,6 +823,14 @@ D. The Fundamental Duties
           }, { merge: true });
 
           await bundleService.rebuildTopicBundle('polity');
+          
+          // Force server cache refresh
+          fetch('/api/admin/refresh-cache', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: user?.uid })
+          }).catch(err => console.warn('Cache refresh failed:', err));
+
           toast.success('Preamble content added and bundle rebuilt!');
         } catch (e) {
           handleFirestoreError(e, OperationType.WRITE, 'topics/preamble');
@@ -899,6 +916,14 @@ D. Article 22
           }, { merge: true });
 
           await bundleService.rebuildTopicBundle('polity');
+          
+          // Force server cache refresh
+          fetch('/api/admin/refresh-cache', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: user?.uid })
+          }).catch(err => console.warn('Cache refresh failed:', err));
+
           toast.success('Article 21 content added and bundle rebuilt!');
         } catch (e) {
           handleFirestoreError(e, OperationType.WRITE, 'topics/article-21');
@@ -1019,6 +1044,14 @@ D. Article 22
                       const toastId = toast.loading('Rebuilding bundles...');
                       try {
                         await bundleService.rebuildAllBundles();
+                        
+                        // Force server cache refresh
+                        fetch('/api/admin/refresh-cache', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ userId: user?.uid })
+                        }).catch(err => console.warn('Cache refresh failed:', err));
+
                         toast.success('All bundles rebuilt successfully!', { id: toastId });
                       } catch (e) {
                         toast.error('Failed to rebuild bundles', { id: toastId });
