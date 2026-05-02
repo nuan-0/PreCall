@@ -94,20 +94,22 @@ async function startServer() {
           console.log('[Firebase] SA Client Email:', sa.client_email);
           console.log('[Firebase] SA Project ID:', sa.project_id);
           
+          if (configProjectId && sa.project_id && sa.project_id !== configProjectId) {
+            console.warn(`[Firebase] ⚠️ PROJECT ID MISMATCH! Config project is "${configProjectId}" but Service Account is for "${sa.project_id}". This will cause PERMISSION_DENIED.`);
+          }
+
           admin.initializeApp({
             credential: admin.credential.cert(sa),
             projectId: sa.project_id || configProjectId,
-            databaseId: firestoreDatabaseId, // Ensure databaseId is passed in options too
             storageBucket: config.storageBucket || (sa.project_id ? `${sa.project_id}.firebasestorage.app` : undefined)
           });
           console.log('✅ Firebase Admin initialized via Service Account. Project:', admin.app().options.projectId);
         } catch (err: any) {
           console.error('❌ CRITICAL: Failed to parse FIREBASE_SERVICE_ACCOUNT JSON:', err.message);
-          // Fallback to default credentials if JSON is invalid
-          admin.initializeApp({
-            projectId: configProjectId || undefined
-          });
-          console.log('⚠️ Falling back to default credentials due to JSON error. Project:', admin.app().options.projectId);
+          console.error('⚠️ NOTE: It looks like you pasted the JavaScript snippet instead of the Service Account JSON!');
+          console.error('⚠️ Your secret starts with: ', process.env.FIREBASE_SERVICE_ACCOUNT.slice(0, 50));
+          console.error('⚠️ Please open the downloaded .json file and paste its contents directly.');
+          throw new Error('Invalid FIREBASE_SERVICE_ACCOUNT JSON. Please check settings.');
         }
       } else {
         console.log('[Firebase] RED ALERT: FIREBASE_SERVICE_ACCOUNT not found. Falling back to default credentials.');
@@ -150,13 +152,21 @@ async function startServer() {
     try {
       return await op(db);
     } catch (err: any) {
+      const dbId = (db as any)._settings?.databaseId || (db as any).databaseId || 'default';
+      const projId = admin.app().options.projectId || 'Unknown';
+      
       if (err.message?.includes('PERMISSION_DENIED') || err.code === 7) {
         console.error(`❌ CRITICAL: Firestore [${label}] failed with PERMISSION_DENIED.`);
-        console.error(`   Identity: ${admin.app().options.projectId || 'Unknown Project'}`);
-        console.error('   Action: Ensure FIREBASE_SERVICE_ACCOUNT is set in AI Studio Secrets.');
+        console.error(`   Project: ${projId}, Database: ${dbId}`);
+        console.error(`   Identity: ${admin.app()?.options?.credential ? 'Has Credentials' : 'NO CREDENTIALS'}`);
         
         // Notify via Telegram if possible
-        notifyFailure('Firestore Permission Denied', err, { label, project: admin.app().options.projectId }).catch(() => {});
+        notifyFailure('Firestore Permission Denied', err, { 
+          label, 
+          project: projId,
+          database: dbId,
+          hasServiceAccount: !!process.env.FIREBASE_SERVICE_ACCOUNT
+        }).catch(() => {});
       } else {
         console.error(`[Firestore ${label}] Operation failed (code: ${err.code}):`, err.message);
       }
@@ -363,6 +373,21 @@ async function startServer() {
   // Refresh every 10 minutes
   setInterval(refreshContentCache, 1000 * 60 * 10);
 
+  // Startup verification
+  const startupTest = async () => {
+    try {
+      console.log('[Startup] Testing Firestore connection...');
+      await runFirestoreOp(dbInstance => dbInstance.collection('_health').doc('startup').set({
+        timestamp: new Date().toISOString(),
+        env: process.env.NODE_ENV
+      }), 'StartupTest');
+      console.log('✅ [Startup] Firestore write test passed.');
+    } catch (err: any) {
+      console.error('❌ [Startup] Firestore connection test failed:', err.message);
+    }
+  };
+  startupTest();
+
   // API: Get all cached content
   app.get('/api/content/all', (req, res) => {
     const clientLastUpdated = parseInt(req.query.lastUpdated as string || '0');
@@ -400,21 +425,40 @@ async function startServer() {
   // API: Health Check
   app.get('/api/health', async (req, res) => {
     let firebaseStatus = 'unknown';
+    let databaseId = 'unknown';
+    let projectId = 'unknown';
+    let saEmail = 'unknown';
+    
     try {
+      projectId = admin.app().options.projectId || 'none';
+      databaseId = (db as any)._settings?.databaseId || (db as any).databaseId || 'default';
+      
+      const sa = process.env.FIREBASE_SERVICE_ACCOUNT ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT) : null;
+      saEmail = sa ? sa.client_email : 'none';
+
       // Small check to see if Firestore is responsive
-      const testSnap = await db.collection('_health').limit(1).get().catch(() => null);
-      firebaseStatus = testSnap ? 'connected' : 'permission_denied_or_error';
-    } catch (e) {
-      firebaseStatus = 'error';
+      const testSnap = await db.collection('_health').limit(1).get().catch((e) => {
+        console.error('[Health Check] Firestore test failed:', e.message);
+        return { error: e.message };
+      });
+      
+      if ((testSnap as any).error) {
+        firebaseStatus = `error: ${(testSnap as any).error}`;
+      } else {
+        firebaseStatus = 'connected';
+      }
+    } catch (e: any) {
+      firebaseStatus = `init_error: ${e.message}`;
     }
 
     res.json({ 
       status: 'ok', 
       env: process.env.NODE_ENV,
       firebase: firebaseStatus,
-      project: admin.app().options.projectId,
-      database: (admin.app().options as any).databaseId || 'default',
-      hasServiceAccount: !!process.env.FIREBASE_SERVICE_ACCOUNT,
+      project: projectId,
+      database: databaseId,
+      serviceAccount: saEmail,
+      hasServiceAccountInEnv: !!process.env.FIREBASE_SERVICE_ACCOUNT,
       uptime: Math.floor((Date.now() - usageTracker.startTime) / 1000) + 's'
     });
   });
@@ -869,7 +913,7 @@ async function startServer() {
       app.use(vite.middlewares);
 
       // Final catch-all for SPA fallback (Express 5 compatible)
-      app.get('*', async (req, res, next) => {
+      app.get('*all', async (req, res, next) => {
         // Skip if path starts with /api
         if (req.path.startsWith('/api')) return next();
 
@@ -889,7 +933,7 @@ async function startServer() {
       const distPath = path.join(process.cwd(), 'dist');
       app.use(express.static(distPath));
       
-      app.get('*', (req, res) => {
+      app.get('*all', (req, res) => {
         if (req.path.startsWith('/api')) return res.status(404).json({ error: 'API route not found' });
         res.sendFile(path.join(distPath, 'index.html'));
       });

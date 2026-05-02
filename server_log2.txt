@@ -1,0 +1,22 @@
+✅ Razorpay configuration detected (Key ID starts with: rzp_live...)
+[Firebase] Config loaded: Project=our-mechanism-492011-e6, Database=ai-studio-a28ad2c2-6e84-4ab7-a8cd-4adb575cacc9
+[Firebase] Initializing via Service Account... (found FIREBASE_SERVICE_ACCOUNT)
+[Firebase] SA Client Email: firebase-adminsdk-fbsvc@our-mechanism-492011-e6.iam.gserviceaccount.com
+[Firebase] SA Project ID: our-mechanism-492011-e6
+✅ Firebase Admin initialized via Service Account. Project: our-mechanism-492011-e6
+[Firebase] Accessing specific database: ai-studio-a28ad2c2-6e84-4ab7-a8cd-4adb575cacc9
+✅ Firestore instance acquired
+[Seed] Starting Razorpay test account seeding...
+[Cache] Refreshing content cache from Firestore...
+[Startup] Testing Firestore connection...
+🚀 Starting Vite in middleware mode...
+(node:2957) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+✅ [Startup] Firestore write test passed.
+[Cache] Successfully cached 10 subjects and 214 topics. (Reads: 224)
+[Seed] User found: vd6buYY4QjcPFoSGL3jU5UKkqg92. Updating password...
+WebSocket server error: Port 24678 is already in use
+Server running on http://localhost:3000
+📡 Sending Telegram notification... (ChatID: 1915695241)
+[Seed] Razorpay test account updated with correct password
+✅ Telegram notification sent successfully.
