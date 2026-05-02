@@ -42,76 +42,67 @@ async function startServer() {
 
   checkRazorpayConfig();
 
+  // Use a persistent (for the life of the process) tracker for usage
+  const usageTracker = {
+    reads: 0,
+    lastNotifiedThreshold: 0,
+    startTime: Date.now()
+  };
+
+  const checkAndNotifyUsage = async () => {
+    const dailyLimit = 50000;
+    const currentPercent = (usageTracker.reads / dailyLimit) * 100;
+    
+    // Find the current threshold (multiple of 20)
+    const threshold = Math.floor(currentPercent / 20) * 20;
+
+    if (threshold > usageTracker.lastNotifiedThreshold && threshold <= 100 && threshold % 20 === 0) {
+      const notifiedThreshold = threshold;
+      usageTracker.lastNotifiedThreshold = threshold;
+      
+      const emoji = notifiedThreshold >= 80 ? '⚠️' : notifiedThreshold >= 40 ? '📊' : 'ℹ️';
+      await sendTelegramNotification(
+        `${emoji} <b>Firestore Usage Update</b>\n\n` +
+        `📉 <b>Estimated Reads:</b> <code>${usageTracker.reads.toLocaleString()}</code>\n` +
+        `📈 <b>Capacity:</b> <code>${notifiedThreshold}%</code> used\n` +
+        `⏳ <b>Uptime:</b> <code>${Math.floor((Date.now() - usageTracker.startTime) / (1000 * 60 * 60))}h</code>`
+      ).catch(console.error);
+    }
+  };
+
   // Initialize Firebase Admin
   let firestoreDatabaseId: string | undefined;
+  let configProjectId: string | undefined;
   
   try {
-    if (admin.apps.length === 0) {
-      const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
-      let config: any = {};
-      
-      if (fs.existsSync(configPath)) {
-        try {
-          config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-          firestoreDatabaseId = config.firestoreDatabaseId;
-        } catch (e) {
-          console.error('Failed to parse firebase-applet-config.json:', e);
-        }
-      }
+    const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
+    if (fs.existsSync(configPath)) {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      firestoreDatabaseId = config.firestoreDatabaseId;
+      configProjectId = config.projectId;
+    }
 
-      // Priority 1: Service Account
+    if (admin.apps.length === 0) {
       if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-        try {
-          const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-          admin.initializeApp({
-            credential: admin.credential.cert(serviceAccount),
-            databaseURL: `https://${serviceAccount.project_id}.firebaseio.com`,
-            storageBucket: config.storageBucket || `${serviceAccount.project_id}.firebasestorage.app`
-          });
-          console.log('✅ Firebase Admin initialized via Service Account');
-        } catch (parseError) {
-          console.error('❌ Failed to parse FIREBASE_SERVICE_ACCOUNT:', parseError);
-        }
-      } 
-      
-      // Priority 2: Default Credentials (best for Cloud Run/AI Studio)
-      if (admin.apps.length === 0) {
-        try {
-          // If in AI Studio, sometimes providing project ID from config helps, 
-          // but sometimes it causes issues if the config is stale.
-          admin.initializeApp();
-          console.log('✅ Firebase Admin initialized via default credentials');
-        } catch (error) {
-          if (config.projectId) {
-            admin.initializeApp({
-              projectId: config.projectId,
-              storageBucket: config.storageBucket
-            });
-            console.log('✅ Firebase Admin initialized via local config');
-          } else {
-            throw error;
-          }
-        }
+        const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+        admin.initializeApp({
+          credential: admin.credential.cert(sa),
+          projectId: sa.project_id || configProjectId
+        });
+      } else {
+        admin.initializeApp({
+          projectId: configProjectId
+        });
       }
     }
   } catch (error) {
-    console.error('Firebase Admin initialization error:', error);
+    console.error('[Firebase] Init Error:', error);
   }
 
-  // Direct initialization of the database instance
-  let db: admin.firestore.Firestore;
-  try {
-    if (firestoreDatabaseId) {
-      db = getFirestore(admin.app(), firestoreDatabaseId);
-      console.log(`✅ Using specific Firestore database: ${firestoreDatabaseId}`);
-    } else {
-      db = getFirestore(admin.app());
-      console.log('✅ Using default Firestore database');
-    }
-  } catch (err: any) {
-    console.warn('⚠️ Initial database acquisition failed, trying fallback to default admin.firestore():', err.message);
-    db = admin.firestore();
-  }
+  const db = firestoreDatabaseId 
+    ? getFirestore(admin.app(), firestoreDatabaseId)
+    : getFirestore(admin.app());
+
 
   // Direct and simple helper for Firestore operations
   const runFirestoreOp = async (op: (dbInstance: admin.firestore.Firestore) => Promise<any>, label: string): Promise<any> => {
@@ -360,34 +351,6 @@ async function startServer() {
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', env: process.env.NODE_ENV });
   });
-
-  // Use a persistent (for the life of the process) tracker for usage
-  const usageTracker = {
-    reads: 0,
-    lastNotifiedThreshold: 0,
-    startTime: Date.now()
-  };
-
-  const checkAndNotifyUsage = async () => {
-    const dailyLimit = 50000;
-    const currentPercent = (usageTracker.reads / dailyLimit) * 100;
-    
-    // Find the current threshold (multiple of 20)
-    const threshold = Math.floor(currentPercent / 20) * 20;
-
-    if (threshold > usageTracker.lastNotifiedThreshold && threshold <= 100 && threshold % 20 === 0) {
-      const notifiedThreshold = threshold;
-      usageTracker.lastNotifiedThreshold = threshold;
-      
-      const emoji = notifiedThreshold >= 80 ? '⚠️' : notifiedThreshold >= 40 ? '📊' : 'ℹ️';
-      await sendTelegramNotification(
-        `${emoji} <b>Firestore Usage Update</b>\n\n` +
-        `📉 <b>Estimated Reads:</b> <code>${usageTracker.reads.toLocaleString()}</code>\n` +
-        `📈 <b>Capacity:</b> <code>${notifiedThreshold}%</code> used\n` +
-        `⏳ <b>Uptime:</b> <code>${Math.floor((Date.now() - usageTracker.startTime) / (1000 * 60 * 60))}h</code>`
-      );
-    }
-  };
 
   app.post('/api/report-usage', (req, res) => {
     const { reads = 0 } = req.body;
@@ -827,24 +790,36 @@ async function startServer() {
     }
   });
 
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
-    console.log('🚀 Starting Vite in middleware mode...');
-    const { createServer: createViteServer } = await import('vite');
-    const vite = await createViteServer({
-      root: process.cwd(),
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
-  } else {
-    console.log('📦 Serving production assets from dist...');
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('/:path*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
-  }
+    // Vite middleware for development
+    if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+      console.log('🚀 Starting Vite in middleware mode...');
+      const { createServer: createViteServer } = await import('vite');
+      const vite = await createViteServer({
+        root: process.cwd(),
+        server: { middlewareMode: true },
+        appType: 'spa',
+      });
+      app.use(vite.middlewares);
+
+      // Re-add SPA fallback for dev to be safe
+      app.get('*', async (req, res, next) => {
+        try {
+          let template = fs.readFileSync(path.resolve(process.cwd(), 'index.html'), 'utf-8');
+          template = await vite.transformIndexHtml(req.url, template);
+          res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
+        } catch (e) {
+          vite.ssrFixStacktrace(e as Error);
+          next(e);
+        }
+      });
+    } else {
+      console.log('📦 Serving production assets from dist...');
+      const distPath = path.join(process.cwd(), 'dist');
+      app.use(express.static(distPath));
+      app.get('*', (req, res) => {
+        res.sendFile(path.join(distPath, 'index.html'));
+      });
+    }
 
   if (!process.env.VERCEL) {
     app.listen(PORT, '0.0.0.0', () => {
