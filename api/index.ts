@@ -91,9 +91,13 @@ async function startServer() {
         console.log('[Firebase] Initializing via Service Account... (found FIREBASE_SERVICE_ACCOUNT)');
         try {
           const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+          console.log('[Firebase] SA Client Email:', sa.client_email);
+          console.log('[Firebase] SA Project ID:', sa.project_id);
+          
           admin.initializeApp({
             credential: admin.credential.cert(sa),
             projectId: sa.project_id || configProjectId,
+            databaseId: firestoreDatabaseId, // Ensure databaseId is passed in options too
             storageBucket: config.storageBucket || (sa.project_id ? `${sa.project_id}.firebasestorage.app` : undefined)
           });
           console.log('✅ Firebase Admin initialized via Service Account. Project:', admin.app().options.projectId);
