@@ -1157,7 +1157,14 @@ function AdminSubjects({ showConfirm }: { showConfirm: any }) {
         // Rebuild subjects bundle
         await bundleService.rebuildSubjectsBundle();
         
-        toast.success('Subject saved and bundle rebuilt!');
+        // Force server cache refresh
+        fetch('/api/admin/refresh-cache', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: user?.uid })
+        }).catch(err => console.warn('Cache refresh failed:', err));
+
+        toast.success('Subject saved successfully!');
         setEditingSubject(null);
       } catch (e) {
         handleFirestoreError(e, OperationType.WRITE, `subjects/${id}`);
@@ -1183,6 +1190,14 @@ function AdminSubjects({ showConfirm }: { showConfirm: any }) {
           await deleteDoc(doc(db, 'subjects', id));
           // Rebuild Subjects bundle
           await bundleService.rebuildSubjectsBundle();
+
+          // Force server cache refresh
+          fetch('/api/admin/refresh-cache', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: user?.uid })
+          }).catch(err => console.warn('Cache refresh failed:', err));
+
           toast.success('Subject deleted and bundle updated');
         } catch (e) {
           handleFirestoreError(e, OperationType.DELETE, `subjects/${id}`);
@@ -1473,6 +1488,7 @@ const BULK_PASTE_TEMPLATE = `### Why this matters
 [Comma separated list of related topics]`;
 
 function AdminTopics({ showConfirm }: { showConfirm: any }) {
+  const { user } = useAuth();
   const { topics } = useTopics();
   const { subjects } = useSubjects();
   const [editingTopic, setEditingTopic] = useState<Partial<Topic> | null>(null);
@@ -1550,24 +1566,59 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingTopic?.slug) return;
+    if (!editingTopic?.slug || !editingTopic.title) {
+      toast.error('Title and Slug are required');
+      return;
+    }
 
     const saveAction = async () => {
       setIsSaving(true);
       const id = (editingTopic.id || editingTopic.slug) as string;
+      
+      // Sanitizer to remove undefined values effectively
+      const sanitize = (obj: any): any => {
+        const result: any = {};
+        Object.keys(obj).forEach(key => {
+          if (obj[key] !== undefined) {
+            result[key] = obj[key] === '' ? null : obj[key];
+          }
+        });
+        return result;
+      };
+
       try {
-        await setDoc(doc(db, 'topics', id), { ...editingTopic, id });
+        const payload = sanitize({ 
+          ...editingTopic, 
+          id,
+          order: Number.isNaN(Number(editingTopic.order)) ? 0 : Number(editingTopic.order)
+        });
+        
+        await setDoc(doc(db, 'topics', id), payload);
         
         // Rebuild the relevant topic bundle
         if (editingTopic.subjectSlug) {
-          await bundleService.rebuildTopicBundle(editingTopic.subjectSlug);
+          try {
+            await bundleService.rebuildTopicBundle(editingTopic.subjectSlug);
+          } catch (bundleErr) {
+            console.error('Bundle rebuild failed, but Firestore saved:', bundleErr);
+            toast.error('Topic saved, but cache update failed. Users might see old data for a while.', { duration: 5000 });
+          }
         }
         
-        toast.success('Topic published and bundle rebuilt!');
+        toast.success('Topic saved successfully!');
+        
+        // Force server cache refresh so changes appear immediately
+        fetch('/api/admin/refresh-cache', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: user?.uid })
+        }).catch(err => console.warn('Cache refresh failed:', err));
+
         setEditingTopic(null);
       } catch (e) {
+        console.error('Failed to save topic:', e);
         handleFirestoreError(e, OperationType.WRITE, `topics/${id}`);
-        toast.error('Failed to publish topic');
+        toast.error('Firestore Error: Failed to publish topic. Check console for details.');
       } finally {
         setIsSaving(false);
       }
@@ -1592,6 +1643,14 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
           if (topicToDelete?.subjectSlug) {
              await bundleService.rebuildTopicBundle(topicToDelete.subjectSlug);
           }
+          
+          // Force server cache refresh
+          fetch('/api/admin/refresh-cache', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: user?.uid })
+          }).catch(err => console.warn('Cache refresh failed:', err));
+
           toast.success('Topic deleted and bundle updated');
         } catch (e) {
           handleFirestoreError(e, OperationType.DELETE, `topics/${id}`);
@@ -1619,6 +1678,14 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
             batch.delete(doc(db, 'topics', t.id));
           });
           await batch.commit();
+
+          // Force server cache refresh
+          fetch('/api/admin/refresh-cache', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: user?.uid })
+          }).catch(err => console.warn('Cache refresh failed:', err));
+
           toast.success(`Successfully deleted ${filteredTopics.length} topics`, { id: toastId });
         } catch (e) {
           handleFirestoreError(e, OperationType.DELETE, 'topics/bulk');
@@ -1818,7 +1885,7 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
             </div>
 
             {/* Scrollable Form Content */}
-            <form onSubmit={handleSave} className="flex-1 overflow-y-auto p-8 lg:p-12 space-y-16">
+            <form id="topic-form" onSubmit={handleSave} className="flex-1 overflow-y-auto p-8 lg:p-12 space-y-16">
               <div className="grid gap-16 lg:grid-cols-2">
                 {/* Left Column: Identity & Core */}
                 <div className="space-y-16">
@@ -1832,39 +1899,39 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
                     <div className="grid gap-6 sm:grid-cols-2">
                       <div className="space-y-2">
                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Topic Name (Public Title)</label>
-                        <input type="text" className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.title || ''} onChange={e => setEditingTopic({...editingTopic, title: e.target.value})} placeholder="e.g. Fundamental Rights" required />
+                        <input type="text" name="title" className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.title || ''} onChange={e => setEditingTopic({...editingTopic, title: e.target.value})} placeholder="e.g. Fundamental Rights" required />
                       </div>
                       <div className="space-y-2">
                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Slug (for URL)</label>
-                        <input type="text" className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.slug || ''} onChange={e => setEditingTopic({...editingTopic, slug: e.target.value.toLowerCase().replace(/\s+/g, '-')})} placeholder="e.g. fundamental-rights" required />
+                        <input type="text" name="slug" className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.slug || ''} onChange={e => setEditingTopic({...editingTopic, slug: e.target.value.toLowerCase().replace(/\s+/g, '-')})} placeholder="e.g. fundamental-rights" required />
                       </div>
                     </div>
                     <div className="grid gap-6 sm:grid-cols-2">
                       <div className="space-y-2">
                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Parent Subject</label>
-                        <select className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.subjectSlug} onChange={e => setEditingTopic({...editingTopic, subjectSlug: e.target.value})}>
+                        <select name="subjectSlug" className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.subjectSlug} onChange={e => setEditingTopic({...editingTopic, subjectSlug: e.target.value})}>
                           {subjects.map(s => <option key={s.slug} value={s.slug}>{s.title}</option>)}
                         </select>
                       </div>
                       <div className="space-y-2">
                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Chapter / Category (Optional)</label>
-                        <input type="text" className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.chapter || ''} onChange={e => setEditingTopic({...editingTopic, chapter: e.target.value})} placeholder="e.g. Fundamental Rights" />
+                        <input type="text" name="chapter" className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.chapter || ''} onChange={e => setEditingTopic({...editingTopic, chapter: e.target.value})} placeholder="e.g. Fundamental Rights" />
                       </div>
                     </div>
                     <div className="grid gap-6 sm:grid-cols-2">
                       <div className="space-y-2">
                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Display Order</label>
-                        <input type="number" className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.order || 0} onChange={e => setEditingTopic({...editingTopic, order: parseInt(e.target.value)})} />
+                        <input type="number" name="order" className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.order || 0} onChange={e => setEditingTopic({...editingTopic, order: parseInt(e.target.value) || 0})} />
                       </div>
                     </div>
                     <div className="space-y-2">
                       <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Short Teaser</label>
-                      <textarea className="w-full rounded-xl border-slate-200 font-medium focus:ring-violet-500 focus:border-violet-500 p-4" rows={2} value={editingTopic.teaser || ''} onChange={e => setEditingTopic({...editingTopic, teaser: e.target.value})} placeholder="A brief hook for the dashboard..." />
+                      <textarea name="teaser" onPaste={handlePaste} className="w-full rounded-xl border-slate-200 font-medium focus:ring-violet-500 focus:border-violet-500 p-4" rows={2} value={editingTopic.teaser || ''} onChange={e => setEditingTopic({...editingTopic, teaser: e.target.value})} placeholder="A brief hook for the dashboard..." />
                     </div>
                     <div className="grid gap-6 sm:grid-cols-3">
                       <div className="space-y-2">
                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Access Status</label>
-                        <select className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.status} onChange={e => setEditingTopic({...editingTopic, status: e.target.value as any})}>
+                        <select name="status" className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.status} onChange={e => setEditingTopic({...editingTopic, status: e.target.value as any})}>
                           <option value="free">Free</option>
                           <option value="premium">Premium</option>
                           <option value="coming_soon">Coming Soon</option>
@@ -1872,17 +1939,17 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
                       </div>
                       <div className="space-y-2">
                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Exam Relevance</label>
-                        <input type="text" className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.examRelevance || ''} onChange={e => setEditingTopic({...editingTopic, examRelevance: e.target.value})} placeholder="e.g. High - Prelims" />
+                        <input type="text" name="examRelevance" className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.examRelevance || ''} onChange={e => setEditingTopic({...editingTopic, examRelevance: e.target.value})} placeholder="e.g. High - Prelims" />
                       </div>
                       <div className="space-y-2">
                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Revision Time</label>
-                        <input type="text" className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.estimatedTime || ''} onChange={e => setEditingTopic({...editingTopic, estimatedTime: e.target.value})} placeholder="e.g. 5 mins" />
+                        <input type="text" name="estimatedTime" className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.estimatedTime || ''} onChange={e => setEditingTopic({...editingTopic, estimatedTime: e.target.value})} placeholder="e.g. 5 mins" />
                       </div>
                     </div>
                     <div className="grid gap-6 sm:grid-cols-2">
                       <div className="space-y-2">
                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Last Updated</label>
-                        <input type="text" className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.lastUpdated || ''} onChange={e => setEditingTopic({...editingTopic, lastUpdated: e.target.value})} placeholder="e.g. 01 April 2026" />
+                        <input type="text" name="lastUpdated" className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.lastUpdated || ''} onChange={e => setEditingTopic({...editingTopic, lastUpdated: e.target.value})} placeholder="e.g. 01 April 2026" />
                       </div>
                       <div className="space-y-4">
                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">PDF & Graphics Resource</label>
@@ -1899,6 +1966,7 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
                                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">PDF URL (e.g. Google Drive)</label>
                                 <input 
                                   type="text" 
+                                  name="pdfUrl"
                                   className="w-full h-10 rounded-xl border-slate-200 text-xs font-medium focus:ring-violet-500 focus:border-violet-500" 
                                   value={editingTopic.pdfUrl || ''} 
                                   onChange={e => setEditingTopic({...editingTopic, pdfUrl: e.target.value})} 
@@ -1909,6 +1977,7 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
                                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">PDF Password</label>
                                 <input 
                                   type="text" 
+                                  name="pdfPassword"
                                   className="w-full h-10 rounded-xl border-slate-200 text-xs font-medium focus:ring-violet-500 focus:border-violet-500" 
                                   value={editingTopic.pdfPassword || ''} 
                                   onChange={e => setEditingTopic({...editingTopic, pdfPassword: e.target.value})} 
@@ -1921,7 +1990,7 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
                               {editingTopic.pdfUrl && (
                                 <div className="p-3 rounded-xl bg-violet-100/50 border border-violet-200 flex items-center justify-between">
                                   <span className="text-[10px] font-bold text-violet-700 truncate max-w-[150px]">{editingTopic.pdfUrl}</span>
-                                  <button onClick={() => setEditingTopic({...editingTopic, pdfUrl: '', pdfPassword: ''})} className="p-1.5 text-rose-500 hover:bg-rose-100 rounded-lg transition-colors">
+                                  <button type="button" onClick={() => setEditingTopic({...editingTopic, pdfUrl: '', pdfPassword: ''})} className="p-1.5 text-rose-500 hover:bg-rose-100 rounded-lg transition-colors">
                                     <Trash2 className="h-4 w-4" />
                                   </button>
                                 </div>
@@ -1941,6 +2010,7 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
                                 <label className="text-[10px] font-bold text-amber-900/60 uppercase tracking-tighter">Image URL</label>
                                 <input 
                                   type="text" 
+                                  name="infographicUrl"
                                   className="w-full h-10 rounded-xl border-amber-200 text-xs font-medium focus:ring-amber-500 focus:border-amber-500 bg-white" 
                                   value={editingTopic.infographicUrl || ''} 
                                   onChange={e => setEditingTopic({...editingTopic, infographicUrl: e.target.value})} 
@@ -1953,7 +2023,7 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
                               {editingTopic.infographicUrl && (
                                 <div className="p-3 rounded-xl bg-amber-100/50 border border-amber-200 flex items-center justify-between">
                                   <span className="text-[10px] font-bold text-amber-700 truncate max-w-[150px]">{editingTopic.infographicUrl}</span>
-                                  <button onClick={() => setEditingTopic({...editingTopic, infographicUrl: ''})} className="p-1.5 text-rose-500 hover:bg-rose-100 rounded-lg transition-colors">
+                                  <button type="button" onClick={() => setEditingTopic({...editingTopic, infographicUrl: ''})} className="p-1.5 text-rose-500 hover:bg-rose-100 rounded-lg transition-colors">
                                     <Trash2 className="h-4 w-4" />
                                   </button>
                                 </div>
@@ -2042,7 +2112,7 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
             {/* Sticky Footer */}
             <div className="bg-slate-50 border-t border-violet-100 p-6 flex items-center justify-end gap-4 shrink-0">
               <button type="button" onClick={() => setEditingTopic(null)} className="px-6 py-3 text-sm font-black text-slate-400 hover:text-slate-600 transition-colors uppercase tracking-widest">Discard Changes</button>
-              <Button type="submit" onClick={handleSave} icon={Save} loading={isSaving} className="px-10 h-14 text-base shadow-xl shadow-violet-200">
+              <Button type="submit" form="topic-form" icon={Save} loading={isSaving} className="px-10 h-14 text-base shadow-xl shadow-violet-200">
                 {editingTopic.id ? 'Update Topic' : 'Publish Topic'}
               </Button>
             </div>

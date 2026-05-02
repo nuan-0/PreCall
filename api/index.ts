@@ -337,34 +337,40 @@ async function startServer() {
     isRefreshing: false
   };
 
+  let activeRefreshPromise: Promise<void> | null = null;
+
   const refreshContentCache = async () => {
-    if (contentCache.isRefreshing) return;
+    if (activeRefreshPromise) return activeRefreshPromise;
     contentCache.isRefreshing = true;
     
-    console.log('[Cache] Refreshing content cache from Firestore...');
-    try {
-      // Parallel fetch to be faster
-      const [subjectsSnap, topicsSnap] = await Promise.all([
-        runFirestoreOp(dbInstance => dbInstance.collection('subjects').orderBy('order', 'asc').get(), 'CacheSubjects'),
-        runFirestoreOp(dbInstance => dbInstance.collection('topics').orderBy('order', 'asc').get(), 'CacheTopics')
-      ]);
+    activeRefreshPromise = (async () => {
+      console.log('[Cache] Refreshing content cache from Firestore...');
+      try {
+        // Parallel fetch to be faster
+        const [subjectsSnap, topicsSnap] = await Promise.all([
+          runFirestoreOp(dbInstance => dbInstance.collection('subjects').orderBy('order', 'asc').get(), 'CacheSubjects'),
+          runFirestoreOp(dbInstance => dbInstance.collection('topics').orderBy('order', 'asc').get(), 'CacheTopics')
+        ]);
 
-      const subjects = subjectsSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
-      const topics = topicsSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+        const subjects = subjectsSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+        const topics = topicsSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
 
-      contentCache.subjects = subjects;
-      contentCache.topics = topics;
-      contentCache.lastUpdated = Date.now();
-      
-      console.log(`[Cache] Successfully cached ${subjects.length} subjects and ${topics.length} topics. (Reads: ${subjects.length + topics.length})`);
-      
-      // Update global usage tracker with these reads
-      usageTracker.reads += (subjects.length + topics.length);
-    } catch (err: any) {
-      console.error('[Cache] Failed to refresh content cache:', err.message);
-    } finally {
-      contentCache.isRefreshing = false;
-    }
+        contentCache.subjects = subjects;
+        contentCache.topics = topics;
+        contentCache.lastUpdated = Date.now();
+        
+        console.log(`[Cache] Successfully cached ${subjects.length} subjects and ${topics.length} topics. (Reads: ${subjects.length + topics.length})`);
+        
+        // Update global usage tracker with these reads
+        usageTracker.reads += (subjects.length + topics.length);
+      } catch (err: any) {
+        console.error('[Cache] Failed to refresh content cache:', err.message);
+      } finally {
+        contentCache.isRefreshing = false;
+        activeRefreshPromise = null;
+      }
+    })();
+    return activeRefreshPromise;
   };
 
   // Initial refresh
@@ -388,23 +394,24 @@ async function startServer() {
   };
   startupTest();
 
+  app.use(express.json());
+
   // API: Get all cached content
-  app.get('/api/content/all', (req, res) => {
+  app.get('/api/content/all', async (req, res) => {
     const clientLastUpdated = parseInt(req.query.lastUpdated as string || '0');
 
+    // Wait if cache is currently refreshing
+    if (activeRefreshPromise) {
+      await activeRefreshPromise;
+    }
+
     // If cache is empty, try to refresh once before responding
-    if (contentCache.subjects.length === 0 && !contentCache.isRefreshing) {
-      refreshContentCache().then(() => {
-        if (clientLastUpdated >= contentCache.lastUpdated && contentCache.lastUpdated > 0) {
-          return res.json({ status: 'unchanged', lastUpdated: contentCache.lastUpdated });
-        }
-        res.json({
-          subjects: contentCache.subjects,
-          topics: contentCache.topics,
-          lastUpdated: contentCache.lastUpdated
-        });
-      }).catch(() => res.status(500).json({ error: 'Cache is empty' }));
-      return;
+    if (contentCache.subjects.length === 0) {
+      try {
+        await refreshContentCache();
+      } catch (err) {
+        return res.status(500).json({ error: 'Cache is empty and refresh failed' });
+      }
     }
 
     // Check if client version is still valid
@@ -418,9 +425,26 @@ async function startServer() {
       lastUpdated: contentCache.lastUpdated
     });
   });
-  // ---------------------------
 
-  app.use(express.json());
+  // API: Force refresh content cache (Admin only)
+  app.post('/api/admin/refresh-cache', async (req, res) => {
+    const { userId } = req.body;
+    const isAdmin = await checkIsAdmin(userId);
+    if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+
+    try {
+      await refreshContentCache();
+      res.json({ 
+        success: true, 
+        subjectsCount: contentCache.subjects.length, 
+        topicsCount: contentCache.topics.length,
+        lastUpdated: contentCache.lastUpdated
+      });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to refresh cache' });
+    }
+  });
+  // ---------------------------
 
   // API: Health Check
   app.get('/api/health', async (req, res) => {
