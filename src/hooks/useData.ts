@@ -140,7 +140,13 @@ export function useSubjects() {
       try {
         const lastUpdatedCurrent = meta.lastUpdated || 0;
         const response = await fetch(`/api/content/all?lastUpdated=${lastUpdatedCurrent}`);
-        if (!response.ok) throw new Error('Failed to fetch from content API');
+        if (!response.ok) {
+           if (response.status === 503) {
+             setQuotaStatus(true);
+             throw new Error('QUOTA_EXCEEDED');
+           }
+           throw new Error('Failed to fetch from content API');
+        }
         
         const content = await response.json();
         
@@ -161,7 +167,7 @@ export function useSubjects() {
         console.error("Error fetching subjects from API:", error);
         
         // Fallback to Firestore only if API fails and no cache exists
-        if (subjects.length === 0) {
+        if (subjects.length === 0 && error.message !== 'QUOTA_EXCEEDED') {
           try {
             const bundleRef = doc(db, 'bundles', 'subjects');
             const bundleSnap = await getDoc(bundleRef);
@@ -221,7 +227,13 @@ export function useDashboardData() {
       try {
         const lastUpdatedCurrent = meta.lastUpdated || 0;
         const response = await fetch(`/api/content/all?lastUpdated=${lastUpdatedCurrent}`);
-        if (!response.ok) throw new Error('Failed to fetch from content API');
+        if (!response.ok) {
+           if (response.status === 503) {
+             setQuotaStatus(true);
+             throw new Error('QUOTA_EXCEEDED');
+           }
+           throw new Error('Failed to fetch from content API');
+        }
         const content = await response.json();
 
         if (content.status === 'unchanged') {
@@ -241,7 +253,7 @@ export function useDashboardData() {
       } catch (error: any) {
         console.error("Error fetching dashboard data from API:", error);
         
-        if (data.subjects.length === 0) {
+        if (data.subjects.length === 0 && error.message !== 'QUOTA_EXCEEDED') {
           try {
             const [subjectsBundle, topicsSnap] = await Promise.all([
               getDoc(doc(db, 'bundles', 'subjects')),
@@ -306,7 +318,13 @@ export function useTopics(subjectSlug?: string) {
       try {
         const lastUpdatedCurrent = meta.lastUpdated || 0;
         const response = await fetch(`/api/content/all?lastUpdated=${lastUpdatedCurrent}`);
-        if (!response.ok) throw new Error('Failed to fetch from content API');
+        if (!response.ok) {
+           if (response.status === 503) {
+             setQuotaStatus(true);
+             throw new Error('QUOTA_EXCEEDED');
+           }
+           throw new Error('Failed to fetch from content API');
+        }
         const content = await response.json();
         
         if (content.status === 'unchanged') {
@@ -334,7 +352,7 @@ export function useTopics(subjectSlug?: string) {
       } catch (error: any) {
         console.error("Error fetching topics from API:", error);
         
-        if (topics.length === 0) {
+        if (topics.length === 0 && error.message !== 'QUOTA_EXCEEDED') {
           // Fallback to Firestore
           try {
             if (subjectSlug) {
@@ -413,7 +431,13 @@ export function useTopic(slug?: string) {
         const meta = getCacheMetadata('subjects');
         const lastUpdatedCurrent = meta.lastUpdated || 0;
         const response = await fetch(`/api/content/all?lastUpdated=${lastUpdatedCurrent}`);
-        if (!response.ok) throw new Error('Failed to fetch from content API');
+        if (!response.ok) {
+           if (response.status === 503) {
+             setQuotaStatus(true);
+             throw new Error('QUOTA_EXCEEDED');
+           }
+           throw new Error('Failed to fetch from content API');
+        }
         const content = await response.json();
         
         if (content.status === 'unchanged') {
@@ -437,7 +461,7 @@ export function useTopic(slug?: string) {
         console.error("Error fetching topic from API:", error);
         
         // Final fallback to direct Firestore
-        if (!topic) {
+        if (!topic && error.message !== 'QUOTA_EXCEEDED') {
           try {
             const q = query(collection(db, 'topics'), where('slug', '==', slug));
             const snapshot = await getDocs(q);

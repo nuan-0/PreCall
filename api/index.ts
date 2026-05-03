@@ -334,7 +334,8 @@ async function startServer() {
     subjects: [] as any[],
     topics: [] as any[],
     lastUpdated: 0,
-    isRefreshing: false
+    isRefreshing: false,
+    isQuotaExceeded: false
   };
 
   let activeRefreshPromise: Promise<void> | null = null;
@@ -379,6 +380,7 @@ async function startServer() {
         contentCache.subjects = subjects;
         contentCache.topics = topics;
         contentCache.lastUpdated = Date.now();
+        contentCache.isQuotaExceeded = false; // Reset if successful
         
         const reads = bundlesSnap.docs.length;
         console.log(`[Cache] Successfully cached ${subjects.length} subjects and ${topics.length} topics. (Reads: ${reads})`);
@@ -386,6 +388,9 @@ async function startServer() {
         usageTracker.reads += reads;
       } catch (err: any) {
         console.error('[Cache] Failed to refresh content cache:', err.message);
+        if (err.message && (err.message.toLowerCase().includes('quota') || err.message.includes('RESOURCE_EXHAUSTED'))) {
+          contentCache.isQuotaExceeded = true;
+        }
       } finally {
         contentCache.isRefreshing = false;
         activeRefreshPromise = null;
@@ -426,10 +431,19 @@ async function startServer() {
 
     // If cache is empty, try to refresh once before responding
     if (contentCache.subjects.length === 0) {
+      if (contentCache.isQuotaExceeded) {
+         // Return 503 instead of 500, with a clear quotaExceeded flag
+         return res.status(503).json({ error: 'Firestore Quota Exceeded', errorType: 'quota', quotaExceeded: true });
+      }
       try {
         await refreshContentCache();
       } catch (err) {
         return res.status(500).json({ error: 'Cache is empty and refresh failed' });
+      }
+      
+      // If after refresh it failed due to quota
+      if (contentCache.subjects.length === 0 && contentCache.isQuotaExceeded) {
+         return res.status(503).json({ error: 'Firestore Quota Exceeded', errorType: 'quota', quotaExceeded: true });
       }
     }
 
@@ -1011,7 +1025,12 @@ async function startServer() {
 
   // Test Telegram on Startup
   try {
-    const settingsSnap = await runFirestoreOp(dbInstance => dbInstance.collection('settings').doc('global').get(), 'StartupSettings');
+    const settingsSnap = await runFirestoreOp(dbInstance => dbInstance.collection('settings').doc('global').get(), 'StartupSettings').catch(e => {
+        if (e.message?.includes('quota') || e.message?.includes('RESOURCE_EXHAUSTED')) {
+           return { exists: false, data: () => null };
+        }
+        throw e;
+    });
     const appName = settingsSnap.exists ? settingsSnap.data()?.appName : 'PreCall';
     
     sendTelegramNotification(`🚀 <b>${escapeHTML(appName || 'PreCall')} Server Started</b>\nEnvironment: <code>${process.env.NODE_ENV || 'development'}</code>`).catch(() => {});
