@@ -588,7 +588,16 @@ export function useSettings() {
     fetchInitiated.current = true;
 
     if (USE_LOCAL_DATA) {
-      setSettings({ appName: 'PreCall Dev', contactEmail: 'dev@example.com' } as AppSettings);
+      setSettings({ 
+        appName: 'PreCall Dev', 
+        contactEmail: 'dev@example.com',
+        heroTagline: 'High-Yield Revision for UPSC',
+        sponsorName: 'PreCall',
+        sponsorText: 'Master the core concepts.',
+        pricingText: 'Unlock Premium',
+        pdfPrice: '199',
+        lastUpdated: Date.now()
+      } as any);
       setLoading(false);
       return;
     }
@@ -600,7 +609,16 @@ export function useSettings() {
         const content = await fetchContentOptimized(lastUpdatedCurrent);
         
         if (content.status === 'local_mode' || (content.status === 'error' && USE_LOCAL_DATA)) {
-          setSettings({ appName: 'PreCall Dev', contactEmail: 'dev@example.com' } as AppSettings);
+          setSettings({ 
+            appName: 'PreCall Dev', 
+            contactEmail: 'dev@example.com',
+            heroTagline: 'High-Yield Revision for UPSC',
+            sponsorName: 'PreCall',
+            sponsorText: 'Master the core concepts.',
+            pricingText: 'Unlock Premium',
+            pdfPrice: '199',
+            lastUpdated: Date.now()
+          } as any);
           setLoading(false);
           return;
         }

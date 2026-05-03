@@ -157,7 +157,11 @@ D. Article 22
             </div>
             <div className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-slate-50 border border-slate-100">
               <Calendar className="h-4 w-4 text-slate-400" />
-              <span className="text-xs font-bold text-slate-600">Updated: {topic.lastUpdated || 'Recently'}</span>
+              <span className="text-xs font-bold text-slate-600">
+                Updated: {topic.lastUpdated && typeof topic.lastUpdated === 'number' 
+                  ? new Date(topic.lastUpdated).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) 
+                  : (topic.lastUpdated || 'Recently')}
+              </span>
             </div>
           </div>
         </header>

@@ -1092,22 +1092,27 @@ async function startServer() {
 
   // Test Telegram on Startup
   try {
-    if (process.env.VITE_USE_LOCAL_DATA === 'true' || !process.env.FIREBASE_SERVICE_ACCOUNT) {
+    const isLocalMode = process.env.VITE_USE_LOCAL_DATA === 'true' || !process.env.FIREBASE_SERVICE_ACCOUNT;
+    
+    if (isLocalMode) {
       sendTelegramNotification(`🚀 <b>Local Dev Server Started</b>\nEnvironment: <code>${process.env.NODE_ENV || 'development'}</code>`).catch(() => {});
     } else {
-      const settingsSnap = await runFirestoreOp((dbInstance: any) => dbInstance.collection('settings').doc('global').get(), 'StartupSettings').catch((e: any) => {
+      const startupOp = async (dbInstance: any) => {
+        const snap = await dbInstance.collection('settings').doc('global').get();
+        return snap.exists ? snap.data()?.appName : 'PreCall';
+      };
+
+      const appName = await runFirestoreOp(startupOp, 'StartupSettings').catch((e: any) => {
           if (e.message?.includes('quota') || e.message?.includes('RESOURCE_EXHAUSTED')) {
-             return { exists: false, data: () => null };
+             return 'PreCall (Quota)';
           }
-          throw e;
+          return 'PreCall';
       });
-      const appName = settingsSnap.exists ? settingsSnap.data()?.appName : 'PreCall';
       
-      sendTelegramNotification(`🚀 <b>${escapeHTML(appName || 'PreCall')} Server Started</b>\nEnvironment: <code>${process.env.NODE_ENV || 'development'}</code>`).catch(() => {});
+      sendTelegramNotification(`🚀 <b>${escapeHTML(appName)} Server Started</b>\nEnvironment: <code>${process.env.NODE_ENV || 'development'}</code>`).catch(() => {});
     }
   } catch (err) {
     console.error('Failed to send startup notification:', err);
-    sendTelegramNotification(`🚀 <b>PreCall Server Started</b>\nEnvironment: <code>${process.env.NODE_ENV || 'development'}</code>`).catch(() => {});
   }
 
   return app;

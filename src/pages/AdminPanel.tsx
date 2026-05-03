@@ -1982,7 +1982,10 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
                     <div className="grid gap-6 sm:grid-cols-2">
                       <div className="space-y-2">
                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Last Updated</label>
-                        <input type="text" name="lastUpdated" className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.lastUpdated || ''} onChange={e => setEditingTopic({...editingTopic, lastUpdated: e.target.value})} placeholder="e.g. 01 April 2026" />
+                        <input type="date" name="lastUpdated" className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500" value={editingTopic.lastUpdated ? new Date(editingTopic.lastUpdated).toISOString().split('T')[0] : ''} onChange={e => {
+                          const date = new Date(e.target.value);
+                          setEditingTopic({...editingTopic, lastUpdated: isNaN(date.getTime()) ? Date.now() : date.getTime()});
+                        }} />
                       </div>
                       <div className="space-y-4">
                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">PDF & Graphics Resource</label>
