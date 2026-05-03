@@ -2,21 +2,66 @@ import { collection, doc, onSnapshot, query, where, orderBy, limit, getDocs, get
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { Subject, Topic, AppSettings, UserProfile, AppNotification } from '../types';
-import { getQuotaStatus } from '../lib/quota';
+import { getQuotaStatus, setQuotaStatus } from '../lib/quota';
 import { LOCAL_SUBJECTS, LOCAL_TOPICS } from '../data/localData';
 
 const CACHE_PREFIX = 'precall_cache_';
 const USE_LOCAL_DATA = import.meta.env.VITE_USE_LOCAL_DATA === 'true';
+const PROD_PROXY_URL = 'https://ais-pre-zrknvlbi3unsupzgxzsmyg-796328902813.asia-southeast1.run.app';
 const memoryCache: Record<string, { data: any, timestamp: number, lastUpdated?: number }> = {};
-const DEFAULT_TTL = 1000 * 60 * 15; // 15 minutes TTL for most data
 
-function getCache<T>(key: string, ttl = DEFAULT_TTL): T | null {
+let pendingContentRequest: Promise<any> | null = null;
+async function fetchContentOptimized(lastUpdated: number) {
+  if (pendingContentRequest) return pendingContentRequest;
+  
+  pendingContentRequest = (async () => {
+    try {
+      const isDev = window.location.hostname.includes('ais-dev') || window.location.hostname === 'localhost';
+      const apiBase = (USE_LOCAL_DATA && isDev) ? PROD_PROXY_URL : '';
+      
+      const response = await fetch(`${apiBase}/api/content/all?lastUpdated=${lastUpdated}`);
+      const contentType = response.headers.get('content-type');
+      
+      if (!response.ok) {
+        if (response.status === 503) {
+          setQuotaStatus(true);
+          throw new Error('SERVICE_BUSY');
+        }
+        throw new Error('CONTENT_LOAD_FAILED');
+      }
+      
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        // Silent log for developers
+        if (isDev) console.error('API Error:', response.status, text.substring(0, 100));
+        
+        throw new Error('UNEXPECTED_DATA_FORMAT');
+      }
+
+      const data = await response.json();
+      
+      if (data.status === 'local_mode' && USE_LOCAL_DATA) {
+        return { status: 'local_mode' };
+      }
+
+      return data;
+    } catch (e: any) {
+      if (e.message === 'SERVICE_BUSY') throw e;
+      const isDev = window.location.hostname.includes('ais-dev') || window.location.hostname === 'localhost';
+      if (isDev) console.warn('Fetch detail:', e);
+      return { status: 'error' };
+    } finally {
+      pendingContentRequest = null;
+    }
+  })();
+  
+  return pendingContentRequest;
+}
+
+function getCache<T>(key: string): T | null {
   // Check memory cache first
   if (memoryCache[key]) {
-    const { data, timestamp } = memoryCache[key];
-    if (Date.now() - timestamp < ttl) {
-      return data;
-    }
+    return memoryCache[key].data;
   }
 
   // Check localStorage
@@ -25,12 +70,8 @@ function getCache<T>(key: string, ttl = DEFAULT_TTL): T | null {
 
   try {
     const parsed = JSON.parse(cached);
-    if (Date.now() - parsed.timestamp < ttl) {
-      memoryCache[key] = parsed;
-      return parsed.data;
-    }
-    // Expired - but we might still return it if requested by the hook as "stale"
-    return null;
+    memoryCache[key] = parsed;
+    return parsed.data;
   } catch {
     return null;
   }
@@ -98,6 +139,13 @@ async function reportUsage(reads: number) {
 
 async function reportError(error: any) {
   try {
+    const message = error instanceof Error ? error.message : String(error);
+    
+    // Don't report API errors to the API itself (prevents infinite loop if API is down)
+    if (message.includes('API_') || message.includes('fetch')) {
+      return;
+    }
+
     const errObj = error instanceof Error ? { message: error.message, stack: error.stack } : { message: String(error) };
     fetch('/api/report-error', {
       method: 'POST',
@@ -125,11 +173,9 @@ export function useSubjects() {
 
     // Check freshness to mark as loaded instantly, but still fetch to revalidate
     const meta = getCacheMetadata('subjects');
-    const isFresh = Date.now() - meta.timestamp < DEFAULT_TTL;
     
-    if (isFresh && subjects.length > 0) {
+    if (subjects.length > 0) {
       setLoading(false);
-      // We no longer return here. Stale-while-revalidate ensures instant admin updates!
     }
 
     if (getQuotaStatus()) {
@@ -139,27 +185,17 @@ export function useSubjects() {
 
     fetchInitiated.current = true;
     
-    if (USE_LOCAL_DATA) {
-      console.log('[useSubjects] Using static local data (Bypassing Firestore)');
-      setSubjects(LOCAL_SUBJECTS);
-      setLoading(false);
-      return;
-    }
-
     const fetchSubjects = async () => {
       try {
         const lastUpdatedCurrent = meta.lastUpdated || 0;
-        const response = await fetch(`/api/content/all?lastUpdated=${lastUpdatedCurrent}`);
-        if (!response.ok) {
-           if (response.status === 503) {
-             setQuotaStatus(true);
-             throw new Error('QUOTA_EXCEEDED');
-           }
-           throw new Error('Failed to fetch from content API');
+        const content = await fetchContentOptimized(lastUpdatedCurrent);
+        
+        if (content.status === 'local_mode' || (content.status === 'error' && USE_LOCAL_DATA)) {
+          setSubjects(LOCAL_SUBJECTS);
+          setLoading(false);
+          return;
         }
-        
-        const content = await response.json();
-        
+
         if (content.status === 'unchanged') {
           // Just update the timestamp to prolong "freshness"
           const currentSubjects = getStaleCache<Subject[]>('subjects') || [];
@@ -175,10 +211,10 @@ export function useSubjects() {
         if (content.settings) setCache('settings', content.settings, content.lastUpdated);
         
       } catch (error: any) {
-        console.error("Error fetching subjects from API:", error);
+        if (window.location.hostname.includes('ais-dev')) console.error("Subjects sync detail:", error);
         
-        // Fallback to Firestore only if API fails and no cache exists
-        if (subjects.length === 0 && error.message !== 'QUOTA_EXCEEDED') {
+        // Disable direct Firestore fallback in Zero-Read dev mode
+        if (subjects.length === 0 && error.message !== 'SERVICE_BUSY' && !USE_LOCAL_DATA) {
           try {
             const bundleRef = doc(db, 'bundles', 'subjects');
             const bundleSnap = await getDoc(bundleRef);
@@ -221,11 +257,9 @@ export function useDashboardData() {
     if (fetchInitiated.current) return;
 
     const meta = getCacheMetadata('subjects');
-    const isFresh = Date.now() - meta.timestamp < DEFAULT_TTL;
 
-    if (isFresh && data.subjects.length > 0 && data.topics.length > 0) {
+    if (data.subjects.length > 0 && data.topics.length > 0) {
       setLoading(false);
-      // Removed return for stale-while-revalidate
     }
 
     if (getQuotaStatus()) {
@@ -235,25 +269,17 @@ export function useDashboardData() {
 
     fetchInitiated.current = true;
 
-    if (USE_LOCAL_DATA) {
-      console.log('[useDashboardData] Using static local data (Bypassing Firestore)');
-      setData({ subjects: LOCAL_SUBJECTS, topics: LOCAL_TOPICS });
-      setLoading(false);
-      return;
-    }
-
     const fetchAll = async () => {
       try {
         const lastUpdatedCurrent = meta.lastUpdated || 0;
-        const response = await fetch(`/api/content/all?lastUpdated=${lastUpdatedCurrent}`);
-        if (!response.ok) {
-           if (response.status === 503) {
-             setQuotaStatus(true);
-             throw new Error('QUOTA_EXCEEDED');
-           }
-           throw new Error('Failed to fetch from content API');
+        const content = await fetchContentOptimized(lastUpdatedCurrent);
+
+        if (content.status === 'local_mode' || (content.status === 'error' && USE_LOCAL_DATA)) {
+          console.log('[useDashboardData] Falling back to hardcoded local data');
+          setData({ subjects: LOCAL_SUBJECTS, topics: LOCAL_TOPICS });
+          setLoading(false);
+          return;
         }
-        const content = await response.json();
 
         if (content.status === 'unchanged') {
           setCache('subjects', data.subjects, content.lastUpdated);
@@ -271,9 +297,9 @@ export function useDashboardData() {
         setCache('topics_all', topicsData, content.lastUpdated);
         if (content.settings) setCache('settings', content.settings, content.lastUpdated);
       } catch (error: any) {
-        console.error("Error fetching dashboard data from API:", error);
+        if (window.location.hostname.includes('ais-dev')) console.error("Dashboard sync detail:", error);
         
-        if (data.subjects.length === 0 && error.message !== 'QUOTA_EXCEEDED') {
+        if (data.subjects.length === 0 && error.message !== 'SERVICE_BUSY' && !USE_LOCAL_DATA) {
           try {
             const bundlesSnap = await getDocs(collection(db, 'bundles'));
             let subjectsData: Subject[] = [];
@@ -335,11 +361,9 @@ export function useTopics(subjectSlug?: string) {
     if (fetchInitiated.current) return;
 
     const meta = getCacheMetadata('subjects');
-    const isFresh = Date.now() - meta.timestamp < DEFAULT_TTL;
 
-    if (isFresh && topics.length > 0) {
+    if (topics.length > 0) {
       setLoading(false);
-      // Removed return for stale-while-revalidate
     }
 
     if (getQuotaStatus()) {
@@ -349,28 +373,21 @@ export function useTopics(subjectSlug?: string) {
 
     fetchInitiated.current = true;
 
-    if (USE_LOCAL_DATA) {
-      const filtered = subjectSlug 
-        ? LOCAL_TOPICS.filter((t: any) => t.subjectSlug === subjectSlug)
-        : LOCAL_TOPICS;
-      setTopics(filtered);
-      setLoading(false);
-      return;
-    }
-
     const fetchTopics = async () => {
       try {
-        const lastUpdatedCurrent = meta.lastUpdated || 0;
-        const response = await fetch(`/api/content/all?lastUpdated=${lastUpdatedCurrent}`);
-        if (!response.ok) {
-           if (response.status === 503) {
-             setQuotaStatus(true);
-             throw new Error('QUOTA_EXCEEDED');
-           }
-           throw new Error('Failed to fetch from content API');
-        }
-        const content = await response.json();
+        const metaLocal = getCacheMetadata('subjects');
+        const lastUpdatedCurrent = metaLocal.lastUpdated || 0;
+        const content = await fetchContentOptimized(lastUpdatedCurrent);
         
+        if (content.status === 'local_mode' || (content.status === 'error' && USE_LOCAL_DATA)) {
+          const filtered = subjectSlug 
+             ? LOCAL_TOPICS.filter((t: any) => t.subjectSlug === subjectSlug)
+             : LOCAL_TOPICS;
+          setTopics(filtered);
+          setLoading(false);
+          return;
+        }
+
         if (content.status === 'unchanged') {
           // Prolong subjects cache too
           const currentSubjects = getStaleCache<Subject[]>('subjects') || [];
@@ -395,9 +412,9 @@ export function useTopics(subjectSlug?: string) {
           setCache(cacheKey, allTopics, content.lastUpdated);
         }
       } catch (error: any) {
-        console.error("Error fetching topics from API:", error);
+        if (window.location.hostname.includes('ais-dev')) console.error("Topics sync detail:", error);
         
-        if (topics.length === 0 && error.message !== 'QUOTA_EXCEEDED') {
+        if (topics.length === 0 && error.message !== 'SERVICE_BUSY' && !USE_LOCAL_DATA) {
           // Fallback to Firestore
           try {
             const bundlesSnap = await getDocs(collection(db, 'bundles'));
@@ -472,15 +489,9 @@ export function useTopic(slug?: string) {
 
     fetchInitiated.current = true;
 
-    if (USE_LOCAL_DATA) {
-      const found = LOCAL_TOPICS.find((t: any) => t.slug === slug);
-      setTopic(found || null);
-      setLoading(false);
-      return;
-    }
-
     const fetchTopic = async () => {
       try {
+        const metaLocal = getCacheMetadata('subjects');
         // Try searching our existing cache first (topics_all)
         const allTopics = getStaleCache<Topic[]>('topics_all');
         if (allTopics) {
@@ -489,26 +500,21 @@ export function useTopic(slug?: string) {
             setTopic(found);
             setCache(cacheKey, found);
             setLoading(false);
-            
-            // Still check for updates if stale
-            const meta = getCacheMetadata('subjects');
-            if (Date.now() - meta.timestamp < DEFAULT_TTL) return;
           }
         }
 
-        // If not in cache or stale, check API
-        const meta = getCacheMetadata('subjects');
-        const lastUpdatedCurrent = meta.lastUpdated || 0;
-        const response = await fetch(`/api/content/all?lastUpdated=${lastUpdatedCurrent}`);
-        if (!response.ok) {
-           if (response.status === 503) {
-             setQuotaStatus(true);
-             throw new Error('QUOTA_EXCEEDED');
-           }
-           throw new Error('Failed to fetch from content API');
-        }
-        const content = await response.json();
+        // Check API
+        const lastUpdatedCurrent = metaLocal.lastUpdated || 0;
+        const content = await fetchContentOptimized(lastUpdatedCurrent);
         
+        if (content.status === 'local_mode' || (content.status === 'error' && USE_LOCAL_DATA)) {
+          console.log('[useTopic] Falling back to hardcoded local data');
+          const found = LOCAL_TOPICS.find((t: any) => t.slug === slug);
+          setTopic(found || null);
+          setLoading(false);
+          return;
+        }
+
         if (content.status === 'unchanged') {
           // Cache verified as current
           setCache('topics_all', allTopics || [], content.lastUpdated);
@@ -528,10 +534,10 @@ export function useTopic(slug?: string) {
           setTopic(null);
         }
       } catch (error: any) {
-        console.error("Error fetching topic from API:", error);
+        if (window.location.hostname.includes('ais-dev')) console.error("Content API sync error:", error);
         
-        // Final fallback to direct Firestore
-        if (!topic && error.message !== 'QUOTA_EXCEEDED') {
+        // Final fallback to direct Firestore (Disabled in Zero-Read mode)
+        if (!topic && error.message !== 'SERVICE_BUSY' && !USE_LOCAL_DATA) {
           try {
             const q = query(collection(db, 'topics'), where('slug', '==', slug));
             const snapshot = await getDocs(q);
@@ -582,30 +588,35 @@ export function useSettings() {
     fetchInitiated.current = true;
 
     if (USE_LOCAL_DATA) {
-      setSettings(null); // Or provide static settings
+      setSettings({ appName: 'PreCall Dev', contactEmail: 'dev@example.com' } as AppSettings);
       setLoading(false);
       return;
     }
 
     const fetchSettings = async () => {
       try {
-        const lastUpdatedCurrent = meta.lastUpdated || 0;
-        const response = await fetch(`/api/content/all?lastUpdated=${lastUpdatedCurrent}`);
+        const metaLocal = getCacheMetadata('subjects');
+        const lastUpdatedCurrent = metaLocal.lastUpdated || 0;
+        const content = await fetchContentOptimized(lastUpdatedCurrent);
         
-        if (response.ok) {
-           const content = await response.json();
-           if (content.status === 'unchanged') {
-             setLoading(false);
-             return;
-           }
-           if (content.settings) {
-             setSettings(content.settings);
-             setCache('settings', content.settings, content.lastUpdated);
-             setCache('subjects', content.subjects, content.lastUpdated);
-             setCache('topics_all', content.topics, content.lastUpdated);
-             setLoading(false);
-             return;
-           }
+        if (content.status === 'local_mode' || (content.status === 'error' && USE_LOCAL_DATA)) {
+          setSettings({ appName: 'PreCall Dev', contactEmail: 'dev@example.com' } as AppSettings);
+          setLoading(false);
+          return;
+        }
+
+        if (content.status === 'unchanged') {
+          setLoading(false);
+          return;
+        }
+
+        if (content.settings) {
+          setSettings(content.settings);
+          setCache('settings', content.settings, content.lastUpdated);
+          setCache('subjects', content.subjects, content.lastUpdated);
+          setCache('topics_all', content.topics, content.lastUpdated);
+          setLoading(false);
+          return;
         }
 
         // Fallback to direct Firestore if API fails or doesn't have settings
@@ -633,7 +644,7 @@ export function useSettings() {
 
 export function useUserProfile(uid?: string) {
   const cacheKey = `profile_${uid}`;
-  const [profile, setProfile] = useState<UserProfile | null>(() => uid ? getCache<UserProfile>(cacheKey, 1000 * 60 * 5) : null); // Profile TTL 5 mins
+  const [profile, setProfile] = useState<UserProfile | null>(() => uid ? getCache<UserProfile>(cacheKey) : null);
   const [loading, setLoading] = useState(uid ? !profile : false);
 
   const fetchInitiated = useRef(false);
@@ -647,7 +658,7 @@ export function useUserProfile(uid?: string) {
       return;
     }
 
-    const cached = getCache<UserProfile>(cacheKey, 1000 * 60 * 5);
+    const cached = getCache<UserProfile>(cacheKey);
     if (cached) {
       setProfile(cached);
       setLoading(false);
@@ -683,7 +694,7 @@ export function useUserProfile(uid?: string) {
 
 export function useNotifications(uid?: string, isAdmin?: boolean) {
   const cacheKey = `notifications_${uid || 'guest'}_${isAdmin ? 'admin' : 'user'}`;
-  const [notifications, setNotifications] = useState<AppNotification[]>(() => getCache<AppNotification[]>(cacheKey, 1000 * 60 * 5) || []);
+  const [notifications, setNotifications] = useState<AppNotification[]>(() => getCache<AppNotification[]>(cacheKey) || []);
   const [loading, setLoading] = useState(notifications.length === 0);
 
   const fetchInitiated = useRef(false);
@@ -697,7 +708,7 @@ export function useNotifications(uid?: string, isAdmin?: boolean) {
       return;
     }
 
-    const cached = getCache<AppNotification[]>(cacheKey, 1000 * 60 * 5);
+    const cached = getCache<AppNotification[]>(cacheKey);
     if (cached) {
       setNotifications(cached);
       setLoading(false);

@@ -1,4 +1,5 @@
 import express from 'express';
+import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'node:url';
 // @ts-ignore
@@ -388,10 +389,10 @@ async function startServer() {
           ]);
           
           if (subjects.length === 0) {
-             subjects = rawSubjectsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+             subjects = rawSubjectsSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
           }
           if (topics.length === 0) {
-             topics = rawTopicsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+             topics = rawTopicsSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
           }
         }
 
@@ -422,13 +423,13 @@ async function startServer() {
     return activeRefreshPromise;
   };
 
-  // Initial refresh
+  // Startup refresh
   if (process.env.VITE_USE_LOCAL_DATA === 'true' || !process.env.FIREBASE_SERVICE_ACCOUNT) {
-    console.log('[Cache] LOCAL MODE or Missing Service Account: Skipping automatic Firestore cache refresh.');
-    // Populate with basic local data if needed, or leave empty as frontend bypasses API
+    console.log('[Cache] LOCAL MODE: Skipping active Firestore cache refresh.');
   } else {
-    refreshContentCache().catch(console.error);
-    // Background refresh every 10 minutes to recover from quota hits or get fresh data
+    refreshContentCache().catch(err => {
+      console.warn('[Cache] Initial refresh failed (might be quota):', err.message);
+    });
     setInterval(refreshContentCache, 1000 * 60 * 10);
   }
 
@@ -450,47 +451,74 @@ async function startServer() {
   };
   startupTest();
 
+  app.use(cors());
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 
   // API: Get all cached content
   app.get('/api/content/all', async (req, res) => {
-    const clientLastUpdated = parseInt(req.query.lastUpdated as string || '0');
+    try {
+      const clientLastUpdated = parseInt(req.query.lastUpdated as string || '0');
 
-    // Wait if cache is currently refreshing
-    if (activeRefreshPromise) {
-      await activeRefreshPromise;
-    }
-
-    // If cache is empty, try to refresh once before responding
-    if (!contentCache.hasLoadedFirstTime) {
-      if (contentCache.isQuotaExceeded) {
-         // Return 503 instead of 500, with a clear quotaExceeded flag
-         return res.status(503).json({ error: 'Firestore Quota Exceeded', errorType: 'quota', quotaExceeded: true });
+      // Wait if cache is currently refreshing
+      if (activeRefreshPromise) {
+        await activeRefreshPromise;
       }
-      try {
-        await refreshContentCache();
-      } catch (err) {
-        return res.status(500).json({ error: 'Cache is empty and refresh failed' });
-      }
-      
-      // If after refresh it failed due to quota
-      if (!contentCache.hasLoadedFirstTime && contentCache.isQuotaExceeded) {
-         return res.status(503).json({ error: 'Firestore Quota Exceeded', errorType: 'quota', quotaExceeded: true });
-      }
-    }
 
-    // Check if client version is still valid
-    if (clientLastUpdated >= contentCache.lastUpdated && contentCache.lastUpdated > 0) {
-      return res.json({ status: 'unchanged', lastUpdated: contentCache.lastUpdated });
-    }
+      // If cache is empty, try to refresh once before responding
+      if (!contentCache.hasLoadedFirstTime) {
+        // Return blank but valid JSON if in local mode or missing credentials
+        if (process.env.VITE_USE_LOCAL_DATA === 'true' || !process.env.FIREBASE_SERVICE_ACCOUNT) {
+           return res.json({
+             status: 'local_mode',
+             lastUpdated: 0,
+             subjects: [],
+             topics: [],
+             settings: null
+           });
+        }
 
-    res.json({
-      subjects: contentCache.subjects,
-      topics: contentCache.topics,
-      settings: contentCache.settings,
-      lastUpdated: contentCache.lastUpdated
-    });
+        if (contentCache.isQuotaExceeded) {
+          return res.status(503).json({ 
+            error: 'Database service is currently under heavy load. Please try again in 5-10 minutes.', 
+            errorType: 'quota', 
+            quotaExceeded: true,
+            status: 'error'
+          });
+        }
+
+        try {
+          await refreshContentCache();
+        } catch (err) {
+          return res.status(500).json({ error: 'Cache is empty and refresh failed' });
+        }
+        
+        // If after refresh it failed due to quota
+        if (!contentCache.hasLoadedFirstTime && contentCache.isQuotaExceeded) {
+           return res.status(503).json({ 
+             error: 'Firestore Quota Exceeded', 
+             errorType: 'quota', 
+             quotaExceeded: true,
+             status: 'error'
+           });
+        }
+      }
+
+      // Check if client version is still valid
+      if (clientLastUpdated >= contentCache.lastUpdated && contentCache.lastUpdated > 0) {
+        return res.json({ status: 'unchanged', lastUpdated: contentCache.lastUpdated });
+      }
+
+      res.json({
+        subjects: contentCache.subjects,
+        topics: contentCache.topics,
+        settings: contentCache.settings,
+        lastUpdated: contentCache.lastUpdated
+      });
+    } catch (err: any) {
+      console.error('[API Content] Error:', err);
+      res.status(500).json({ status: 'error', error: err.message });
+    }
   });
 
   // API: Force refresh content cache (Admin only)
@@ -992,6 +1020,11 @@ async function startServer() {
     }
   });
 
+  // Catch-all for missing API routes to prevent falling through to SPA HTML
+  app.all('/api/*', (req, res) => {
+    res.status(404).json({ error: 'API route not found', path: req.path });
+  });
+
     // Vite middleware for development
     if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
       console.log('🚀 Starting Vite in middleware mode...');
@@ -1059,15 +1092,19 @@ async function startServer() {
 
   // Test Telegram on Startup
   try {
-    const settingsSnap = await runFirestoreOp(dbInstance => dbInstance.collection('settings').doc('global').get(), 'StartupSettings').catch(e => {
-        if (e.message?.includes('quota') || e.message?.includes('RESOURCE_EXHAUSTED')) {
-           return { exists: false, data: () => null };
-        }
-        throw e;
-    });
-    const appName = settingsSnap.exists ? settingsSnap.data()?.appName : 'PreCall';
-    
-    sendTelegramNotification(`🚀 <b>${escapeHTML(appName || 'PreCall')} Server Started</b>\nEnvironment: <code>${process.env.NODE_ENV || 'development'}</code>`).catch(() => {});
+    if (process.env.VITE_USE_LOCAL_DATA === 'true' || !process.env.FIREBASE_SERVICE_ACCOUNT) {
+      sendTelegramNotification(`🚀 <b>Local Dev Server Started</b>\nEnvironment: <code>${process.env.NODE_ENV || 'development'}</code>`).catch(() => {});
+    } else {
+      const settingsSnap = await runFirestoreOp((dbInstance: any) => dbInstance.collection('settings').doc('global').get(), 'StartupSettings').catch((e: any) => {
+          if (e.message?.includes('quota') || e.message?.includes('RESOURCE_EXHAUSTED')) {
+             return { exists: false, data: () => null };
+          }
+          throw e;
+      });
+      const appName = settingsSnap.exists ? settingsSnap.data()?.appName : 'PreCall';
+      
+      sendTelegramNotification(`🚀 <b>${escapeHTML(appName || 'PreCall')} Server Started</b>\nEnvironment: <code>${process.env.NODE_ENV || 'development'}</code>`).catch(() => {});
+    }
   } catch (err) {
     console.error('Failed to send startup notification:', err);
     sendTelegramNotification(`🚀 <b>PreCall Server Started</b>\nEnvironment: <code>${process.env.NODE_ENV || 'development'}</code>`).catch(() => {});

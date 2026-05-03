@@ -150,6 +150,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (!user) {
       setProfile(null);
+      setIsPremium(false);
       return;
     }
 
@@ -167,7 +168,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user, isAdmin]);
 
   const toggleTopicCompletion = async (topicId: string) => {
     if (!user || !profile) return;
