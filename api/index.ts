@@ -333,6 +333,7 @@ async function startServer() {
   const contentCache = {
     subjects: [] as any[],
     topics: [] as any[],
+    settings: null as any,
     lastUpdated: 0,
     isRefreshing: false,
     isQuotaExceeded: false
@@ -347,7 +348,10 @@ async function startServer() {
     activeRefreshPromise = (async () => {
       console.log('[Cache] Refreshing content cache from Firestore bundles...');
       try {
-        const bundlesSnap = await runFirestoreOp(dbInstance => dbInstance.collection('bundles').get(), 'CacheBundles');
+        const [bundlesSnap, settingsSnap] = await Promise.all([
+          runFirestoreOp(dbInstance => dbInstance.collection('bundles').get(), 'CacheBundles'),
+          runFirestoreOp(dbInstance => dbInstance.collection('settings').doc('global').get(), 'CacheSettings')
+        ]);
         
         let subjects: any[] = [];
         let topics: any[] = [];
@@ -379,11 +383,12 @@ async function startServer() {
 
         contentCache.subjects = subjects;
         contentCache.topics = topics;
+        contentCache.settings = settingsSnap.exists ? settingsSnap.data() : null;
         contentCache.lastUpdated = Date.now();
         contentCache.isQuotaExceeded = false; // Reset if successful
         
-        const reads = bundlesSnap.docs.length;
-        console.log(`[Cache] Successfully cached ${subjects.length} subjects and ${topics.length} topics. (Reads: ${reads})`);
+        const reads = bundlesSnap.docs.length + 1;
+        console.log(`[Cache] Successfully cached ${subjects.length} subjects, ${topics.length} topics and settings. (Reads: ${reads})`);
         
         usageTracker.reads += reads;
       } catch (err: any) {
@@ -455,6 +460,7 @@ async function startServer() {
     res.json({
       subjects: contentCache.subjects,
       topics: contentCache.topics,
+      settings: contentCache.settings,
       lastUpdated: contentCache.lastUpdated
     });
   });

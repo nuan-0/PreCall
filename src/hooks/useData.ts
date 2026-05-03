@@ -162,6 +162,7 @@ export function useSubjects() {
         setSubjects(sortedSubjects);
         setCache('subjects', sortedSubjects, content.lastUpdated);
         setCache('topics_all', content.topics, content.lastUpdated);
+        if (content.settings) setCache('settings', content.settings, content.lastUpdated);
         
       } catch (error: any) {
         console.error("Error fetching subjects from API:", error);
@@ -250,6 +251,7 @@ export function useDashboardData() {
         setData(newData);
         setCache('subjects', subjectsData, content.lastUpdated);
         setCache('topics_all', topicsData, content.lastUpdated);
+        if (content.settings) setCache('settings', content.settings, content.lastUpdated);
       } catch (error: any) {
         console.error("Error fetching dashboard data from API:", error);
         
@@ -339,6 +341,7 @@ export function useTopics(subjectSlug?: string) {
         let allTopics = content.topics;
         setCache('topics_all', allTopics, content.lastUpdated);
         setCache('subjects', content.subjects, content.lastUpdated);
+        if (content.settings) setCache('settings', content.settings, content.lastUpdated);
 
         if (subjectSlug) {
           const filtered = allTopics.filter((t: Topic) => t.subjectSlug === subjectSlug)
@@ -449,6 +452,7 @@ export function useTopic(slug?: string) {
         
         setCache('topics_all', content.topics, content.lastUpdated);
         setCache('subjects', content.subjects, content.lastUpdated);
+        if (content.settings) setCache('settings', content.settings, content.lastUpdated);
 
         const found = content.topics.find((t: Topic) => t.slug === slug);
         if (found) {
@@ -512,6 +516,26 @@ export function useSettings() {
     fetchInitiated.current = true;
     const fetchSettings = async () => {
       try {
+        const lastUpdatedCurrent = meta.lastUpdated || 0;
+        const response = await fetch(`/api/content/all?lastUpdated=${lastUpdatedCurrent}`);
+        
+        if (response.ok) {
+           const content = await response.json();
+           if (content.status === 'unchanged') {
+             setLoading(false);
+             return;
+           }
+           if (content.settings) {
+             setSettings(content.settings);
+             setCache('settings', content.settings, content.lastUpdated);
+             setCache('subjects', content.subjects, content.lastUpdated);
+             setCache('topics_all', content.topics, content.lastUpdated);
+             setLoading(false);
+             return;
+           }
+        }
+
+        // Fallback to direct Firestore if API fails or doesn't have settings
         const docRef = doc(db, 'settings', 'global');
         const snap = await getDoc(docRef);
         if (snap.exists()) {
