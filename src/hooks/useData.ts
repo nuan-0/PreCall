@@ -1,4 +1,4 @@
-import { collection, doc, onSnapshot, query, where, orderBy, getDocs, getDoc } from 'firebase/firestore';
+import { collection, doc, onSnapshot, query, where, orderBy, limit, getDocs, getDoc } from 'firebase/firestore';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { Subject, Topic, AppSettings, UserProfile, AppNotification } from '../types';
@@ -257,25 +257,39 @@ export function useDashboardData() {
         
         if (data.subjects.length === 0 && error.message !== 'QUOTA_EXCEEDED') {
           try {
-            const [subjectsBundle, topicsSnap] = await Promise.all([
-              getDoc(doc(db, 'bundles', 'subjects')),
-              getDocs(query(collection(db, 'topics'), orderBy('order', 'asc')))
-            ]);
-
+            const bundlesSnap = await getDocs(collection(db, 'bundles'));
             let subjectsData: Subject[] = [];
-            if (subjectsBundle.exists() && subjectsBundle.data().data) {
-              subjectsData = subjectsBundle.data().data;
-            } else {
-              const subjectsSnap = await getDocs(query(collection(db, 'subjects'), orderBy('order', 'asc')));
-              subjectsData = subjectsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Subject));
+            let topicsData: Topic[] = [];
+            let metadataTopics: Topic[] = [];
+
+            bundlesSnap.docs.forEach(doc => {
+              const bundleData = doc.data().data;
+              if (!bundleData) return;
+              if (doc.id === 'subjects') {
+                subjectsData = bundleData;
+              } else if (doc.id.includes('_free') || doc.id.includes('_premium')) {
+                topicsData = topicsData.concat(bundleData);
+              } else if (doc.id.includes('_metadata')) {
+                metadataTopics = metadataTopics.concat(bundleData);
+              }
+            });
+            
+            // Add topics that are ONLY in metadata (e.g. coming_soon)
+            const existingTopicIds = new Set(topicsData.map(t => t.id));
+            for (const metaT of metadataTopics) {
+              if (!existingTopicIds.has(metaT.id)) {
+                topicsData.push(metaT);
+              }
             }
 
-            const topicsData = topicsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Topic));
+            subjectsData.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+            topicsData.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+
             const newData = { subjects: subjectsData, topics: topicsData };
             setData(newData);
             setCache('subjects', subjectsData);
             setCache('topics_all', topicsData);
-            reportUsage(1 + topicsSnap.size);
+            reportUsage(bundlesSnap.size);
           } catch (fbError: any) {
             handleFirestoreError(fbError, OperationType.LIST, 'dashboard_data');
             if (fbError.message?.includes('quota')) reportError(fbError);
@@ -358,26 +372,42 @@ export function useTopics(subjectSlug?: string) {
         if (topics.length === 0 && error.message !== 'QUOTA_EXCEEDED') {
           // Fallback to Firestore
           try {
+            const bundlesSnap = await getDocs(collection(db, 'bundles'));
+            let allTopics: Topic[] = [];
+            let metadataTopics: Topic[] = [];
+
+            bundlesSnap.docs.forEach(doc => {
+              const bundleData = doc.data().data;
+              if (!bundleData) return;
+              if (doc.id.includes('_free') || doc.id.includes('_premium')) {
+                allTopics = allTopics.concat(bundleData);
+              } else if (doc.id.includes('_metadata')) {
+                metadataTopics = metadataTopics.concat(bundleData);
+              }
+            });
+            
+            // Add topics that are ONLY in metadata (e.g. coming_soon)
+            const existingTopicIds = new Set(allTopics.map(t => t.id));
+            for (const metaT of metadataTopics) {
+              if (!existingTopicIds.has(metaT.id)) {
+                allTopics.push(metaT);
+              }
+            }
+
+            allTopics.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+            setCache('topics_all', allTopics);
+            reportUsage(bundlesSnap.size);
+
             if (subjectSlug) {
-              const q = query(
-                collection(db, 'topics'),
-                where('subjectSlug', '==', subjectSlug),
-                orderBy('order', 'asc')
-              );
-              const snap = await getDocs(q);
-              const d = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Topic));
-              setTopics(d);
-              setCache(cacheKey, d);
-              reportUsage(snap.size || 1);
+              const filtered = allTopics.filter((t: Topic) => t.subjectSlug === subjectSlug);
+              setTopics(filtered);
+              setCache(cacheKey, filtered);
             } else {
-              const q = query(collection(db, 'topics'), orderBy('order', 'asc'));
-              const snap = await getDocs(q);
-              const d = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Topic));
-              setTopics(d);
-              setCache(cacheKey, d);
-              reportUsage(snap.size || 1);
+              setTopics(allTopics);
+              setCache(cacheKey, allTopics);
             }
           } catch (fbError: any) {
+            handleFirestoreError(fbError, OperationType.LIST, 'topics_bundles');
             if (fbError.message?.includes('quota')) reportError(fbError);
           }
         }
@@ -637,12 +667,13 @@ export function useNotifications(uid?: string, isAdmin?: boolean) {
         const path = 'notifications';
         let q;
         if (isAdmin) {
-            q = query(collection(db, path), orderBy('createdAt', 'desc'));
+            q = query(collection(db, path), orderBy('createdAt', 'desc'), limit(50));
         } else {
             q = query(
               collection(db, path), 
               where('userId', 'in', [uid || 'guest', 'all']),
-              orderBy('createdAt', 'desc')
+              orderBy('createdAt', 'desc'),
+              limit(50)
             );
         }
         const snap = await getDocs(q);
