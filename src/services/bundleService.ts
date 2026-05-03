@@ -8,8 +8,11 @@ export const bundleService = {
    */
   async rebuildSubjectsBundle() {
     try {
-      const subjectsSnap = await getDocs(query(collection(db, 'subjects'), orderBy('order', 'asc')));
+      const subjectsSnap = await getDocs(collection(db, 'subjects'));
       const subjects = subjectsSnap.docs.map(d => ({ ...d.data(), id: d.id })) as Subject[];
+      
+      // Sort in memory to avoid missing field index exclusions
+      subjects.sort((a, b) => (a.order || 0) - (b.order || 0));
       
       const sanitize = (obj: any): any => {
         return JSON.parse(JSON.stringify(obj, (key, value) => 
@@ -37,11 +40,11 @@ export const bundleService = {
       const topicsSnap = await getDocs(
         query(
           collection(db, 'topics'),
-          where('subjectSlug', '==', subjectSlug),
-          orderBy('order', 'asc')
+          where('subjectSlug', '==', subjectSlug)
         )
       );
       const allTopics = topicsSnap.docs.map(d => ({ ...d.data(), id: d.id })) as Topic[];
+      allTopics.sort((a, b) => (a.order || 0) - (b.order || 0));
       
       // Helper to remove undefined values (Firestore rejects them)
       const sanitize = (obj: any): any => {

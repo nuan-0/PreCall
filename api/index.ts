@@ -336,7 +336,8 @@ async function startServer() {
     settings: null as any,
     lastUpdated: 0,
     isRefreshing: false,
-    isQuotaExceeded: false
+    isQuotaExceeded: false,
+    hasLoadedFirstTime: false as boolean
   };
 
   let activeRefreshPromise: Promise<void> | null = null;
@@ -378,16 +379,20 @@ async function startServer() {
           }
         }
 
-        // --- FALLBACK IF BUNDLES ARE EMPTY ---
-        if (subjects.length === 0) {
-          console.log('[Cache] Bundles are empty! Falling back to raw collections...');
+        // --- FALLBACK IF BUNDLES ARE EMPTY OR MISSING ---
+        if (subjects.length === 0 || topics.length === 0) {
+          console.log('[Cache] Missing bundles! Falling back to raw collections...');
           const [rawSubjectsSnap, rawTopicsSnap] = await Promise.all([
              runFirestoreOp(dbInstance => dbInstance.collection('subjects').get(), 'FallbackSubjects'),
              runFirestoreOp(dbInstance => dbInstance.collection('topics').get(), 'FallbackTopics')
           ]);
           
-          subjects = rawSubjectsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-          topics = rawTopicsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          if (subjects.length === 0) {
+             subjects = rawSubjectsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          }
+          if (topics.length === 0) {
+             topics = rawTopicsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          }
         }
 
         subjects.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
@@ -397,6 +402,7 @@ async function startServer() {
         contentCache.topics = topics;
         contentCache.settings = settingsSnap.exists ? settingsSnap.data() : null;
         contentCache.lastUpdated = Date.now();
+        contentCache.hasLoadedFirstTime = true;
         contentCache.isQuotaExceeded = false; // Reset if successful
         
         const reads = bundlesSnap.docs.length + 1;
@@ -450,7 +456,7 @@ async function startServer() {
     }
 
     // If cache is empty, try to refresh once before responding
-    if (contentCache.subjects.length === 0) {
+    if (!contentCache.hasLoadedFirstTime) {
       if (contentCache.isQuotaExceeded) {
          // Return 503 instead of 500, with a clear quotaExceeded flag
          return res.status(503).json({ error: 'Firestore Quota Exceeded', errorType: 'quota', quotaExceeded: true });
@@ -462,7 +468,7 @@ async function startServer() {
       }
       
       // If after refresh it failed due to quota
-      if (contentCache.subjects.length === 0 && contentCache.isQuotaExceeded) {
+      if (!contentCache.hasLoadedFirstTime && contentCache.isQuotaExceeded) {
          return res.status(503).json({ error: 'Firestore Quota Exceeded', errorType: 'quota', quotaExceeded: true });
       }
     }
