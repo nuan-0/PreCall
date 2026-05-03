@@ -423,13 +423,20 @@ async function startServer() {
   };
 
   // Initial refresh
-  refreshContentCache().catch(console.error);
-
-  // Background refresh every 10 minutes to recover from quota hits or get fresh data
-  setInterval(refreshContentCache, 1000 * 60 * 10);
+  if (process.env.VITE_USE_LOCAL_DATA === 'true' || !process.env.FIREBASE_SERVICE_ACCOUNT) {
+    console.log('[Cache] LOCAL MODE or Missing Service Account: Skipping automatic Firestore cache refresh.');
+    // Populate with basic local data if needed, or leave empty as frontend bypasses API
+  } else {
+    refreshContentCache().catch(console.error);
+    // Background refresh every 10 minutes to recover from quota hits or get fresh data
+    setInterval(refreshContentCache, 1000 * 60 * 10);
+  }
 
   // Startup verification
   const startupTest = async () => {
+    if (process.env.VITE_USE_LOCAL_DATA === 'true' || !process.env.FIREBASE_SERVICE_ACCOUNT) {
+      return; // Skip write test in local mode
+    }
     try {
       console.log('[Startup] Testing Firestore connection...');
       await runFirestoreOp(dbInstance => dbInstance.collection('_health').doc('startup').set({

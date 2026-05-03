@@ -3,8 +3,10 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { Subject, Topic, AppSettings, UserProfile, AppNotification } from '../types';
 import { getQuotaStatus } from '../lib/quota';
+import { LOCAL_SUBJECTS, LOCAL_TOPICS } from '../data/localData';
 
 const CACHE_PREFIX = 'precall_cache_';
+const USE_LOCAL_DATA = import.meta.env.VITE_USE_LOCAL_DATA === 'true';
 const memoryCache: Record<string, { data: any, timestamp: number, lastUpdated?: number }> = {};
 const DEFAULT_TTL = 1000 * 60 * 15; // 15 minutes TTL for most data
 
@@ -136,6 +138,14 @@ export function useSubjects() {
     }
 
     fetchInitiated.current = true;
+    
+    if (USE_LOCAL_DATA) {
+      console.log('[useSubjects] Using static local data (Bypassing Firestore)');
+      setSubjects(LOCAL_SUBJECTS);
+      setLoading(false);
+      return;
+    }
+
     const fetchSubjects = async () => {
       try {
         const lastUpdatedCurrent = meta.lastUpdated || 0;
@@ -224,6 +234,14 @@ export function useDashboardData() {
     }
 
     fetchInitiated.current = true;
+
+    if (USE_LOCAL_DATA) {
+      console.log('[useDashboardData] Using static local data (Bypassing Firestore)');
+      setData({ subjects: LOCAL_SUBJECTS, topics: LOCAL_TOPICS });
+      setLoading(false);
+      return;
+    }
+
     const fetchAll = async () => {
       try {
         const lastUpdatedCurrent = meta.lastUpdated || 0;
@@ -330,6 +348,16 @@ export function useTopics(subjectSlug?: string) {
     }
 
     fetchInitiated.current = true;
+
+    if (USE_LOCAL_DATA) {
+      const filtered = subjectSlug 
+        ? LOCAL_TOPICS.filter((t: any) => t.subjectSlug === subjectSlug)
+        : LOCAL_TOPICS;
+      setTopics(filtered);
+      setLoading(false);
+      return;
+    }
+
     const fetchTopics = async () => {
       try {
         const lastUpdatedCurrent = meta.lastUpdated || 0;
@@ -443,6 +471,14 @@ export function useTopic(slug?: string) {
     }
 
     fetchInitiated.current = true;
+
+    if (USE_LOCAL_DATA) {
+      const found = LOCAL_TOPICS.find((t: any) => t.slug === slug);
+      setTopic(found || null);
+      setLoading(false);
+      return;
+    }
+
     const fetchTopic = async () => {
       try {
         // Try searching our existing cache first (topics_all)
@@ -544,6 +580,13 @@ export function useSettings() {
     }
 
     fetchInitiated.current = true;
+
+    if (USE_LOCAL_DATA) {
+      setSettings(null); // Or provide static settings
+      setLoading(false);
+      return;
+    }
+
     const fetchSettings = async () => {
       try {
         const lastUpdatedCurrent = meta.lastUpdated || 0;
