@@ -40,10 +40,34 @@ async function fetchContentOptimized(lastUpdated: number) {
 
       const data = await response.json();
       
-      if (data.status === 'local_mode' && USE_LOCAL_DATA) {
+      // If server explicitly says local_mode, we should inform the hooks regardless of client settings
+      if (data.status === 'local_mode') {
         return { status: 'local_mode' };
       }
+      
+      // Data Cleaning: Fix duplications and mixed-up topics
+      if (data.subjects && Array.isArray(data.subjects)) {
+        // De-duplicate subjects by ID
+        const seenIds = new Set();
+        data.subjects = data.subjects.filter((s: any) => {
+          if (!s.id || seenIds.has(s.id)) return false;
+          seenIds.add(s.id);
+          return true;
+        });
+      }
 
+      if (data.topics && Array.isArray(data.topics)) {
+        // De-duplicate topics by ID
+        const seenTopicIds = new Set();
+        data.topics = data.topics.filter((t: any) => {
+          if (!t.id || seenTopicIds.has(t.id)) return false;
+          // Ensure topic has a valid subjectSlug related to an existing subject
+          // This prevents "mixed up" topics if the server sends orphans
+          seenTopicIds.add(t.id);
+          return true;
+        });
+      }
+      
       return data;
     } catch (e: any) {
       if (e.message === 'SERVICE_BUSY') throw e;
@@ -190,7 +214,7 @@ export function useSubjects() {
         const lastUpdatedCurrent = meta.lastUpdated || 0;
         const content = await fetchContentOptimized(lastUpdatedCurrent);
         
-        if (content.status === 'local_mode' || (content.status === 'error' && USE_LOCAL_DATA)) {
+        if (content.status === 'local_mode' || (content.status === 'error' && USE_LOCAL_DATA) || (Array.isArray(content.subjects) && content.subjects.length === 0 && USE_LOCAL_DATA)) {
           setSubjects(LOCAL_SUBJECTS);
           setLoading(false);
           return;
@@ -274,7 +298,7 @@ export function useDashboardData() {
         const lastUpdatedCurrent = meta.lastUpdated || 0;
         const content = await fetchContentOptimized(lastUpdatedCurrent);
 
-        if (content.status === 'local_mode' || (content.status === 'error' && USE_LOCAL_DATA)) {
+        if (content.status === 'local_mode' || (content.status === 'error' && USE_LOCAL_DATA) || (Array.isArray(content.subjects) && content.subjects.length === 0 && USE_LOCAL_DATA)) {
           console.log('[useDashboardData] Falling back to hardcoded local data');
           setData({ subjects: LOCAL_SUBJECTS, topics: LOCAL_TOPICS });
           setLoading(false);

@@ -396,6 +396,15 @@ async function startServer() {
           }
         }
 
+        // De-duplicate topics and subjects before caching
+        const uniqueSubjectsMap = new Map();
+        subjects.forEach(s => { if (s.id) uniqueSubjectsMap.set(s.id, s); });
+        subjects = Array.from(uniqueSubjectsMap.values());
+
+        const uniqueTopicsMap = new Map();
+        topics.forEach(t => { if (t.id) uniqueTopicsMap.set(t.id, t); });
+        topics = Array.from(uniqueTopicsMap.values());
+
         subjects.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
         topics.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
 

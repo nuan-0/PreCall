@@ -1,4 +1,4 @@
-import { ArrowLeft, FileText, Lock, ChevronRight, BookOpen, CheckCircle2, Download } from 'lucide-react';
+import { ArrowLeft, FileText, Lock, ChevronRight, BookOpen, CheckCircle2, Download, Clock } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { Badge, Button, Card, Skeleton } from '../components/UI';
 import { useSubjects, useTopics, useSettings } from '../hooks/useData';
@@ -23,13 +23,7 @@ export function SubjectPage() {
     }
   };
   
-  const displayTopics = topics.length > 0 ? topics : [
-    { title: 'Fundamental Rights vs DPSP', teaser: 'The core conflict and balance between Part III and Part IV.', status: 'free', slug: 'fr-vs-dpsp' },
-    { title: 'Fundamental Duties', teaser: 'Swaran Singh Committee and the 11 duties.', status: 'coming_soon', slug: 'fd' },
-    { title: 'Parliament', teaser: 'Powers, sessions, and legislative procedures.', status: 'coming_soon', slug: 'parliament' },
-    { title: 'Money Bill', teaser: 'Article 110 and the Speaker\'s role.', status: 'coming_soon', slug: 'money-bill' },
-    { title: 'Constitutional Bodies', teaser: 'ECI, UPSC, CAG, and Finance Commission.', status: 'coming_soon', slug: 'constitutional-bodies' },
-  ];
+  const displayTopics = topics;
 
   if (!subject) {
     return (
@@ -123,10 +117,18 @@ export function SubjectPage() {
               </div>
             </Card>
           ))
-        ) : (
+        ) : displayTopics.length > 0 ? (
           displayTopics.map((topic) => (
             <TopicCard key={topic.slug} topic={topic} />
           ))
+        ) : (
+          <Card className="p-16 text-center border-dashed bg-slate-50/50">
+            <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+              <Clock className="h-8 w-8" />
+            </div>
+            <h3 className="text-xl font-black text-violet-950 mb-2">No Topics Available Yet</h3>
+            <p className="text-slate-500 font-medium max-w-xs mx-auto">We are currently curating the most important topics for {subject.title}.</p>
+          </Card>
         )}
       </div>
 

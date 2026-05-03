@@ -4,9 +4,9 @@
 import { Subject, Topic } from '../types';
 
 export const LOCAL_SUBJECTS: Subject[] = [
-  { id: 'polity', slug: 'polity', title: 'Polity', description: 'Constitutional framework, Governance, and Rights.', status: 'live', order: 1 },
-  { id: 'modern-history', slug: 'modern-history', title: 'Modern History', description: 'Freedom struggle and constitutional developments.', status: 'live', order: 2 },
-  { id: 'geography', slug: 'geography', title: 'Geography', description: 'Physical, Economic, and Human Geography.', status: 'live', order: 3 },
+  { id: 'polity', slug: 'polity', title: 'Polity', description: 'Constitutional framework, Governance, and Rights.', status: 'live', order: 1, pdfVisible: true, pdfUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', pdfAccessType: 'free' },
+  { id: 'modern-history', slug: 'modern-history', title: 'Modern History', description: 'Freedom struggle and constitutional developments.', status: 'live', order: 2, pdfVisible: true, pdfUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', pdfAccessType: 'premium' },
+  { id: 'geography', slug: 'geography', title: 'Geography', description: 'Physical, Economic, and Human Geography.', status: 'live', order: 3, pdfVisible: true, pdfUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', pdfAccessType: 'premium' },
   { id: 'economy', slug: 'economy', title: 'Economy', description: 'Macroeconomics, Banking, and Budgets.', status: 'live', order: 4 },
   { id: 'environment', slug: 'environment', title: 'Environment', description: 'Biodiversity, Climate Change, and Conventions.', status: 'live', order: 5 },
   { id: 'science-tech', slug: 'science-tech', title: 'Science & Tech', description: 'Biotech, Space, AI, and Cybersecurity.', status: 'live', order: 6 },
@@ -28,7 +28,9 @@ export const LOCAL_TOPICS: Topic[] = [
     teaser: 'Detailed analysis of Right to Life and Personal Liberty.', 
     examRelevance: 'High',
     estimatedTime: '15 mins',
-    lastUpdated: 1714521600000
+    lastUpdated: 1714521600000,
+    pdfUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+    infographicUrl: 'https://placehold.co/1200x800/6366f1/white?text=Article+21+Infographic'
   },
   { 
     id: 'preamble-sample', 
@@ -41,6 +43,7 @@ export const LOCAL_TOPICS: Topic[] = [
     teaser: 'Overview of the Preamble of the Indian Constitution.', 
     examRelevance: 'High',
     estimatedTime: '10 mins',
-    lastUpdated: 1714521600000
+    lastUpdated: 1714521600000,
+    pdfUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf'
   }
 ];
