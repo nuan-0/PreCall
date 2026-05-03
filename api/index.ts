@@ -505,11 +505,11 @@ async function startServer() {
         // If after refresh it failed due to quota
         if (!contentCache.hasLoadedFirstTime && contentCache.isQuotaExceeded) {
            return res.status(503).json({ 
-             error: 'Firestore Quota Exceeded', 
-             errorType: 'quota', 
-             quotaExceeded: true,
-             status: 'error'
-           });
+            error: 'Database service is currently under heavy load. Please try again in 5-10 minutes.', 
+            errorType: 'quota', 
+            quotaExceeded: true,
+            status: 'error'
+          });
         }
       }
 
