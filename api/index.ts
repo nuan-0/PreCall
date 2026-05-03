@@ -357,7 +357,7 @@ async function startServer() {
         let topics: any[] = [];
         let metadataTopics: any[] = [];
 
-        bundlesSnap.docs.forEach(doc => {
+        bundlesSnap.docs.forEach((doc: any) => {
           const data = doc.data().data;
           if (!data) return;
           
@@ -376,6 +376,18 @@ async function startServer() {
           if (!existingTopicIds.has(metaT.id)) {
             topics.push(metaT);
           }
+        }
+
+        // --- FALLBACK IF BUNDLES ARE EMPTY ---
+        if (subjects.length === 0) {
+          console.log('[Cache] Bundles are empty! Falling back to raw collections...');
+          const [rawSubjectsSnap, rawTopicsSnap] = await Promise.all([
+             runFirestoreOp(dbInstance => dbInstance.collection('subjects').get(), 'FallbackSubjects'),
+             runFirestoreOp(dbInstance => dbInstance.collection('topics').get(), 'FallbackTopics')
+          ]);
+          
+          subjects = rawSubjectsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          topics = rawTopicsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         }
 
         subjects.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
@@ -406,6 +418,9 @@ async function startServer() {
 
   // Initial refresh
   refreshContentCache().catch(console.error);
+
+  // Background refresh every 10 minutes to recover from quota hits or get fresh data
+  setInterval(refreshContentCache, 1000 * 60 * 10);
 
   // Startup verification
   const startupTest = async () => {
