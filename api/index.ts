@@ -511,7 +511,8 @@ async function startServer() {
     refreshContentCache().catch(err => {
       console.warn('[Cache] Initial refresh failed (might be quota):', err.message);
     });
-    setInterval(refreshContentCache, 1000 * 60 * 10);
+    // Refresh every 2 hours to save quota (manual refresh still available for Admin)
+    setInterval(refreshContentCache, 1000 * 60 * 60 * 2);
   }
 
   // Startup verification
