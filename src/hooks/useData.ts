@@ -17,7 +17,7 @@ async function fetchContentOptimized(lastUpdated: number) {
   pendingContentRequest = (async () => {
     try {
       const isDev = window.location.hostname.includes('ais-dev') || window.location.hostname === 'localhost';
-      const apiBase = (USE_LOCAL_DATA && isDev) ? PROD_PROXY_URL : '';
+      const apiBase = ''; // Always use relative path so it hits the local Express server
       
       const response = await fetch(`${apiBase}/api/content/all?lastUpdated=${lastUpdated}`);
       const contentType = response.headers.get('content-type');

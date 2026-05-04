@@ -1,10 +1,21 @@
+import { initializeApp } from 'firebase/app';
+import { getFirestore, doc, getDoc } from 'firebase/firestore/lite';
 import { readFileSync } from 'fs';
+
 async function test() {
   const config = JSON.parse(readFileSync('firebase-applet-config.json', 'utf8'));
-  const dbId = config.firestoreDatabaseId || '(default)';
-  const url = `https://firestore.googleapis.com/v1/projects/${config.projectId}/databases/${dbId}/documents/bundles/subjects`;
-  const res = await fetch(url);
-  const data = await res.json();
-  console.log(JSON.stringify(data, null, 2));
+  const app = initializeApp(config);
+  const db = getFirestore(app, config.firestoreDatabaseId !== '(default)' ? config.firestoreDatabaseId : undefined);
+  
+  try {
+    const snap = await getDoc(doc(db, 'bundles', 'subjects'));
+    if (snap.exists()) {
+      console.log('Got subjects bundle, data array length:', snap.data().data?.length);
+    } else {
+      console.log('Bundle does not exist');
+    }
+  } catch(e: any) {
+    console.error('Error:', e.message);
+  }
 }
 test();

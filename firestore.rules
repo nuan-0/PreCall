@@ -156,7 +156,7 @@ service cloud.firestore {
     }
 
     match /bundles/{bundleId} {
-      allow read: if bundleId.endsWith('_premium') ? isPremium() : true;
+      allow read: if true;
       allow write: if isAdmin();
     }
   }

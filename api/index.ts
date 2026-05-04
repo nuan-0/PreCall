@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
@@ -76,7 +77,17 @@ async function startServer() {
   let firestoreDatabaseId: string | undefined;
   let configProjectId: string | undefined;
   let config: any = {};
-  
+  let clientDb: any = null;
+
+  async function runLiteOp(op: () => Promise<any>, name: string) {
+    try {
+      const start = Date.now();
+      const result = await op();
+      console.log(`[Cache] Lite op ${name} took ${Date.now() - start}ms`);
+      return result;
+    } catch(err) { throw err; }
+  }
+
   try {
     const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
     if (fs.existsSync(configPath)) {
@@ -88,21 +99,9 @@ async function startServer() {
       console.warn('[Firebase] Config file NOT found at:', configPath);
     }
 
-    // Initialize Firebase client Lite DB for rest caching functionality
-    let clientDb: any;
     if (Object.keys(config).length > 0) {
       const clientApp = initializeApp(config);
       clientDb = getLiteFirestore(clientApp, config.firestoreDatabaseId !== '(default)' ? config.firestoreDatabaseId : undefined);
-    }
-    
-    // Add runLiteOp inside
-    async function runLiteOp(op: () => Promise<any>, name: string) {
-      try {
-        const start = Date.now();
-        const result = await op();
-        console.log(`[Cache] Lite op ${name} took ${Date.now() - start}ms`);
-        return result;
-      } catch(err) { throw err; }
     }
 
     if (admin.apps.length === 0) {
@@ -367,9 +366,9 @@ async function startServer() {
     contentCache.isRefreshing = true;
     
     activeRefreshPromise = (async () => {
-      console.log('[Cache] Refreshing content cache from Firestore bundles...');
+      console.log('[Cache] Refreshing content cache from Firestore bundles using Lite Client SDK...');
       try {
-        const bundlesSnap = await runFirestoreOp(dbInstance => dbInstance.collection('bundles').get(), 'CacheBundles');
+        const bundlesSnap = await runLiteOp(() => liteGetDocs(liteCollection(clientDb, 'bundles')), 'CacheBundles');
         
         let subjects: any[] = [];
         let topics: any[] = [];
@@ -411,66 +410,25 @@ async function startServer() {
         // --- FALLBACK & AUTO-REBUILD IF BUNDLES ARE EMPTY ---
         let fallbackReads = 0;
         if (subjects.length === 0 || topics.length === 0 || !settings) {
-          console.warn(`[Cache] Warning: Bundles incomplete. Authenticating as system to auto-rebuild...`);
+          console.warn(`[Cache] Warning: Bundles incomplete. Doing fallback single fetches via Lite...`);
           
           const [rawSubjectsSnap, rawTopicsSnap, rawSettingsSnap] = await Promise.all([
-             runFirestoreOp(dbInstance => dbInstance.collection('subjects').get(), 'FallbackSubjects'),
-             runFirestoreOp(dbInstance => dbInstance.collection('topics').get(), 'FallbackTopics'),
-             runFirestoreOp(dbInstance => dbInstance.collection('settings').doc('global').get(), 'FallbackSettings')
+             runLiteOp(() => liteGetDocs(liteCollection(clientDb, 'subjects')), 'FallbackSubjects'),
+             runLiteOp(() => liteGetDocs(liteCollection(clientDb, 'topics')), 'FallbackTopics'),
+             runLiteOp(() => liteGetDoc(liteDoc(clientDb, 'settings', 'global')), 'FallbackSettings')
           ]);
           
           fallbackReads = rawSubjectsSnap.docs.length + rawTopicsSnap.docs.length + 1;
 
           if (subjects.length === 0) {
-             subjects = rawSubjectsSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+             rawSubjectsSnap.forEach((doc: any) => subjects.push({ id: doc.id, ...doc.data() }));
           }
           if (topics.length === 0) {
-             topics = rawTopicsSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+             rawTopicsSnap.forEach((doc: any) => topics.push({ id: doc.id, ...doc.data() }));
           }
           if (!settings) {
-             settings = rawSettingsSnap.data() || {};
-          }
-
-          if (!contentCache.isQuotaExceeded && !contentCache.hasLoadedFirstTime) {
-            console.log('[Cache] Triggering automatic bundle optimization...');
-            try {
-              const updatedAt = new Date().toISOString();
-              const metadata = topics.map((t: any) => ({
-                id: t.id || '',
-                slug: t.slug || '',
-                title: t.title || '',
-                status: t.status || 'free',
-                order: t.order || 0,
-                subjectSlug: t.subjectSlug || '',
-                chapter: t.chapter || ''
-              }));
-              const freeContent = topics.filter((t: any) => t.status === 'free');
-              const premiumContent = topics.filter((t: any) => t.status === 'premium');
-
-              const notifsSnap = await runFirestoreOp(dbInstance => 
-                dbInstance.collection('notifications').orderBy('timestamp', 'desc').limit(10).get(), 
-                'AutoRebuildNotifs'
-              );
-              notifications = notifsSnap.docs.map((d: any) => ({ ...d.data(), id: d.id }));
-
-              await runFirestoreOp(async (dbInstance) => {
-                const batch = dbInstance.batch();
-                batch.set(dbInstance.collection('bundles').doc('subjects'), { updatedAt, data: subjects });
-                batch.set(dbInstance.collection('bundles').doc('topics_all_metadata'), { updatedAt, data: metadata });
-                batch.set(dbInstance.collection('bundles').doc('topics_all_free'), { updatedAt, data: freeContent });
-                batch.set(dbInstance.collection('bundles').doc('topics_all_premium'), { updatedAt, data: premiumContent });
-                batch.set(dbInstance.collection('bundles').doc('app_config'), { 
-                  updatedAt, 
-                  settings: { global: settings },
-                  notifications 
-                });
-                return batch.commit();
-              }, 'PerformAutoRebuild');
-              
-              console.log('✅ Auto-rebuild complete: Firestore is now optimized.');
-            } catch (rebuildErr: any) {
-              console.error('[Cache] Auto-rebuild failed:', rebuildErr.message);
-            }
+             if (rawSettingsSnap.exists()) settings = rawSettingsSnap.data();
+             else settings = {};
           }
         }
 
