@@ -26,11 +26,15 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const auth = getAuth(app);
 
 // Initialize Firestore with modern persistence settings
+const dbId = firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== '(default)' 
+  ? firebaseConfig.firestoreDatabaseId 
+  : undefined;
+
 export const db = initializeFirestore(app, {
   localCache: persistentLocalCache({
     tabManager: persistentMultipleTabManager()
   })
-}, firebaseConfig.firestoreDatabaseId || '(default)');
+}, dbId as string);
 
 export const storage = getStorage(app, firebaseConfig.storageBucket);
 

@@ -66,27 +66,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           try {
             const userRef = doc(db, 'users', firebaseUser.uid);
             
-            // Fetch existing profile to check premium status and avoid overwriting custom data
+            // 1. Fetch existing profile to check premium status
             const userSnap = await getDoc(userRef);
             const existingData = userSnap.exists() ? userSnap.data() : {};
             const isNewUser = !userSnap.exists();
             
-            const isAdminUser = (isEmailAdmin(firebaseUser.email) || dynamicAdmins.includes(firebaseUser.email?.toLowerCase() || '')) && (firebaseUser.emailVerified || firebaseUser.email === FOUNDER_EMAIL);
+            // Check admin status (use local check + founder email as safety)
+            const isAdminUser = (isEmailAdmin(firebaseUser.email) || firebaseUser.email === FOUNDER_EMAIL);
             const isPremiumUser = existingData.isPremium || false;
             
             setIsPremium(isPremiumUser || isAdminUser);
 
-            // Parallelize notification and profile update
             const updates: Promise<any>[] = [];
 
             if (isNewUser) {
               updates.push(addDoc(collection(db, 'notifications'), {
                 userId: firebaseUser.uid,
                 title: 'Welcome to PreCall!',
-                message: `Hi ${firebaseUser.displayName?.split(' ')[0] || 'Aspirant'}, we're excited to help you master UPSC Prelims. Start by exploring high-yield topics in Polity and Modern History!`,
+                message: `Hi ${firebaseUser.displayName?.split(' ')[0] || 'Aspirant'}, we're excited to help you master UPSC Prelims!`,
                 type: 'welcome',
                 createdAt: new Date().toISOString()
-              }));
+              }).catch(() => { /* Silent fail for welcome notification */ }));
             }
 
             const userData: any = {
@@ -97,20 +97,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               lastLogin: new Date().toISOString(),
             };
 
-            // Only include protected fields if user is admin or if it's a new user (though new users can't set them either)
-            // Actually, for new users, we should let the backend handle these or set defaults that rules allow.
-            // But rules say !('role' in data), so we MUST NOT include them.
+            // If they are already marked as admin in local config, ensure Firestore agrees
             if (isAdminUser) {
               userData.role = 'admin';
               userData.isPremium = true;
-              userData.premiumExpiry = '2099-12-31';
             }
 
             updates.push(setDoc(userRef, userData, { merge: true }));
 
             await Promise.all(updates);
           } catch (error: any) {
-            console.error("Error syncing user profile:", error);
+            // Log but don't block the user
+            console.warn("Profile sync non-blocking error:", error.message);
           }
         };
 
@@ -123,7 +121,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     return unsubscribe;
-  }, [dynamicAdmins]);
+  }, []); // Remove dynamicAdmins dependency to avoid re-subscriptions
 
   useEffect(() => {
     if (!user) {

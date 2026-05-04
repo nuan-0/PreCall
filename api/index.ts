@@ -263,33 +263,32 @@ async function startServer() {
       return true;
     }
     
-    console.log(`[Admin Check] Cache miss for ${userId}, checking live pond...`);
-    
-    // 2. Fallback to live checks if cache doesn't have it yet
+    // 2. Extra safety: check hardcoded list before hitting APIs
     try {
-      // Check hardcoded emails first
       const user = await admin.auth().getUser(userId);
       if (ADMIN_EMAILS.includes(user.email || '')) {
-        // Auto-add to cache for this session
         if (!contentCache.admins.includes(userId)) contentCache.admins.push(userId);
         return true;
       }
+      
+      // Check dynamic email list from cache
+      if (contentCache.adminEmails.includes(user.email?.toLowerCase() || '')) {
+        if (!contentCache.admins.includes(userId)) contentCache.admins.push(userId);
+        return true;
+      }
+    } catch (authErr) {
+      // Don't crash if Auth API fails
+    }
 
-      // Check Firestore Role
-      const userDoc = await runFirestoreOp(dbInstance => dbInstance.collection('users').doc(userId).get(), 'AdminCheckLive');
+    // 3. Fallback to live Firestore check if still not found
+    try {
+      const userDoc = await db.collection('users').doc(userId).get();
       if (userDoc.exists && (userDoc.data()?.role === 'admin' || userDoc.data()?.isAdmin === true)) {
         if (!contentCache.admins.includes(userId)) contentCache.admins.push(userId);
         return true;
       }
-
-      // Check Admins collection
-      const adminDoc = await runFirestoreOp(dbInstance => dbInstance.collection('admins').doc(userId).get(), 'AdminCheckLiveDoc');
-      if (adminDoc.exists) {
-        if (!contentCache.admins.includes(userId)) contentCache.admins.push(userId);
-        return true;
-      }
     } catch (err) {
-      console.warn(`[Admin Check] Live check failed:`, err);
+      // Don't crash
     }
     
     return false;
@@ -424,21 +423,21 @@ async function startServer() {
           
           try {
             const [rawSubjectsSnap, rawTopicsSnap, rawSettingsSnap, rawNotificationsSnap, rawAdminsSnap, rawAdminEmailsSnap] = await Promise.all([
-               runLiteOp(() => liteGetDocs(liteCollection(clientDb, 'subjects')), 'FallbackSubjects'),
-               runLiteOp(() => liteGetDocs(liteCollection(clientDb, 'topics')), 'FallbackTopics'),
-               runLiteOp(() => liteGetDoc(liteDoc(clientDb, 'settings', 'global')), 'FallbackSettings'),
-               runLiteOp(() => liteGetDocs(liteCollection(clientDb, 'notifications')), 'FallbackNotifications'),
-               runLiteOp(() => liteGetDocs(liteCollection(clientDb, 'admins')), 'FallbackAdmins'),
-               runLiteOp(() => liteGetDoc(liteDoc(clientDb, 'settings', 'admins')), 'FallbackAdminEmails')
+               runLiteOp(() => liteGetDocs(liteCollection(clientDb, 'subjects')), 'FallbackSubjects').catch(e => ({ docs: [], error: e })),
+               runLiteOp(() => liteGetDocs(liteCollection(clientDb, 'topics')), 'FallbackTopics').catch(e => ({ docs: [], error: e })),
+               runLiteOp(() => liteGetDoc(liteDoc(clientDb, 'settings', 'global')), 'FallbackSettings').catch(e => ({ exists: () => false, data: () => null, error: e })),
+               runLiteOp(() => liteGetDocs(liteCollection(clientDb, 'notifications')), 'FallbackNotifications').catch(e => ({ docs: [], error: e })),
+               runLiteOp(() => liteGetDocs(liteCollection(clientDb, 'admins')), 'FallbackAdmins').catch(e => ({ docs: [], error: e })),
+               runLiteOp(() => liteGetDoc(liteDoc(clientDb, 'settings', 'admins')), 'FallbackAdminEmails').catch(e => ({ exists: () => false, data: () => null, error: e }))
             ]);
             
-            totalReads += (rawSubjectsSnap.docs.length + rawTopicsSnap.docs.length + 1 + rawNotificationsSnap.docs.length + rawAdminsSnap.docs.length + 1);
+            totalReads += ((rawSubjectsSnap.docs?.length || 0) + (rawTopicsSnap.docs?.length || 0) + 1 + (rawNotificationsSnap.docs?.length || 0) + (rawAdminsSnap.docs?.length || 0) + 1);
 
-            if (subjects.length === 0 || forceRebuild) {
+            if ((subjects.length === 0 || forceRebuild) && (rawSubjectsSnap.docs?.length || 0) > 0) {
                subjects = [];
                rawSubjectsSnap.forEach((doc: any) => subjects.push({ id: doc.id, ...doc.data() }));
             }
-            if (topics.length === 0 || forceRebuild) {
+            if ((topics.length === 0 || forceRebuild) && (rawTopicsSnap.docs?.length || 0) > 0) {
                topics = [];
                rawTopicsSnap.forEach((doc: any) => topics.push({ id: doc.id, ...doc.data() }));
             }
@@ -446,15 +445,17 @@ async function startServer() {
                if (rawSettingsSnap.exists()) settings = rawSettingsSnap.data();
                else settings = contentCache.settings || {};
             }
-            if (notifications.length === 0 || forceRebuild) {
+            if ((notifications.length === 0 || forceRebuild) && (rawNotificationsSnap.docs?.length || 0) > 0) {
                notifications = [];
                rawNotificationsSnap.forEach((doc: any) => notifications.push({ id: doc.id, ...doc.data() }));
             }
             
             // Always refresh admin UIDs to the cache
             const adminUids: string[] = [];
-            rawAdminsSnap.forEach((doc: any) => adminUids.push(doc.id));
-            contentCache.admins = adminUids;
+            if (rawAdminsSnap.docs) {
+              rawAdminsSnap.forEach((doc: any) => adminUids.push(doc.id));
+              contentCache.admins = adminUids;
+            }
 
             if (rawAdminEmailsSnap.exists()) {
               contentCache.adminEmails = rawAdminEmailsSnap.data().emails || [];
@@ -542,48 +543,30 @@ async function startServer() {
     try {
       const clientLastUpdated = parseInt(req.query.lastUpdated as string || '0');
 
-      // Wait if cache is currently refreshing
-      if (activeRefreshPromise) {
-        await activeRefreshPromise;
+      // If we have nothing and it's currently refreshing, wait briefly but not forever
+      if (!contentCache.hasLoadedFirstTime && activeRefreshPromise) {
+        const timeout = new Promise(resolve => setTimeout(() => resolve('timeout'), 5000));
+        const result = await Promise.race([activeRefreshPromise, timeout]);
+        if (result === 'timeout') {
+          console.warn('[API Content] Cache refresh is taking too long, responding with partial/empty data');
+        }
       }
 
-      // If cache is empty, try to refresh once before responding
+      // If Quota is exceeded, inform client specifically
+      if (contentCache.isQuotaExceeded) {
+        return res.status(503).json({ 
+          error: 'Database service is currently under heavy load (Quota Exceeded).', 
+          errorType: 'quota', 
+          status: 'error'
+        });
+      }
+
+      // If we still have nothing after waiting, try one last check but don't block
       if (!contentCache.hasLoadedFirstTime) {
-        // Return blank but valid JSON if in local mode or missing credentials
         if (process.env.VITE_USE_LOCAL_DATA === 'true') {
-           return res.json({
-             status: 'local_mode',
-             lastUpdated: 0,
-             subjects: [],
-             topics: [],
-             settings: null
-           });
+           return res.json({ status: 'local_mode', lastUpdated: 0, subjects: [], topics: [], settings: null });
         }
-
-        if (contentCache.isQuotaExceeded) {
-          return res.status(503).json({ 
-            error: 'Database service is currently under heavy load. Please try again in 5-10 minutes.', 
-            errorType: 'quota', 
-            quotaExceeded: true,
-            status: 'error'
-          });
-        }
-
-        try {
-          await refreshContentCache();
-        } catch (err) {
-          return res.status(500).json({ error: 'Cache is empty and refresh failed' });
-        }
-        
-        // If after refresh it failed due to quota
-        if (!contentCache.hasLoadedFirstTime && contentCache.isQuotaExceeded) {
-           return res.status(503).json({ 
-            error: 'Database service is currently under heavy load. Please try again in 5-10 minutes.', 
-            errorType: 'quota', 
-            quotaExceeded: true,
-            status: 'error'
-          });
-        }
+        // If it still hasn't loaded, return what we have (even if empty) to avoid 500
       }
 
       // Check if client version is still valid
@@ -592,16 +575,17 @@ async function startServer() {
       }
 
       res.json({
-        subjects: contentCache.subjects,
-        topics: contentCache.topics,
+        subjects: contentCache.subjects || [],
+        topics: contentCache.topics || [],
         settings: contentCache.settings,
-        notifications: contentCache.notifications,
-        adminEmails: contentCache.adminEmails,
+        notifications: contentCache.notifications || [],
+        adminEmails: contentCache.adminEmails || [],
         lastUpdated: contentCache.lastUpdated
       });
     } catch (err: any) {
       console.error('[API Content] Error:', err);
-      res.status(500).json({ status: 'error', error: err.message });
+      // Return 200 with error status so client hooks can handle it gracefully instead of crashing the fetch
+      res.json({ status: 'error', error: err.message });
     }
   });
 
