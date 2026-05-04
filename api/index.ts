@@ -53,6 +53,8 @@ async function startServer() {
     startTime: Date.now()
   };
 
+  const dailyLimit = 50000; // Spark plan read limit
+
   const checkAndNotifyUsage = async () => {
     const currentPercent = (usageTracker.reads / dailyLimit) * 100;
     
@@ -101,7 +103,9 @@ async function startServer() {
 
     if (Object.keys(config).length > 0) {
       const clientApp = initializeApp(config);
-      clientDb = getLiteFirestore(clientApp, config.firestoreDatabaseId !== '(default)' ? config.firestoreDatabaseId : undefined);
+      // Ensure specific database ID is used for Lite client too
+      clientDb = getLiteFirestore(clientApp, config.firestoreDatabaseId && config.firestoreDatabaseId !== '(default)' ? config.firestoreDatabaseId : undefined);
+      console.log(`[Firebase] Lite Client initialized. Database: ${config.firestoreDatabaseId || '(default)'}`);
     }
 
     if (admin.apps.length === 0) {
@@ -361,82 +365,89 @@ async function startServer() {
 
   let activeRefreshPromise: Promise<void> | null = null;
 
-  const refreshContentCache = async () => {
-    if (activeRefreshPromise) return activeRefreshPromise;
+  const refreshContentCache = async (forceRebuild = false) => {
+    if (activeRefreshPromise && !forceRebuild) return activeRefreshPromise;
     contentCache.isRefreshing = true;
     
     activeRefreshPromise = (async () => {
-      console.log('[Cache] Refreshing content cache from Firestore bundles using Lite Client SDK...');
+      console.log(`[Cache] Refreshing content cache (Rebuild: ${forceRebuild})...`);
       try {
-        const bundlesSnap = await runLiteOp(() => liteGetDocs(liteCollection(clientDb, 'bundles')), 'CacheBundles');
-        
         let subjects: any[] = [];
         let topics: any[] = [];
         let metadataTopics: any[] = [];
         let settings: any = null;
         let notifications: any[] = [];
+        let totalReads = 0;
 
-        // Track actual reads
-        const batchReads = bundlesSnap.docs.length;
+        // Step 1: Try reading from bundles first (Highest read efficiency: 1 read = 100+ documents)
+        console.log('[Cache] Attempting bundle fetch...');
+        try {
+          const bundlesSnap = await runLiteOp(() => liteGetDocs(liteCollection(clientDb, 'bundles')), 'CacheBundles');
+          totalReads += bundlesSnap.docs.length;
 
-        bundlesSnap.docs.forEach((doc: any) => {
-          const docData = doc.data();
-          const bundleData = docData.data;
-          
-          if (doc.id === 'subjects') {
-            subjects = bundleData || [];
-          } else if (doc.id === 'app_config') {
-            if (docData.settings) settings = docData.settings.global || {};
-            if (docData.notifications) notifications = docData.notifications || [];
-          } else if (doc.id.includes('_free') || doc.id.includes('_premium')) {
-            if (bundleData) topics = topics.concat(bundleData);
-          } else if (doc.id.includes('_metadata')) {
-            if (bundleData) metadataTopics = metadataTopics.concat(bundleData);
-          }
-        });
+          bundlesSnap.docs.forEach((doc: any) => {
+            const docData = doc.data();
+            const bundleData = docData.data;
+            
+            if (doc.id === 'subjects') {
+              subjects = bundleData || [];
+            } else if (doc.id === 'app_config') {
+              if (docData.settings) settings = docData.settings.global || {};
+              if (docData.notifications) notifications = docData.notifications || [];
+            } else if (doc.id.includes('_free') || doc.id.includes('_premium')) {
+              if (bundleData) topics = topics.concat(bundleData);
+            } else if (doc.id.includes('_metadata')) {
+              if (bundleData) metadataTopics = metadataTopics.concat(bundleData);
+            }
+          });
+        } catch (bundleErr: any) {
+          console.error('[Cache] Bundle fetch failed:', bundleErr.message);
+          // Continue to fallback if bundles fail
+        }
 
         // Add topics from metadata if they weren't in full content bundles
-        // Ensure no override occurs from metadata when doing unique tracking
         const uniqueTopicsMap = new Map();
-        
-        // 1. Add metadata first, so it has lowest priority
         metadataTopics.forEach(t => { if (t.id) uniqueTopicsMap.set(t.id, t); });
-        
-        // 2. Add full topics last, so they OVERRIDE the metadata with full details
         topics.forEach(t => { if (t.id) uniqueTopicsMap.set(t.id, t); });
-        
         topics = Array.from(uniqueTopicsMap.values());
 
-        // --- FALLBACK & AUTO-REBUILD IF BUNDLES ARE EMPTY ---
-        let fallbackReads = 0;
-        if (subjects.length === 0 || topics.length === 0 || !settings) {
-          console.warn(`[Cache] Warning: Bundles incomplete. Doing fallback single fetches via Lite...`);
+        // Step 2: Fallback to single fetches ONLY if bundles are empty OR force refresh requested
+        if (subjects.length === 0 || topics.length === 0 || !settings || forceRebuild) {
+          console.warn(`[Cache] Cache incomplete or force rebuild. Doing fallback fetches...`);
           
-          const [rawSubjectsSnap, rawTopicsSnap, rawSettingsSnap] = await Promise.all([
-             runLiteOp(() => liteGetDocs(liteCollection(clientDb, 'subjects')), 'FallbackSubjects'),
-             runLiteOp(() => liteGetDocs(liteCollection(clientDb, 'topics')), 'FallbackTopics'),
-             runLiteOp(() => liteGetDoc(liteDoc(clientDb, 'settings', 'global')), 'FallbackSettings')
-          ]);
-          
-          fallbackReads = rawSubjectsSnap.docs.length + rawTopicsSnap.docs.length + 1;
+          try {
+            const [rawSubjectsSnap, rawTopicsSnap, rawSettingsSnap] = await Promise.all([
+               runLiteOp(() => liteGetDocs(liteCollection(clientDb, 'subjects')), 'FallbackSubjects'),
+               runLiteOp(() => liteGetDocs(liteCollection(clientDb, 'topics')), 'FallbackTopics'),
+               runLiteOp(() => liteGetDoc(liteDoc(clientDb, 'settings', 'global')), 'FallbackSettings')
+            ]);
+            
+            const currentFallbackReads = rawSubjectsSnap.docs.length + rawTopicsSnap.docs.length + 1;
+            totalReads += currentFallbackReads;
 
-          if (subjects.length === 0) {
-             rawSubjectsSnap.forEach((doc: any) => subjects.push({ id: doc.id, ...doc.data() }));
-          }
-          if (topics.length === 0) {
-             rawTopicsSnap.forEach((doc: any) => topics.push({ id: doc.id, ...doc.data() }));
-          }
-          if (!settings) {
-             if (rawSettingsSnap.exists()) settings = rawSettingsSnap.data();
-             else settings = {};
+            if (subjects.length === 0 || forceRebuild) {
+               subjects = [];
+               rawSubjectsSnap.forEach((doc: any) => subjects.push({ id: doc.id, ...doc.data() }));
+            }
+            if (topics.length === 0 || forceRebuild) {
+               topics = [];
+               rawTopicsSnap.forEach((doc: any) => topics.push({ id: doc.id, ...doc.data() }));
+            }
+            if (!settings || forceRebuild) {
+               if (rawSettingsSnap.exists()) settings = rawSettingsSnap.data();
+               else settings = {};
+            }
+          } catch (fallbackErr: any) {
+            console.error('[Cache] Fallback fetch failed:', fallbackErr.message);
+            // If fallback also fails and we have NOTHING, then we have a real problem
+            if (subjects.length === 0 && !contentCache.hasLoadedFirstTime) throw fallbackErr;
           }
         }
 
+        // Final data cleaning and sorting
         const uniqueSubjectsMap = new Map();
         subjects.forEach(s => { if (s.id) uniqueSubjectsMap.set(s.id, s); });
-        subjects = Array.from(uniqueSubjectsMap.values());
-
-        subjects.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+        subjects = Array.from(uniqueSubjectsMap.values()).sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
         topics.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
 
         contentCache.subjects = subjects;
@@ -445,18 +456,16 @@ async function startServer() {
         contentCache.notifications = notifications; 
         contentCache.lastUpdated = Date.now();
         contentCache.hasLoadedFirstTime = true;
-        contentCache.isQuotaExceeded = false; // Reset if successful
+        contentCache.isQuotaExceeded = false;
 
-        const totalReads = batchReads + fallbackReads;
-        console.log(`[Cache] Success: ${subjects.length} subjects, ${topics.length} topics cached. (Reads: ${totalReads}${fallbackReads > 0 ? ' [WARNING: FALLBACK USED]' : ''})`);
-        
+        console.log(`[Cache] Success: ${subjects.length} subjects, ${topics.length} topics cached. (Total Reads: ${totalReads})`);
         usageTracker.reads += totalReads;
       } catch (err: any) {
-        if (err.code === 'resource-exhausted' || err.message?.includes('EXHAUSTED') || err.message?.includes('quota')) {
+        if (err.code === 'resource-exhausted' || err.message?.includes('quota')) {
            contentCache.isQuotaExceeded = true;
-           console.error('[Cache] CRITICAL QUOTA EXHAUSTED DURING REFRESH!');
+           console.error('[Cache] CRITICAL: FIREBASE QUOTA EXHAUSTED');
         } else {
-           console.error('[Cache] Cache refresh failed:', err);
+           console.error('[Cache] Refresh failed:', err);
         }
       } finally {
         contentCache.isRefreshing = false;
@@ -568,12 +577,12 @@ async function startServer() {
 
   // API: Force refresh content cache (Admin only)
   app.post('/api/admin/refresh-cache', async (req, res) => {
-    const { userId } = req.body || {};
+    const { userId, rebuild = false } = req.body || {};
     const isAdmin = await checkIsAdmin(userId);
     if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
 
     try {
-      await refreshContentCache();
+      await refreshContentCache(rebuild);
       res.json({ 
         success: true, 
         subjectsCount: contentCache.subjects.length, 
@@ -582,6 +591,118 @@ async function startServer() {
       });
     } catch (error) {
       res.status(500).json({ error: 'Failed to refresh cache' });
+    }
+  });
+
+  // API: Admin Topic Save
+  app.post('/api/admin/save-topic', async (req, res) => {
+    const { userId, topic } = req.body || {};
+    const isAdmin = await checkIsAdmin(userId);
+    if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+
+    try {
+      const topicId = topic.id || `${topic.subjectSlug}-${topic.slug}`;
+      const topicData = { ...topic, lastUpdated: new Date().toISOString() };
+      delete topicData.id;
+
+      // 1. Update Firestore
+      await runFirestoreOp(dbInstance => dbInstance.collection('topics').doc(topicId).set(topicData, { merge: true }), 'SaveTopicFirestore');
+
+      // 2. Update RAM Cache instantly
+      const existingIdx = contentCache.topics.findIndex(t => t.id === topicId || (t.slug === topic.slug && t.subjectSlug === topic.subjectSlug));
+      if (existingIdx !== -1) {
+        contentCache.topics[existingIdx] = { ...topicData, id: topicId };
+      } else {
+        contentCache.topics.push({ ...topicData, id: topicId });
+      }
+      contentCache.lastUpdated = Date.now();
+
+      // 3. Background: rebuild relevant subject bundle in Firestore (if possible)
+      // For now, refresh cache handles this broadly if rebuild is true. 
+      // But we already patched RAM, so it's instant for users.
+      
+      res.json({ success: true, topicId, lastUpdated: contentCache.lastUpdated });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // API: Admin Topic Delete
+  app.post('/api/admin/delete-topic', async (req, res) => {
+    const { userId, topicId } = req.body || {};
+    const isAdmin = await checkIsAdmin(userId);
+    if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+
+    try {
+      await runFirestoreOp(dbInstance => dbInstance.collection('topics').doc(topicId).delete(), 'DeleteTopicFirestore');
+      contentCache.topics = contentCache.topics.filter(t => t.id !== topicId);
+      contentCache.lastUpdated = Date.now();
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // API: Admin Subject Save
+  app.post('/api/admin/save-subject', async (req, res) => {
+    const { userId, subject } = req.body || {};
+    const isAdmin = await checkIsAdmin(userId);
+    if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+
+    try {
+      const subjectId = subject.id || subject.slug;
+      const subjectData = { ...subject };
+      delete subjectData.id;
+
+      await runFirestoreOp(dbInstance => dbInstance.collection('subjects').doc(subjectId).set(subjectData, { merge: true }), 'SaveSubjectFirestore');
+
+      const existingIdx = contentCache.subjects.findIndex(s => s.id === subjectId || s.slug === subject.slug);
+      if (existingIdx !== -1) {
+        contentCache.subjects[existingIdx] = { ...subjectData, id: subjectId };
+      } else {
+        contentCache.subjects.push({ ...subjectData, id: subjectId });
+      }
+      contentCache.lastUpdated = Date.now();
+      res.json({ success: true, subjectId });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // API: Admin Settings Save
+  app.post('/api/admin/save-settings', async (req, res) => {
+    const { userId, settings } = req.body || {};
+    const isAdmin = await checkIsAdmin(userId);
+    if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+
+    try {
+      await runFirestoreOp(dbInstance => dbInstance.collection('settings').doc('global').set(settings, { merge: true }), 'SaveSettingsFirestore');
+      contentCache.settings = { ...contentCache.settings, ...settings };
+      contentCache.lastUpdated = Date.now();
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // API: Admin Notifications
+  app.post('/api/admin/notifications', async (req, res) => {
+    const { userId, notification, action } = req.body || {};
+    const isAdmin = await checkIsAdmin(userId);
+    if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+
+    try {
+      if (action === 'delete') {
+        await runFirestoreOp(dbInstance => dbInstance.collection('notifications').doc(notification.id).delete(), 'DeleteNotification');
+        contentCache.notifications = contentCache.notifications.filter(n => n.id !== notification.id);
+      } else {
+        const ref = await runFirestoreOp(dbInstance => dbInstance.collection('notifications').add({ ...notification, createdAt: new Date().toISOString() }), 'AddNotification');
+        contentCache.notifications.push({ ...notification, id: ref.id });
+      }
+      contentCache.lastUpdated = Date.now();
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
     }
   });
   // ---------------------------

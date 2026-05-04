@@ -1,4 +1,4 @@
-import { LayoutDashboard, Plus, Settings, FileText, BookOpen, Edit2, Trash2, Zap, ExternalLink, Save, X, AlertCircle, Info, Sparkles, Users, LogOut, ChevronRight, Eye, Copy, Menu, Layout, Target, Filter, CheckCircle2, ShieldCheck, Bell, Send, AlertTriangle, Upload, RefreshCw, Image } from 'lucide-react';
+import { LayoutDashboard, Plus, Settings, FileText, BookOpen, Edit2, Trash2, Zap, ExternalLink, Save, X, AlertCircle, Info, Sparkles, Users, LogOut, ChevronRight, Eye, Copy, Menu, Layout, Target, Filter, CheckCircle2, ShieldCheck, Bell, Send, AlertTriangle, Upload, RefreshCw, Image, Cpu } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { Link, Route, Routes, useLocation } from 'react-router-dom';
 import { Badge, Button, Card, Modal } from '../components/UI';
@@ -406,7 +406,7 @@ function AdminNavLink({ to, icon: Icon, children, active, onClick }: any) {
 }
 
 function AdminNotifications({ showConfirm }: { showConfirm: any }) {
-  const { isAdmin } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { notifications } = useNotifications(undefined, isAdmin);
   const [isSending, setIsSending] = useState(false);
   const [newNotification, setNewNotification] = useState<Partial<AppNotification>>({
@@ -551,18 +551,36 @@ function AdminOverview({ showConfirm }: { showConfirm: any }) {
   const { subjects } = useSubjects();
   const { settings } = useSettings();
 
+  const refreshServerCache = async (rebuild = false) => {
+    const toastId = toast.loading(rebuild ? 'Rebuilding & Refreshing...' : 'Refreshing server cache...');
+    try {
+      const response = await fetch('/api/admin/refresh-cache', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user?.uid, rebuild })
+      });
+      const data = await response.json();
+      if (data.success) {
+        toast.success(`Server cache refreshed! (${data.subjectsCount} subjects, ${data.topicsCount} topics)`, { id: toastId });
+        // Give it a moment then reload to see fresh data
+        setTimeout(() => window.location.reload(), 1000);
+      } else {
+        toast.error('Failed to refresh server cache: ' + (data.error || 'Unknown error'), { id: toastId });
+      }
+    } catch (err) {
+      toast.error('Error contacting server', { id: toastId });
+    }
+  };
+
   const seedData = async () => {
     showConfirm(
       'Safe Seed Core Data',
       'This will safely add missing subjects and topic placeholders. It will NOT overwrite any existing topics you have already created or modified. Proceed?',
       async () => {
         try {
-          // Fetch existing to avoid overwriting
-          const existingSubjectsSnap = await getDocs(collection(db, 'subjects'));
-          const existingTopicsSnap = await getDocs(collection(db, 'topics'));
-          
-          const existingSubjectIds = new Set(existingSubjectsSnap.docs.map(d => d.id));
-          const existingTopicIds = new Set(existingTopicsSnap.docs.map(d => d.id));
+          // Use current subjects and topics from hooks instead of direct getDocs to save reads
+          const existingSubjectIds = new Set(subjects.map(s => s.id));
+          const existingTopicIds = new Set(topics.map(t => t.id));
 
           const batch = writeBatch(db);
 
@@ -996,79 +1014,14 @@ D. Article 22
               </Link>
 
               <Link to="/dashboard" className="flex items-center gap-4 p-5 rounded-2xl border border-violet-100 bg-slate-50 hover:bg-white hover:shadow-xl hover:shadow-violet-200/50 transition-all group">
-                <div className="h-12 w-12 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center group-hover:bg-amber-600 group-hover:text-white transition-all duration-300">
+                <div className="h-12 w-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300">
                   <Sparkles className="h-6 w-6" />
                 </div>
                 <div>
-                  <span className="block text-sm font-bold text-slate-900">View Premium View</span>
+                  <span className="block text-sm font-bold text-slate-900">View Client View</span>
                   <span className="text-[10px] font-medium text-slate-500">Preview as premium user</span>
                 </div>
               </Link>
-
-              <button onClick={seedData} className="flex items-center gap-4 p-5 rounded-2xl border border-violet-100 bg-slate-50 hover:bg-white hover:shadow-xl hover:shadow-violet-200/50 transition-all group text-left w-full">
-                <div className="h-12 w-12 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center group-hover:bg-slate-900 group-hover:text-white transition-all duration-300">
-                  <Zap className="h-6 w-6" />
-                </div>
-                <div>
-                  <span className="block text-sm font-bold text-slate-900">Safe Seed Core Data</span>
-                  <span className="text-[10px] font-medium text-slate-500">Add missing subjects/topics safely</span>
-                </div>
-              </button>
-
-              <button onClick={seedArticle21} className="flex items-center gap-4 p-5 rounded-2xl border border-violet-100 bg-violet-50 hover:bg-white hover:shadow-xl hover:shadow-violet-200/50 transition-all group text-left w-full">
-                <div className="h-12 w-12 rounded-xl bg-violet-100 text-violet-600 flex items-center justify-center group-hover:bg-violet-600 group-hover:text-white transition-all duration-300">
-                  <Sparkles className="h-6 w-6" />
-                </div>
-                <div>
-                  <span className="block text-sm font-bold text-slate-900">Add Article 21</span>
-                  <span className="text-[10px] font-medium text-slate-500">Seed starter free content</span>
-                </div>
-              </button>
-
-              <button onClick={seedPreamble} className="flex items-center gap-4 p-5 rounded-2xl border border-violet-100 bg-blue-50 hover:bg-white hover:shadow-xl hover:shadow-violet-200/50 transition-all group text-left w-full">
-                <div className="h-12 w-12 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
-                  <Sparkles className="h-6 w-6" />
-                </div>
-                <div>
-                  <span className="block text-sm font-bold text-slate-900">Add Preamble</span>
-                  <span className="text-[10px] font-medium text-slate-500">Seed starter free content</span>
-                </div>
-              </button>
-
-              <button 
-                onClick={() => {
-                  showConfirm(
-                    'Rebuild All Bundles',
-                    'This will scan all subjects and topics to recreate optimized data bundles. This reduces Firestore reads for your users significantly. Proceed?',
-                    async () => {
-                      const toastId = toast.loading('Rebuilding bundles...');
-                      try {
-                        await bundleService.rebuildAllBundles();
-                        
-                        // Force server cache refresh
-                        fetch('/api/admin/refresh-cache', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ userId: user?.uid })
-                        }).catch(err => console.warn('Cache refresh failed:', err));
-
-                        toast.success('All bundles rebuilt successfully!', { id: toastId });
-                      } catch (e) {
-                        toast.error('Failed to rebuild bundles', { id: toastId });
-                      }
-                    }
-                  );
-                }} 
-                className="flex items-center gap-4 p-5 rounded-2xl border border-emerald-100 bg-emerald-50 hover:bg-white hover:shadow-xl hover:shadow-emerald-200/50 transition-all group text-left w-full sm:col-span-2"
-              >
-                <div className="h-12 w-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300">
-                  <RefreshCw className="h-6 w-6" />
-                </div>
-                <div>
-                  <span className="block text-sm font-bold text-slate-900">Optimize App Performance (Rebuild Bundles)</span>
-                  <span className="text-[10px] font-medium text-slate-500">Reduces Firestore reads by up to 90% by bundling data</span>
-                </div>
-              </button>
             </div>
           </Card>
         </div>
@@ -1183,24 +1136,21 @@ function AdminSubjects({ showConfirm }: { showConfirm: any }) {
 
     const saveAction = async () => {
       setIsSaving(true);
-      const id = (editingSubject.id || editingSubject.slug) as string;
       try {
-        await setDoc(doc(db, 'subjects', id), { ...editingSubject, id });
-        
-        // Rebuild subjects bundle
-        await bundleService.rebuildSubjectsBundle();
-        
-        // Force server cache refresh
-        fetch('/api/admin/refresh-cache', {
+        const response = await fetch('/api/admin/save-subject', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: user?.uid })
-        }).catch(err => console.warn('Cache refresh failed:', err));
-
-        toast.success('Subject saved successfully!');
-        setEditingSubject(null);
+          body: JSON.stringify({ userId: user?.uid, subject: editingSubject })
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+          toast.success('Subject saved and RAM cache updated!');
+          setEditingSubject(null);
+        } else {
+          throw new Error(data.error);
+        }
       } catch (e) {
-        handleFirestoreError(e, OperationType.WRITE, `subjects/${id}`);
         toast.error('Failed to save subject');
       } finally {
         setIsSaving(false);
@@ -1208,7 +1158,7 @@ function AdminSubjects({ showConfirm }: { showConfirm: any }) {
     };
 
     if (editingSubject.id) {
-      showConfirm('Update Subject', 'Are you sure you want to save changes to this subject?', saveAction);
+      showConfirm('Update Subject', 'Are you sure you want to save changes? RAM cache will update instantly.', saveAction);
     } else {
       saveAction();
     }
@@ -1217,23 +1167,21 @@ function AdminSubjects({ showConfirm }: { showConfirm: any }) {
   const handleDelete = async (id: string) => {
     showConfirm(
       'Delete Subject',
-      'Are you sure? This will remove the subject from the app.',
+      'Are you sure? This will remove it from RAM cache AND Firestore.',
       async () => {
         try {
-          await deleteDoc(doc(db, 'subjects', id));
-          // Rebuild Subjects bundle
-          await bundleService.rebuildSubjectsBundle();
-
-          // Force server cache refresh
-          fetch('/api/admin/refresh-cache', {
+          const response = await fetch('/api/admin/save-subject', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: user?.uid })
-          }).catch(err => console.warn('Cache refresh failed:', err));
-
-          toast.success('Subject deleted and bundle updated');
+            body: JSON.stringify({ userId: user?.uid, subject: { id }, action: 'delete' })
+          });
+          const data = await response.json();
+          if (data.success) {
+            toast.success('Subject deleted successfully');
+          } else {
+            throw new Error(data.error);
+          }
         } catch (e) {
-          handleFirestoreError(e, OperationType.DELETE, `subjects/${id}`);
           toast.error('Failed to delete subject');
         }
       }
@@ -1578,20 +1526,21 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
     const count = selectedIds.size;
     showConfirm(
       `Delete ${count} Topics`,
-      `Are you sure? This will permanently delete the ${count} selected topics. This action cannot be undone.`,
+      `Are you sure? This happens in RAM instantly.`,
       async () => {
         const toastId = toast.loading(`Deleting ${count} topics...`);
         try {
-          const batch = writeBatch(db);
-          selectedIds.forEach(id => {
-            batch.delete(doc(db, 'topics', id));
-          });
-          await batch.commit();
+          for (const topicId of selectedIds) {
+            await fetch('/api/admin/delete-topic', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ userId: user?.uid, topicId })
+            });
+          }
+          toast.success(`${count} topics deleted and cache updated`, { id: toastId });
           setSelectedIds(new Set());
-          toast.success(`Successfully deleted ${count} topics`, { id: toastId });
-        } catch (e) {
-          handleFirestoreError(e, OperationType.DELETE, 'topics/bulk');
-          toast.error('Failed to delete topics', { id: toastId });
+        } catch (err) {
+          toast.error('Failed to delete some topics', { id: toastId });
         }
       }
     );
@@ -1606,62 +1555,41 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
 
     const saveAction = async () => {
       setIsSaving(true);
-      
-      // Ensure unique ID by prefixing with subject slug if it's a new topic
-      // This prevents topics with the same slug (e.g. 'introduction') in different subjects from clashing
-      const id = (editingTopic.id || `${editingTopic.subjectSlug}-${editingTopic.slug}`) as string;
-      
-      // Sanitizer to remove undefined values effectively
-      const sanitize = (obj: any): any => {
-        const result: any = {};
-        Object.keys(obj).forEach(key => {
-          if (obj[key] !== undefined) {
-            result[key] = obj[key] === '' ? null : obj[key];
-          }
-        });
-        return result;
-      };
-
       try {
-        const payload = sanitize({ 
-          ...editingTopic, 
-          id,
-          order: Number.isNaN(Number(editingTopic.order)) ? 0 : Number(editingTopic.order)
-        });
+        const sanitize = (obj: any): any => {
+          const result: any = {};
+          Object.keys(obj).forEach(key => {
+            if (obj[key] !== undefined) {
+              result[key] = obj[key] === '' ? null : obj[key];
+            }
+          });
+          return result;
+        };
         
-        await setDoc(doc(db, 'topics', id), payload);
+        const payload = sanitize({ ...editingTopic });
         
-        // Rebuild the relevant topic bundle
-        if (editingTopic.subjectSlug) {
-          try {
-            await bundleService.rebuildTopicBundle(editingTopic.subjectSlug);
-          } catch (bundleErr) {
-            console.error('Bundle rebuild failed, but Firestore saved:', bundleErr);
-            toast.error('Topic saved, but cache update failed. Users might see old data for a while.', { duration: 5000 });
-          }
-        }
-        
-        toast.success('Topic saved successfully!');
-        
-        // Force server cache refresh so changes appear immediately
-        fetch('/api/admin/refresh-cache', {
+        const response = await fetch('/api/admin/save-topic', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: user?.uid })
-        }).catch(err => console.warn('Cache refresh failed:', err));
+          body: JSON.stringify({ userId: user?.uid, topic: payload })
+        });
+        const data = await response.json();
 
-        setEditingTopic(null);
+        if (data.success) {
+          toast.success('Topic saved and RAM cache updated!');
+          setEditingTopic(null);
+        } else {
+          throw new Error(data.error);
+        }
       } catch (e) {
-        console.error('Failed to save topic:', e);
-        handleFirestoreError(e, OperationType.WRITE, `topics/${id}`);
-        toast.error('Firestore Error: Failed to publish topic. Check console for details.');
+        toast.error('Failed to save topic via API');
       } finally {
         setIsSaving(false);
       }
     };
 
     if (editingTopic.id) {
-      showConfirm('Update Topic', 'Are you sure you want to save changes to this topic?', saveAction);
+      showConfirm('Update Topic', 'Save changes? Server RAM cache will be patched instantly.', saveAction);
     } else {
       saveAction();
     }
@@ -1670,26 +1598,21 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
   const handleDelete = async (id: string) => {
     showConfirm(
       'Delete Topic',
-      'Are you sure? This will permanently delete this topic.',
+      'Are you sure? This will remove it from server RAM instantly.',
       async () => {
         try {
-          await deleteDoc(doc(db, 'topics', id));
-          // Rebuild relevant topic bundle
-          const topicToDelete = topics.find(t => t.id === id);
-          if (topicToDelete?.subjectSlug) {
-             await bundleService.rebuildTopicBundle(topicToDelete.subjectSlug);
-          }
-          
-          // Force server cache refresh
-          fetch('/api/admin/refresh-cache', {
+          const response = await fetch('/api/admin/delete-topic', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: user?.uid })
-          }).catch(err => console.warn('Cache refresh failed:', err));
-
-          toast.success('Topic deleted and bundle updated');
+            body: JSON.stringify({ userId: user?.uid, topicId: id })
+          });
+          const data = await response.json();
+          if (data.success) {
+            toast.success('Topic deleted and RAM refreshed');
+          } else {
+            throw new Error(data.error);
+          }
         } catch (e) {
-          handleFirestoreError(e, OperationType.DELETE, `topics/${id}`);
           toast.error('Failed to delete topic');
         }
       }
@@ -1700,7 +1623,7 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
     const subjectTitle = filterSubject === 'all' ? 'All Subjects' : subjects.find(s => s.slug === filterSubject)?.title || filterSubject;
     showConfirm(
       `Delete All Topics in ${subjectTitle}`,
-      `Are you sure? This will permanently delete ALL ${filteredTopics.length} topics currently shown for ${subjectTitle}. This action cannot be undone.`,
+      `Are you sure? This happens in RAM instantly.`,
       async () => {
         if (filteredTopics.length === 0) {
           toast.error('No topics found to delete');
@@ -1709,23 +1632,16 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
 
         const toastId = toast.loading(`Deleting ${filteredTopics.length} topics...`);
         try {
-          const batch = writeBatch(db);
-          filteredTopics.forEach(t => {
-            batch.delete(doc(db, 'topics', t.id));
-          });
-          await batch.commit();
-
-          // Force server cache refresh
-          fetch('/api/admin/refresh-cache', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: user?.uid })
-          }).catch(err => console.warn('Cache refresh failed:', err));
-
-          toast.success(`Successfully deleted ${filteredTopics.length} topics`, { id: toastId });
+          for (const t of filteredTopics) {
+            await fetch('/api/admin/delete-topic', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ userId: user?.uid, topicId: t.id })
+            });
+          }
+          toast.success(`Successfully deleted ${filteredTopics.length} topics and updated cache`, { id: toastId });
         } catch (e) {
-          handleFirestoreError(e, OperationType.DELETE, 'topics/bulk');
-          toast.error('Failed to delete topics', { id: toastId });
+          toast.error('Failed to delete some topics', { id: toastId });
         }
       }
     );
@@ -2256,6 +2172,7 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
 }
 
 function AdminSettings({ showConfirm }: { showConfirm: any }) {
+  const { user } = useAuth();
   const { settings } = useSettings();
   const [formData, setFormData] = useState<AppSettings | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -2269,15 +2186,23 @@ function AdminSettings({ showConfirm }: { showConfirm: any }) {
     if (!formData) return;
     showConfirm(
       'Save Settings',
-      'Are you sure you want to update the global app settings? This will affect all live users immediately.',
+      'Update app settings? Server RAM cache will be patched and Firestore updated instantly.',
       async () => {
         setIsSaving(true);
         try {
-          await setDoc(doc(db, 'settings', 'global'), formData);
-          toast.success('Global settings updated!');
+          const response = await fetch('/api/admin/save-settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: user?.uid, settings: formData })
+          });
+          const data = await response.json();
+          if (data.success) {
+            toast.success('Settings updated and RAM cache refreshed!');
+          } else {
+            throw new Error(data.error);
+          }
         } catch (e) {
-          handleFirestoreError(e, OperationType.WRITE, 'settings/global');
-          toast.error('Failed to save settings');
+          toast.error('Failed to save settings via API');
         } finally {
           setIsSaving(false);
         }

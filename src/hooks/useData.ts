@@ -235,28 +235,8 @@ export function useSubjects() {
         if (content.settings) setCache('settings', content.settings, content.lastUpdated);
         
       } catch (error: any) {
-        if (window.location.hostname.includes('ais-dev')) console.error("Subjects sync detail:", error);
-        
-        // Disable direct Firestore fallback in Zero-Read dev mode
-        if (subjects.length === 0 && error.message !== 'SERVICE_BUSY' && !USE_LOCAL_DATA) {
-          try {
-            const bundleRef = doc(db, 'bundles', 'subjects');
-            const bundleSnap = await getDoc(bundleRef);
-            
-            if (bundleSnap.exists()) {
-              const bundleData = bundleSnap.data();
-              if (bundleData.data) {
-                const sortedData = [...bundleData.data].sort((a, b) => (a.order || 0) - (b.order || 0));
-                setSubjects(sortedData);
-                setCache('subjects', sortedData);
-                reportUsage(1);
-                return;
-              }
-            }
-          } catch (fbError: any) {
-            if (fbError.message?.includes('quota')) reportError(fbError);
-          }
-        }
+        if (window.location.hostname.includes('ais-dev')) console.error("Subjects sync error:", error);
+        // Fallback removed to save reads as per user request
       } finally {
         setLoading(false);
       }
@@ -321,48 +301,8 @@ export function useDashboardData() {
         setCache('topics_all', topicsData, content.lastUpdated);
         if (content.settings) setCache('settings', content.settings, content.lastUpdated);
       } catch (error: any) {
-        if (window.location.hostname.includes('ais-dev')) console.error("Dashboard sync detail:", error);
-        
-        if (data.subjects.length === 0 && error.message !== 'SERVICE_BUSY' && !USE_LOCAL_DATA) {
-          try {
-            const bundlesSnap = await getDocs(collection(db, 'bundles'));
-            let subjectsData: Subject[] = [];
-            let topicsData: Topic[] = [];
-            let metadataTopics: Topic[] = [];
-
-            bundlesSnap.docs.forEach(doc => {
-              const bundleData = doc.data().data;
-              if (!bundleData) return;
-              if (doc.id === 'subjects') {
-                subjectsData = bundleData;
-              } else if (doc.id.includes('_free') || doc.id.includes('_premium')) {
-                topicsData = topicsData.concat(bundleData);
-              } else if (doc.id.includes('_metadata')) {
-                metadataTopics = metadataTopics.concat(bundleData);
-              }
-            });
-            
-            // Add topics that are ONLY in metadata (e.g. coming_soon)
-            const existingTopicIds = new Set(topicsData.map(t => t.id));
-            for (const metaT of metadataTopics) {
-              if (!existingTopicIds.has(metaT.id)) {
-                topicsData.push(metaT);
-              }
-            }
-
-            subjectsData.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
-            topicsData.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
-
-            const newData = { subjects: subjectsData, topics: topicsData };
-            setData(newData);
-            setCache('subjects', subjectsData);
-            setCache('topics_all', topicsData);
-            reportUsage(bundlesSnap.size);
-          } catch (fbError: any) {
-            handleFirestoreError(fbError, OperationType.LIST, 'dashboard_data');
-            if (fbError.message?.includes('quota')) reportError(fbError);
-          }
-        }
+        if (window.location.hostname.includes('ais-dev')) console.error("Dashboard sync error:", error);
+        // Fallback removed to save reads
       } finally {
         setLoading(false);
       }
@@ -436,50 +376,8 @@ export function useTopics(subjectSlug?: string) {
           setCache(cacheKey, allTopics, content.lastUpdated);
         }
       } catch (error: any) {
-        if (window.location.hostname.includes('ais-dev')) console.error("Topics sync detail:", error);
-        
-        if (topics.length === 0 && error.message !== 'SERVICE_BUSY' && !USE_LOCAL_DATA) {
-          // Fallback to Firestore
-          try {
-            const bundlesSnap = await getDocs(collection(db, 'bundles'));
-            let allTopics: Topic[] = [];
-            let metadataTopics: Topic[] = [];
-
-            bundlesSnap.docs.forEach(doc => {
-              const bundleData = doc.data().data;
-              if (!bundleData) return;
-              if (doc.id.includes('_free') || doc.id.includes('_premium')) {
-                allTopics = allTopics.concat(bundleData);
-              } else if (doc.id.includes('_metadata')) {
-                metadataTopics = metadataTopics.concat(bundleData);
-              }
-            });
-            
-            // Add topics that are ONLY in metadata (e.g. coming_soon)
-            const existingTopicIds = new Set(allTopics.map(t => t.id));
-            for (const metaT of metadataTopics) {
-              if (!existingTopicIds.has(metaT.id)) {
-                allTopics.push(metaT);
-              }
-            }
-
-            allTopics.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
-            setCache('topics_all', allTopics);
-            reportUsage(bundlesSnap.size);
-
-            if (subjectSlug) {
-              const filtered = allTopics.filter((t: Topic) => t.subjectSlug === subjectSlug);
-              setTopics(filtered);
-              setCache(cacheKey, filtered);
-            } else {
-              setTopics(allTopics);
-              setCache(cacheKey, allTopics);
-            }
-          } catch (fbError: any) {
-            handleFirestoreError(fbError, OperationType.LIST, 'topics_bundles');
-            if (fbError.message?.includes('quota')) reportError(fbError);
-          }
-        }
+        if (window.location.hostname.includes('ais-dev')) console.error("Topics sync error:", error);
+        // Fallback removed to save reads
       } finally {
         setLoading(false);
       }
