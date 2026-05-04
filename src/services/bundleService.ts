@@ -1,4 +1,4 @@
-import { collection, doc, getDocs, setDoc, writeBatch, query, where, orderBy } from 'firebase/firestore';
+import { collection, doc, getDocs, setDoc, writeBatch, query, where, orderBy, limit } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { Subject, Topic } from '../types';
 
@@ -33,28 +33,60 @@ export const bundleService = {
   },
 
   /**
-   * Rebuilds topic bundles for a specific subject (Metadata, Free Content, Premium Content)
+   * Rebuilds topic bundles for a specific subject (DEPRECATED - Use rebuildAllBundles for consolidated docs)
    */
   async rebuildTopicBundle(subjectSlug: string) {
+    // We still keep this for backward compatibility if needed, but it should be moved to consolidated strategy
+    return this.rebuildAllBundles();
+  },
+
+  /**
+   * Rebuilds all bundles (optimizing for minimal read counts)
+   * This creates consolidated bundles for all subjects and topics.
+   */
+  async rebuildAllBundles() {
     try {
-      const topicsSnap = await getDocs(
-        query(
-          collection(db, 'topics'),
-          where('subjectSlug', '==', subjectSlug)
-        )
-      );
-      const allTopics = topicsSnap.docs.map(d => ({ ...d.data(), id: d.id })) as Topic[];
-      allTopics.sort((a, b) => (a.order || 0) - (b.order || 0));
+      // 1. Fetch all subjects and topics
+      const subjectsSnap = await getDocs(collection(db, 'subjects'));
+      const topicsSnap = await getDocs(collection(db, 'topics'));
       
-      // Helper to remove undefined values (Firestore rejects them)
+      const subjects = subjectsSnap.docs.map(d => ({ ...d.data(), id: d.id })) as Subject[];
+      const topics = topicsSnap.docs.map(d => ({ ...d.data(), id: d.id })) as Topic[];
+      
+      subjects.sort((a, b) => (a.order || 0) - (b.order || 0));
+      topics.sort((a, b) => (a.order || 0) - (b.order || 0));
+      
       const sanitize = (obj: any): any => {
         return JSON.parse(JSON.stringify(obj, (key, value) => 
           value === undefined ? null : value
         ));
       };
 
-      // 1. Metadata bundle (all topics, but no full content) - for SubjectPage list
-      const metadata = allTopics.map(t => ({
+      const updatedAt = new Date().toISOString();
+      const batch = writeBatch(db);
+
+      // A. Subjects Bundle
+      batch.set(doc(db, 'bundles', 'subjects'), sanitize({ updatedAt, data: subjects }));
+
+      // A2. Settings & Notifications Bundle
+      const [settingsSnap, notificationsSnap] = await Promise.all([
+        getDocs(collection(db, 'settings')),
+        getDocs(query(collection(db, 'notifications'), orderBy('timestamp', 'desc'), limit(10)))
+      ]);
+      
+      const settingsMap: any = {};
+      settingsSnap.docs.forEach(d => { settingsMap[d.id] = d.data(); });
+      
+      const notifications = notificationsSnap.docs.map(d => ({ ...d.data(), id: d.id }));
+      
+      batch.set(doc(db, 'bundles', 'app_config'), sanitize({ 
+        updatedAt, 
+        settings: settingsMap,
+        notifications
+      }));
+
+      // B. Metadata Bundle (all topics, small size)
+      const metadata = topics.map(t => ({
         id: t.id || '',
         slug: t.slug || '',
         title: t.title || '',
@@ -64,42 +96,32 @@ export const bundleService = {
         subjectSlug: t.subjectSlug || '',
         chapter: t.chapter || ''
       }));
+      batch.set(doc(db, 'bundles', 'topics_all_metadata'), sanitize({ updatedAt, data: metadata }));
 
-      // 2. Free content bundle - full content for free topics
-      const freeContent = sanitize(allTopics.filter(t => t.status === 'free'));
+      // C. Consolidated Free Content (Full)
+      const freeContent = topics.filter(t => t.status === 'free');
+      batch.set(doc(db, 'bundles', 'topics_all_free'), sanitize({ updatedAt, data: freeContent }));
 
-      // 3. Premium content bundle - full content for premium topics
-      const premiumContent = sanitize(allTopics.filter(t => t.status === 'premium'));
+      // D. Consolidated Premium Content (Full)
+      const premiumContent = topics.filter(t => t.status === 'premium');
+      batch.set(doc(db, 'bundles', 'topics_all_premium'), sanitize({ updatedAt, data: premiumContent }));
 
-      // Write bundles
-      const batch = writeBatch(db);
-      const updatedAt = new Date().toISOString();
-
-      batch.set(doc(db, 'bundles', `topics_${subjectSlug}_metadata`), sanitize({ updatedAt, data: metadata }));
-      batch.set(doc(db, 'bundles', `topics_${subjectSlug}_free`), sanitize({ updatedAt, data: freeContent }));
-      batch.set(doc(db, 'bundles', `topics_${subjectSlug}_premium`), sanitize({ updatedAt, data: premiumContent }));
+      // E. Cleanup old subject-specific bundles
+      const oldBundlesSnap = await getDocs(collection(db, 'bundles'));
+      oldBundlesSnap.docs.forEach(d => {
+        // Delete subject-specific bundles but KEEP consolidated ones
+        if (d.id.startsWith('topics_') && !d.id.includes('_all_')) {
+          batch.delete(d.ref);
+        }
+        // Also cleanup old separate subjects bundle if it's mirrored in config (optional)
+      });
 
       await batch.commit();
-      console.log(`Split topic bundles for ${subjectSlug} rebuilt successfully`);
-      return allTopics;
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `bundles/topics_${subjectSlug}`);
-      throw error;
-    }
-  },
-
-  /**
-   * Rebuilds all bundles (useful for a full refresh)
-   */
-  async rebuildAllBundles() {
-    try {
-      const subjects = await this.rebuildSubjectsBundle();
-      for (const subject of subjects) {
-        await this.rebuildTopicBundle(subject.slug);
-      }
+      console.log('✅ Consolidated bundles rebuilt successfully (Subjects, Metadata, Free, Premium)');
       return { success: true };
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to rebuild all bundles:', error);
+      handleFirestoreError(error, OperationType.WRITE, 'bundles/all');
       throw error;
     }
   }

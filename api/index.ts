@@ -335,6 +335,7 @@ async function startServer() {
     subjects: [] as any[],
     topics: [] as any[],
     settings: null as any,
+    notifications: [] as any[],
     lastUpdated: 0,
     isRefreshing: false,
     isQuotaExceeded: false,
@@ -350,29 +351,34 @@ async function startServer() {
     activeRefreshPromise = (async () => {
       console.log('[Cache] Refreshing content cache from Firestore bundles...');
       try {
-        const [bundlesSnap, settingsSnap] = await Promise.all([
-          runFirestoreOp(dbInstance => dbInstance.collection('bundles').get(), 'CacheBundles'),
-          runFirestoreOp(dbInstance => dbInstance.collection('settings').doc('global').get(), 'CacheSettings')
-        ]);
+        const bundlesSnap = await runFirestoreOp(dbInstance => dbInstance.collection('bundles').get(), 'CacheBundles');
         
         let subjects: any[] = [];
         let topics: any[] = [];
         let metadataTopics: any[] = [];
+        let settings: any = null;
+        let notifications: any[] = [];
+
+        // Track actual reads
+        const batchReads = bundlesSnap.docs.length;
 
         bundlesSnap.docs.forEach((doc: any) => {
-          const data = doc.data().data;
-          if (!data) return;
+          const docData = doc.data();
+          const bundleData = docData.data;
           
           if (doc.id === 'subjects') {
-            subjects = data;
+            subjects = bundleData || [];
+          } else if (doc.id === 'app_config') {
+            if (docData.settings) settings = docData.settings.global || {};
+            if (docData.notifications) notifications = docData.notifications || [];
           } else if (doc.id.includes('_free') || doc.id.includes('_premium')) {
-            topics = topics.concat(data);
+            if (bundleData) topics = topics.concat(bundleData);
           } else if (doc.id.includes('_metadata')) {
-            metadataTopics = metadataTopics.concat(data);
+            if (bundleData) metadataTopics = metadataTopics.concat(bundleData);
           }
         });
 
-        // Add topics that are ONLY in metadata (e.g. coming_soon)
+        // Add topics from metadata if they weren't in full content bundles
         const existingTopicIds = new Set(topics.map(t => t.id));
         for (const metaT of metadataTopics) {
           if (!existingTopicIds.has(metaT.id)) {
@@ -380,19 +386,72 @@ async function startServer() {
           }
         }
 
-        // --- FALLBACK IF BUNDLES ARE EMPTY OR MISSING ---
-        if (subjects.length === 0 || topics.length === 0) {
-          console.log('[Cache] Missing bundles! Falling back to raw collections...');
-          const [rawSubjectsSnap, rawTopicsSnap] = await Promise.all([
+        // --- FALLBACK & AUTO-REBUILD IF BUNDLES ARE EMPTY ---
+        let fallbackReads = 0;
+        if (subjects.length === 0 || topics.length === 0 || !settings) {
+          console.warn(`[Cache] Warning: Bundles incomplete. Authenticating as system to auto-rebuild...`);
+          
+          const [rawSubjectsSnap, rawTopicsSnap, rawSettingsSnap] = await Promise.all([
              runFirestoreOp(dbInstance => dbInstance.collection('subjects').get(), 'FallbackSubjects'),
-             runFirestoreOp(dbInstance => dbInstance.collection('topics').get(), 'FallbackTopics')
+             runFirestoreOp(dbInstance => dbInstance.collection('topics').get(), 'FallbackTopics'),
+             runFirestoreOp(dbInstance => dbInstance.collection('settings').doc('global').get(), 'FallbackSettings')
           ]);
           
+          fallbackReads = rawSubjectsSnap.docs.length + rawTopicsSnap.docs.length + 1;
+
           if (subjects.length === 0) {
              subjects = rawSubjectsSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
           }
           if (topics.length === 0) {
              topics = rawTopicsSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+          }
+          if (!settings) {
+             settings = rawSettingsSnap.data() || {};
+          }
+
+          // --- AUTO REBUILD BUNDLES (So we don't have to fallback again) ---
+          if (!contentCache.isQuotaExceeded && !contentCache.hasLoadedFirstTime) {
+            console.log('[Cache] Triggering automatic bundle optimization...');
+            try {
+              const updatedAt = new Date().toISOString();
+              const metadata = topics.map((t: any) => ({
+                id: t.id || '',
+                slug: t.slug || '',
+                title: t.title || '',
+                status: t.status || 'free',
+                order: t.order || 0,
+                subjectSlug: t.subjectSlug || '',
+                chapter: t.chapter || ''
+              }));
+              const freeContent = topics.filter((t: any) => t.status === 'free');
+              const premiumContent = topics.filter((t: any) => t.status === 'premium');
+
+              // Fetch latest notifications for the config bundle
+              const notifsSnap = await runFirestoreOp(dbInstance => 
+                dbInstance.collection('notifications').orderBy('timestamp', 'desc').limit(10).get(), 
+                'AutoRebuildNotifs'
+              );
+              notifications = notifsSnap.docs.map((d: any) => ({ ...d.data(), id: d.id }));
+
+              // Write optimized bundles back to Firestore
+              await runFirestoreOp(async (dbInstance) => {
+                const batch = dbInstance.batch();
+                batch.set(dbInstance.collection('bundles').doc('subjects'), { updatedAt, data: subjects });
+                batch.set(dbInstance.collection('bundles').doc('topics_all_metadata'), { updatedAt, data: metadata });
+                batch.set(dbInstance.collection('bundles').doc('topics_all_free'), { updatedAt, data: freeContent });
+                batch.set(dbInstance.collection('bundles').doc('topics_all_premium'), { updatedAt, data: premiumContent });
+                batch.set(dbInstance.collection('bundles').doc('app_config'), { 
+                  updatedAt, 
+                  settings: { global: settings },
+                  notifications 
+                });
+                return batch.commit();
+              }, 'PerformAutoRebuild');
+              
+              console.log('✅ Auto-rebuild complete: Firestore is now optimized.');
+            } catch (rebuildErr: any) {
+              console.error('[Cache] Auto-rebuild failed:', rebuildErr.message);
+            }
           }
         }
 
@@ -410,19 +469,32 @@ async function startServer() {
 
         contentCache.subjects = subjects;
         contentCache.topics = topics;
-        contentCache.settings = settingsSnap.exists ? settingsSnap.data() : null;
+        contentCache.settings = settings;
+        contentCache.notifications = notifications; // Store notifications in cache too
         contentCache.lastUpdated = Date.now();
         contentCache.hasLoadedFirstTime = true;
         contentCache.isQuotaExceeded = false; // Reset if successful
         
-        const reads = bundlesSnap.docs.length + 1;
-        console.log(`[Cache] Successfully cached ${subjects.length} subjects, ${topics.length} topics and settings. (Reads: ${reads})`);
+        const totalReads = batchReads + fallbackReads;
+        console.log(`[Cache] Success: ${subjects.length} subjects, ${topics.length} topics cached. (Reads: ${totalReads}${fallbackReads > 0 ? ' [WARNING: FALLBACK USED]' : ''})`);
         
-        usageTracker.reads += reads;
+        usageTracker.reads += totalReads;
+        
+        // Notify if fallback was used (optional, but helps admin know they need to rebuild)
+        if (fallbackReads > 0) {
+          await sendTelegramNotification(
+            `⚠️ <b>Firestore Cache Fallback Triggered</b>\n\n` +
+            `The server couldn't find optimized bundles and had to perform a full scan.\n` +
+            `📉 <b>Total Reads:</b> <code>${totalReads}</code>\n` +
+            `💡 <b>Action:</b> Go to Admin Panel > Performance and click "Rebuild Bundles".`
+          ).catch(() => {});
+        }
       } catch (err: any) {
         console.error('[Cache] Failed to refresh content cache:', err.message);
         if (err.message && (err.message.toLowerCase().includes('quota') || err.message.includes('RESOURCE_EXHAUSTED'))) {
           contentCache.isQuotaExceeded = true;
+          // Notify via Telegram immediately on quota error
+          await sendTelegramNotification(`🚨 <b>DATABASE CRITICAL: Quota Limit Exceeded</b>\n\nServer cache refresh failed. App will continue to serve from memory if possible.`).catch(() => {});
         }
       } finally {
         contentCache.isRefreshing = false;
@@ -522,6 +594,7 @@ async function startServer() {
         subjects: contentCache.subjects,
         topics: contentCache.topics,
         settings: contentCache.settings,
+        notifications: contentCache.notifications,
         lastUpdated: contentCache.lastUpdated
       });
     } catch (err: any) {

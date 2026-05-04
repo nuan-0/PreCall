@@ -1606,7 +1606,10 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
 
     const saveAction = async () => {
       setIsSaving(true);
-      const id = (editingTopic.id || editingTopic.slug) as string;
+      
+      // Ensure unique ID by prefixing with subject slug if it's a new topic
+      // This prevents topics with the same slug (e.g. 'introduction') in different subjects from clashing
+      const id = (editingTopic.id || `${editingTopic.subjectSlug}-${editingTopic.slug}`) as string;
       
       // Sanitizer to remove undefined values effectively
       const sanitize = (obj: any): any => {

@@ -760,6 +760,21 @@ export function useNotifications(uid?: string, isAdmin?: boolean) {
     fetchInitiated.current = true;
     const fetchNotifications = async () => {
       try {
+        // 1. Try to get global notifications from consolidated API first to save reads
+        const metaLocal = getCacheMetadata('subjects');
+        const content = await fetchContentOptimized(metaLocal.lastUpdated || 0);
+        
+        if (content && content.notifications && Array.isArray(content.notifications)) {
+          // These are global notifications from the bundle
+          setNotifications(content.notifications);
+          setCache(cacheKey, content.notifications);
+          setLoading(false);
+          // If we also need private notifications, we'd fetch them separately here
+          // For now, most things are global announcements
+          return;
+        }
+
+        // 2. Fallback to direct Firestore only if API is unavailable
         const path = 'notifications';
         let q;
         if (isAdmin) {
