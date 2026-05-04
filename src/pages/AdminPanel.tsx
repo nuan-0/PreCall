@@ -2399,17 +2399,24 @@ function AdminAccess({ showConfirm }: { showConfirm: any }) {
       async () => {
         setIsSaving(true);
         try {
-          const adminsRef = doc(db, 'settings', 'admins');
-          // We only save the dynamic ones to Firestore
           const dynamicAdmins = adminEmails.filter(e => e !== 'precall.admin@gmail.com');
-          await setDoc(adminsRef, {
-            emails: [...dynamicAdmins, emailToAdd]
+          const newAdminList = [...dynamicAdmins, emailToAdd];
+          
+          const response = await fetch('/api/admin/save-admins', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: user?.uid, emails: newAdminList })
           });
-          toast.success('Admin added successfully');
-          setNewEmail('');
+          
+          const data = await response.json();
+          if (data.success) {
+            toast.success('Admin added and RAM updated');
+            setNewEmail('');
+          } else {
+            throw new Error(data.error);
+          }
         } catch (e) {
-          handleFirestoreError(e, OperationType.WRITE, 'settings/admins');
-          toast.error('Failed to add admin');
+          toast.error('Failed to add admin via API');
         } finally {
           setIsSaving(false);
         }
@@ -2434,15 +2441,20 @@ function AdminAccess({ showConfirm }: { showConfirm: any }) {
       async () => {
         setIsSaving(true);
         try {
-          const adminsRef = doc(db, 'settings', 'admins');
           const dynamicAdmins = adminEmails.filter(e => e !== 'precall.admin@gmail.com' && e !== emailToRemove);
-          await setDoc(adminsRef, {
-            emails: dynamicAdmins
+          const response = await fetch('/api/admin/save-admins', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: user?.uid, emails: dynamicAdmins })
           });
-          toast.success('Admin removed successfully');
+          const data = await response.json();
+          if (data.success) {
+            toast.success('Admin removed and RAM updated');
+          } else {
+            throw new Error(data.error);
+          }
         } catch (e) {
-          handleFirestoreError(e, OperationType.WRITE, 'settings/admins');
-          toast.error('Failed to remove admin');
+          toast.error('Failed to remove admin via API');
         } finally {
           setIsSaving(false);
         }

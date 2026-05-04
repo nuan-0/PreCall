@@ -258,33 +258,40 @@ async function startServer() {
   const checkIsAdmin = async (userId: string): Promise<boolean> => {
     if (!userId) return false;
     
-    console.log(`[Admin Check] Verifying admin status for userId: ${userId}`);
-    
-    // Part A: Firestore Check (Robust)
-    try {
-      const userDoc = await runFirestoreOp(async (dbInstance) => {
-        return await dbInstance.collection('users').doc(userId).get();
-      }, 'AdminCheck');
-      
-      if (userDoc.exists) {
-        const userData = userDoc.data();
-        console.log(`[Admin Check] Found user profile. Role: ${userData?.role}, Email: ${userData?.email}`);
-        if (userData?.role === 'admin' || ADMIN_EMAILS.includes(userData?.email)) return true;
-      }
-    } catch (err: any) {
-      console.warn(`[Admin Check] Firestore check failed for ${userId}:`, err.message || err);
+    // 1. Check RAM Cache (The Water Tank) first - Instant and 0 reads
+    if (contentCache.admins.includes(userId)) {
+      return true;
     }
-
-    // Part B: Firebase Auth (Fallback)
+    
+    console.log(`[Admin Check] Cache miss for ${userId}, checking live pond...`);
+    
+    // 2. Fallback to live checks if cache doesn't have it yet
     try {
+      // Check hardcoded emails first
       const user = await admin.auth().getUser(userId);
-      console.log(`[Admin Check Auth] Email: ${user.email}`);
-      if (ADMIN_EMAILS.includes(user.email || '')) return true;
-    } catch (authErr: any) {
-      console.warn(`[Admin Check Auth] Failed for ${userId}:`, authErr.message || authErr);
+      if (ADMIN_EMAILS.includes(user.email || '')) {
+        // Auto-add to cache for this session
+        if (!contentCache.admins.includes(userId)) contentCache.admins.push(userId);
+        return true;
+      }
+
+      // Check Firestore Role
+      const userDoc = await runFirestoreOp(dbInstance => dbInstance.collection('users').doc(userId).get(), 'AdminCheckLive');
+      if (userDoc.exists && (userDoc.data()?.role === 'admin' || userDoc.data()?.isAdmin === true)) {
+        if (!contentCache.admins.includes(userId)) contentCache.admins.push(userId);
+        return true;
+      }
+
+      // Check Admins collection
+      const adminDoc = await runFirestoreOp(dbInstance => dbInstance.collection('admins').doc(userId).get(), 'AdminCheckLiveDoc');
+      if (adminDoc.exists) {
+        if (!contentCache.admins.includes(userId)) contentCache.admins.push(userId);
+        return true;
+      }
+    } catch (err) {
+      console.warn(`[Admin Check] Live check failed:`, err);
     }
     
-    console.warn(`[Admin Check] Denying access for ${userId} - no admin verification succeeded.`);
     return false;
   };
 
@@ -355,6 +362,8 @@ async function startServer() {
   const contentCache = {
     subjects: [] as any[],
     topics: [] as any[],
+    admins: [] as string[], // Cached admin UIDs
+    adminEmails: [] as string[], // Cached admin Emails
     settings: null as any,
     notifications: [] as any[],
     lastUpdated: 0,
@@ -414,14 +423,16 @@ async function startServer() {
           console.log(`[Cache] Filling gaps from single collections...`);
           
           try {
-            const [rawSubjectsSnap, rawTopicsSnap, rawSettingsSnap, rawNotificationsSnap] = await Promise.all([
+            const [rawSubjectsSnap, rawTopicsSnap, rawSettingsSnap, rawNotificationsSnap, rawAdminsSnap, rawAdminEmailsSnap] = await Promise.all([
                runLiteOp(() => liteGetDocs(liteCollection(clientDb, 'subjects')), 'FallbackSubjects'),
                runLiteOp(() => liteGetDocs(liteCollection(clientDb, 'topics')), 'FallbackTopics'),
                runLiteOp(() => liteGetDoc(liteDoc(clientDb, 'settings', 'global')), 'FallbackSettings'),
-               runLiteOp(() => liteGetDocs(liteCollection(clientDb, 'notifications')), 'FallbackNotifications')
+               runLiteOp(() => liteGetDocs(liteCollection(clientDb, 'notifications')), 'FallbackNotifications'),
+               runLiteOp(() => liteGetDocs(liteCollection(clientDb, 'admins')), 'FallbackAdmins'),
+               runLiteOp(() => liteGetDoc(liteDoc(clientDb, 'settings', 'admins')), 'FallbackAdminEmails')
             ]);
             
-            totalReads += (rawSubjectsSnap.docs.length + rawTopicsSnap.docs.length + 1 + rawNotificationsSnap.docs.length);
+            totalReads += (rawSubjectsSnap.docs.length + rawTopicsSnap.docs.length + 1 + rawNotificationsSnap.docs.length + rawAdminsSnap.docs.length + 1);
 
             if (subjects.length === 0 || forceRebuild) {
                subjects = [];
@@ -439,6 +450,16 @@ async function startServer() {
                notifications = [];
                rawNotificationsSnap.forEach((doc: any) => notifications.push({ id: doc.id, ...doc.data() }));
             }
+            
+            // Always refresh admin UIDs to the cache
+            const adminUids: string[] = [];
+            rawAdminsSnap.forEach((doc: any) => adminUids.push(doc.id));
+            contentCache.admins = adminUids;
+
+            if (rawAdminEmailsSnap.exists()) {
+              contentCache.adminEmails = rawAdminEmailsSnap.data().emails || [];
+            }
+
           } catch (fallbackErr: any) {
             console.error('[Cache] Fallback fetch failed:', fallbackErr.message);
             // If fallback also fails and we have NOTHING, then we have a real problem
@@ -575,6 +596,7 @@ async function startServer() {
         topics: contentCache.topics,
         settings: contentCache.settings,
         notifications: contentCache.notifications,
+        adminEmails: contentCache.adminEmails,
         lastUpdated: contentCache.lastUpdated
       });
     } catch (err: any) {
@@ -784,6 +806,30 @@ async function startServer() {
     }
   });
   // ---------------------------
+
+  // API: Admin Admins Save
+  app.post('/api/admin/save-admins', async (req, res) => {
+    const { userId, emails } = req.body || {};
+    const isAdmin = await checkIsAdmin(userId);
+    if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+    
+    try {
+      await runFirestoreOp(dbInstance => dbInstance.collection('settings').doc('admins').set({ emails }, { merge: true }), 'SaveAdminsFirestore');
+      contentCache.adminEmails = emails;
+      contentCache.lastUpdated = Date.now();
+      
+      // Update the app_config bundle since it's conceptually part of it
+      await runFirestoreOp(db => db.collection('bundles').doc('app_config').set({ 
+        notifications: contentCache.notifications, 
+        settings: { ...contentCache.settings, adminEmails: emails },
+        lastUpdated: contentCache.lastUpdated 
+      }, { merge: true }), 'UpdateAppConfigBundleWithAdmins');
+
+      res.json({ success: true, lastUpdated: contentCache.lastUpdated });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
 
   // API: Health Check
   app.get('/api/health', async (req, res) => {

@@ -300,6 +300,7 @@ export function useDashboardData() {
         setCache('subjects', subjectsData, content.lastUpdated);
         setCache('topics_all', topicsData, content.lastUpdated);
         if (content.settings) setCache('settings', content.settings, content.lastUpdated);
+        if (content.adminEmails) setCache('admin_emails', content.adminEmails, content.lastUpdated);
       } catch (error: any) {
         if (window.location.hostname.includes('ais-dev')) console.error("Dashboard sync error:", error);
         // Fallback removed to save reads
@@ -702,6 +703,38 @@ export function useNotifications(uid?: string, isAdmin?: boolean) {
   }, [uid, isAdmin]);
 
   return { notifications, loading };
+}
+
+export function useAdminEmails() {
+  const [adminEmails, setAdminEmails] = useState<string[]>(() => getStaleCache<string[]>('admin_emails') || []);
+  const [loading, setLoading] = useState(adminEmails.length === 0);
+
+  const fetchInitiated = useRef(false);
+
+  useEffect(() => {
+    if (fetchInitiated.current) return;
+    fetchInitiated.current = true;
+
+    const fetchAdmins = async () => {
+      try {
+        const metaLocal = getCacheMetadata('subjects');
+        const content = await fetchContentOptimized(metaLocal.lastUpdated || 0);
+        
+        if (content.adminEmails) {
+          setAdminEmails(content.adminEmails);
+          setCache('admin_emails', content.adminEmails, content.lastUpdated);
+        }
+      } catch (error) {
+        // Silent fail
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAdmins();
+  }, []);
+
+  return { adminEmails, loading };
 }
 
 export function useAvatarUnlock(uid?: string) {

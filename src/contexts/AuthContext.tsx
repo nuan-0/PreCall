@@ -15,6 +15,8 @@ import { auth, db } from '../firebase';
 import { isEmailAdmin, FOUNDER_EMAIL } from '../config/admins';
 import { UserProfile } from '../types';
 
+import { useAdminEmails } from '../hooks/useData';
+
 interface AuthContextType {
   user: User | null;
   profile: UserProfile | null;
@@ -40,32 +42,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [dynamicAdmins, setDynamicAdmins] = useState<string[]>([]);
+  const { adminEmails: dynamicAdmins } = useAdminEmails();
   const [isPremium, setIsPremium] = useState(false);
-
-  // Fetch dynamic admins from Firestore
-  useEffect(() => {
-    if (!user) {
-      setDynamicAdmins([]);
-      return;
-    }
-
-    const fetchAdmins = async () => {
-      try {
-        const adminDoc = await getDoc(doc(db, 'settings', 'admins'));
-        if (adminDoc.exists()) {
-          setDynamicAdmins(adminDoc.data().emails || []);
-        } else {
-          setDynamicAdmins([]);
-        }
-      } catch (error) {
-        console.error("Error fetching admins:", error);
-        setDynamicAdmins([]);
-      }
-    };
-
-    fetchAdmins();
-  }, [user]);
 
   const allAdminEmails = Array.from(new Set([FOUNDER_EMAIL, ...dynamicAdmins]));
   const isAdmin = !!user && (isEmailAdmin(user.email) || dynamicAdmins.includes(user.email?.toLowerCase() || '')) && (user.emailVerified || user.email === FOUNDER_EMAIL);
