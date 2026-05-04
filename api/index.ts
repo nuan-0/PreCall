@@ -11,6 +11,8 @@ import crypto from 'crypto';
 import admin from 'firebase-admin';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import fs from 'fs';
+import { initializeApp } from 'firebase/app';
+import { getFirestore as getLiteFirestore, collection as liteCollection, getDocs as liteGetDocs, doc as liteDoc, getDoc as liteGetDoc } from 'firebase/firestore/lite';
 // import fetch from 'node-fetch'; // No longer needed in Node 18+
 
 import multer from 'multer';
@@ -51,7 +53,6 @@ async function startServer() {
   };
 
   const checkAndNotifyUsage = async () => {
-    const dailyLimit = 50000;
     const currentPercent = (usageTracker.reads / dailyLimit) * 100;
     
     // Find the current threshold (multiple of 20)
@@ -85,6 +86,23 @@ async function startServer() {
       console.log(`[Firebase] Config loaded: Project=${configProjectId}, Database=${firestoreDatabaseId}`);
     } else {
       console.warn('[Firebase] Config file NOT found at:', configPath);
+    }
+
+    // Initialize Firebase client Lite DB for rest caching functionality
+    let clientDb: any;
+    if (Object.keys(config).length > 0) {
+      const clientApp = initializeApp(config);
+      clientDb = getLiteFirestore(clientApp, config.firestoreDatabaseId !== '(default)' ? config.firestoreDatabaseId : undefined);
+    }
+    
+    // Add runLiteOp inside
+    async function runLiteOp(op: () => Promise<any>, name: string) {
+      try {
+        const start = Date.now();
+        const result = await op();
+        console.log(`[Cache] Lite op ${name} took ${Date.now() - start}ms`);
+        return result;
+      } catch(err) { throw err; }
     }
 
     if (admin.apps.length === 0) {
@@ -379,12 +397,16 @@ async function startServer() {
         });
 
         // Add topics from metadata if they weren't in full content bundles
-        const existingTopicIds = new Set(topics.map(t => t.id));
-        for (const metaT of metadataTopics) {
-          if (!existingTopicIds.has(metaT.id)) {
-            topics.push(metaT);
-          }
-        }
+        // Ensure no override occurs from metadata when doing unique tracking
+        const uniqueTopicsMap = new Map();
+        
+        // 1. Add metadata first, so it has lowest priority
+        metadataTopics.forEach(t => { if (t.id) uniqueTopicsMap.set(t.id, t); });
+        
+        // 2. Add full topics last, so they OVERRIDE the metadata with full details
+        topics.forEach(t => { if (t.id) uniqueTopicsMap.set(t.id, t); });
+        
+        topics = Array.from(uniqueTopicsMap.values());
 
         // --- FALLBACK & AUTO-REBUILD IF BUNDLES ARE EMPTY ---
         let fallbackReads = 0;
@@ -409,7 +431,6 @@ async function startServer() {
              settings = rawSettingsSnap.data() || {};
           }
 
-          // --- AUTO REBUILD BUNDLES (So we don't have to fallback again) ---
           if (!contentCache.isQuotaExceeded && !contentCache.hasLoadedFirstTime) {
             console.log('[Cache] Triggering automatic bundle optimization...');
             try {
@@ -426,14 +447,12 @@ async function startServer() {
               const freeContent = topics.filter((t: any) => t.status === 'free');
               const premiumContent = topics.filter((t: any) => t.status === 'premium');
 
-              // Fetch latest notifications for the config bundle
               const notifsSnap = await runFirestoreOp(dbInstance => 
                 dbInstance.collection('notifications').orderBy('timestamp', 'desc').limit(10).get(), 
                 'AutoRebuildNotifs'
               );
               notifications = notifsSnap.docs.map((d: any) => ({ ...d.data(), id: d.id }));
 
-              // Write optimized bundles back to Firestore
               await runFirestoreOp(async (dbInstance) => {
                 const batch = dbInstance.batch();
                 batch.set(dbInstance.collection('bundles').doc('subjects'), { updatedAt, data: subjects });
@@ -455,14 +474,9 @@ async function startServer() {
           }
         }
 
-        // De-duplicate topics and subjects before caching
         const uniqueSubjectsMap = new Map();
         subjects.forEach(s => { if (s.id) uniqueSubjectsMap.set(s.id, s); });
         subjects = Array.from(uniqueSubjectsMap.values());
-
-        const uniqueTopicsMap = new Map();
-        topics.forEach(t => { if (t.id) uniqueTopicsMap.set(t.id, t); });
-        topics = Array.from(uniqueTopicsMap.values());
 
         subjects.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
         topics.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
@@ -470,31 +484,21 @@ async function startServer() {
         contentCache.subjects = subjects;
         contentCache.topics = topics;
         contentCache.settings = settings;
-        contentCache.notifications = notifications; // Store notifications in cache too
+        contentCache.notifications = notifications; 
         contentCache.lastUpdated = Date.now();
         contentCache.hasLoadedFirstTime = true;
         contentCache.isQuotaExceeded = false; // Reset if successful
-        
+
         const totalReads = batchReads + fallbackReads;
         console.log(`[Cache] Success: ${subjects.length} subjects, ${topics.length} topics cached. (Reads: ${totalReads}${fallbackReads > 0 ? ' [WARNING: FALLBACK USED]' : ''})`);
         
         usageTracker.reads += totalReads;
-        
-        // Notify if fallback was used (optional, but helps admin know they need to rebuild)
-        if (fallbackReads > 0) {
-          await sendTelegramNotification(
-            `⚠️ <b>Firestore Cache Fallback Triggered</b>\n\n` +
-            `The server couldn't find optimized bundles and had to perform a full scan.\n` +
-            `📉 <b>Total Reads:</b> <code>${totalReads}</code>\n` +
-            `💡 <b>Action:</b> Go to Admin Panel > Performance and click "Rebuild Bundles".`
-          ).catch(() => {});
-        }
       } catch (err: any) {
-        console.error('[Cache] Failed to refresh content cache:', err.message);
-        if (err.message && (err.message.toLowerCase().includes('quota') || err.message.includes('RESOURCE_EXHAUSTED'))) {
-          contentCache.isQuotaExceeded = true;
-          // Notify via Telegram immediately on quota error
-          await sendTelegramNotification(`🚨 <b>DATABASE CRITICAL: Quota Limit Exceeded</b>\n\nServer cache refresh failed. App will continue to serve from memory if possible.`).catch(() => {});
+        if (err.code === 'resource-exhausted' || err.message?.includes('EXHAUSTED') || err.message?.includes('quota')) {
+           contentCache.isQuotaExceeded = true;
+           console.error('[Cache] CRITICAL QUOTA EXHAUSTED DURING REFRESH!');
+        } else {
+           console.error('[Cache] Cache refresh failed:', err);
         }
       } finally {
         contentCache.isRefreshing = false;
@@ -505,7 +509,7 @@ async function startServer() {
   };
 
   // Startup refresh
-  if (process.env.VITE_USE_LOCAL_DATA === 'true' || !process.env.FIREBASE_SERVICE_ACCOUNT) {
+  if (process.env.VITE_USE_LOCAL_DATA === 'true') {
     console.log('[Cache] LOCAL MODE: Skipping active Firestore cache refresh.');
   } else {
     refreshContentCache().catch(err => {
@@ -550,7 +554,7 @@ async function startServer() {
       // If cache is empty, try to refresh once before responding
       if (!contentCache.hasLoadedFirstTime) {
         // Return blank but valid JSON if in local mode or missing credentials
-        if (process.env.VITE_USE_LOCAL_DATA === 'true' || !process.env.FIREBASE_SERVICE_ACCOUNT) {
+        if (process.env.VITE_USE_LOCAL_DATA === 'true') {
            return res.json({
              status: 'local_mode',
              lastUpdated: 0,
@@ -1104,7 +1108,7 @@ async function startServer() {
   });
 
   // Catch-all for missing API routes to prevent falling through to SPA HTML
-  app.all('/api/*', (req, res) => {
+  app.all('/api/*all', (req, res) => {
     res.status(404).json({ error: 'API route not found', path: req.path });
   });
 
