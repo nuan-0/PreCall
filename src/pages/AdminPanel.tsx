@@ -421,16 +421,24 @@ function AdminNotifications({ showConfirm }: { showConfirm: any }) {
 
     setIsSending(true);
     try {
-      const notificationData = {
-        ...newNotification,
-        userId: 'all',
-        createdAt: new Date().toISOString()
-      };
-      await addDoc(collection(db, 'notifications'), notificationData);
-      toast.success('Notification sent to all users!');
-      setNewNotification({ title: '', message: '', type: 'update' });
+      const response = await fetch('/api/admin/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          userId: user?.uid, 
+          notification: { ...newNotification, userId: 'all' },
+          action: 'create'
+        })
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        toast.success('Notification sent and RAM updated!');
+        setNewNotification({ title: '', message: '', type: 'update' });
+      } else {
+        throw new Error(data.error);
+      }
     } catch (e) {
-      handleFirestoreError(e, OperationType.WRITE, 'notifications');
       toast.error('Failed to send notification');
     } finally {
       setIsSending(false);
@@ -443,10 +451,22 @@ function AdminNotifications({ showConfirm }: { showConfirm: any }) {
       'Are you sure? This will remove the notification for all users.',
       async () => {
         try {
-          await deleteDoc(doc(db, 'notifications', id));
-          toast.success('Notification deleted');
+          const response = await fetch('/api/admin/notifications', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              userId: user?.uid, 
+              notification: { id },
+              action: 'delete'
+            })
+          });
+          const data = await response.json();
+          if (data.success) {
+            toast.success('Notification deleted and RAM updated');
+          } else {
+            throw new Error(data.error);
+          }
         } catch (e) {
-          handleFirestoreError(e, OperationType.DELETE, `notifications/${id}`);
           toast.error('Failed to delete notification');
         }
       }
@@ -1170,10 +1190,10 @@ function AdminSubjects({ showConfirm }: { showConfirm: any }) {
       'Are you sure? This will remove it from RAM cache AND Firestore.',
       async () => {
         try {
-          const response = await fetch('/api/admin/save-subject', {
+          const response = await fetch('/api/admin/delete-subject', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: user?.uid, subject: { id }, action: 'delete' })
+            body: JSON.stringify({ userId: user?.uid, subjectId: id })
           });
           const data = await response.json();
           if (data.success) {

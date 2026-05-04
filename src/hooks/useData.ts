@@ -23,9 +23,9 @@ async function fetchContentOptimized(lastUpdated: number) {
       const contentType = response.headers.get('content-type');
       
       if (!response.ok) {
-        if (response.status === 503) {
+        if (response.status === 503 || response.status === 429) {
           setQuotaStatus(true);
-          throw new Error('SERVICE_BUSY');
+          throw new Error('QUOTA_EXCEEDED');
         }
         throw new Error('CONTENT_LOAD_FAILED');
       }

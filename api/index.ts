@@ -385,45 +385,43 @@ async function startServer() {
           const bundlesSnap = await runLiteOp(() => liteGetDocs(liteCollection(clientDb, 'bundles')), 'CacheBundles');
           totalReads += bundlesSnap.docs.length;
 
-          bundlesSnap.docs.forEach((doc: any) => {
-            const docData = doc.data();
-            const bundleData = docData.data;
-            
-            if (doc.id === 'subjects') {
-              subjects = bundleData || [];
-            } else if (doc.id === 'app_config') {
-              if (docData.settings) settings = docData.settings.global || {};
-              if (docData.notifications) notifications = docData.notifications || [];
-            } else if (doc.id.includes('_free') || doc.id.includes('_premium')) {
-              if (bundleData) topics = topics.concat(bundleData);
-            } else if (doc.id.includes('_metadata')) {
-              if (bundleData) metadataTopics = metadataTopics.concat(bundleData);
-            }
-          });
+          if (bundlesSnap.docs.length > 0) {
+            bundlesSnap.docs.forEach((doc: any) => {
+              const docData = doc.data();
+              const bundleData = docData.data;
+              
+              if (doc.id === 'subjects') {
+                subjects = bundleData || [];
+              } else if (doc.id === 'app_config') {
+                if (docData.settings) settings = docData.settings.global || docData.settings || {};
+                if (docData.notifications) notifications = docData.notifications || [];
+              } else if (doc.id.includes('_free') || doc.id.includes('_premium')) {
+                if (bundleData) topics = topics.concat(bundleData);
+              } else if (doc.id.includes('_metadata')) {
+                if (bundleData) metadataTopics = metadataTopics.concat(bundleData);
+              }
+            });
+            console.log(`[Cache] Bundles loaded: ${subjects.length} subjects, ${topics.length} topics found.`);
+          } else {
+            console.warn('[Cache] No bundles found in Firestore.');
+          }
         } catch (bundleErr: any) {
           console.error('[Cache] Bundle fetch failed:', bundleErr.message);
-          // Continue to fallback if bundles fail
         }
 
-        // Add topics from metadata if they weren't in full content bundles
-        const uniqueTopicsMap = new Map();
-        metadataTopics.forEach(t => { if (t.id) uniqueTopicsMap.set(t.id, t); });
-        topics.forEach(t => { if (t.id) uniqueTopicsMap.set(t.id, t); });
-        topics = Array.from(uniqueTopicsMap.values());
-
-        // Step 2: Fallback to single fetches ONLY if bundles are empty OR force refresh requested
+        // Step 2: fallback to single fetches if bundles are empty or force rebuild requested
         if (subjects.length === 0 || topics.length === 0 || !settings || forceRebuild) {
-          console.warn(`[Cache] Cache incomplete or force rebuild. Doing fallback fetches...`);
+          console.log(`[Cache] Filling gaps from single collections...`);
           
           try {
-            const [rawSubjectsSnap, rawTopicsSnap, rawSettingsSnap] = await Promise.all([
+            const [rawSubjectsSnap, rawTopicsSnap, rawSettingsSnap, rawNotificationsSnap] = await Promise.all([
                runLiteOp(() => liteGetDocs(liteCollection(clientDb, 'subjects')), 'FallbackSubjects'),
                runLiteOp(() => liteGetDocs(liteCollection(clientDb, 'topics')), 'FallbackTopics'),
-               runLiteOp(() => liteGetDoc(liteDoc(clientDb, 'settings', 'global')), 'FallbackSettings')
+               runLiteOp(() => liteGetDoc(liteDoc(clientDb, 'settings', 'global')), 'FallbackSettings'),
+               runLiteOp(() => liteGetDocs(liteCollection(clientDb, 'notifications')), 'FallbackNotifications')
             ]);
             
-            const currentFallbackReads = rawSubjectsSnap.docs.length + rawTopicsSnap.docs.length + 1;
-            totalReads += currentFallbackReads;
+            totalReads += (rawSubjectsSnap.docs.length + rawTopicsSnap.docs.length + 1 + rawNotificationsSnap.docs.length);
 
             if (subjects.length === 0 || forceRebuild) {
                subjects = [];
@@ -435,7 +433,11 @@ async function startServer() {
             }
             if (!settings || forceRebuild) {
                if (rawSettingsSnap.exists()) settings = rawSettingsSnap.data();
-               else settings = {};
+               else settings = contentCache.settings || {};
+            }
+            if (notifications.length === 0 || forceRebuild) {
+               notifications = [];
+               rawNotificationsSnap.forEach((doc: any) => notifications.push({ id: doc.id, ...doc.data() }));
             }
           } catch (fallbackErr: any) {
             console.error('[Cache] Fallback fetch failed:', fallbackErr.message);
@@ -444,9 +446,15 @@ async function startServer() {
           }
         }
 
+        // Add topics from metadata if they weren't in full content bundles
+        const uniqueTopicsMap = new Map();
+        topics.forEach(t => { if (t.id || t.slug) uniqueTopicsMap.set(t.id || t.slug, t); });
+        metadataTopics.forEach(t => { if (t.id || t.slug) uniqueTopicsMap.set(t.id || t.slug, t); });
+        topics = Array.from(uniqueTopicsMap.values());
+
         // Final data cleaning and sorting
         const uniqueSubjectsMap = new Map();
-        subjects.forEach(s => { if (s.id) uniqueSubjectsMap.set(s.id, s); });
+        subjects.forEach(s => { if (s.id || s.slug) uniqueSubjectsMap.set(s.id || s.slug, s); });
         subjects = Array.from(uniqueSubjectsMap.values()).sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
         topics.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
 
@@ -617,9 +625,26 @@ async function startServer() {
       }
       contentCache.lastUpdated = Date.now();
 
-      // 3. Background: rebuild relevant subject bundle in Firestore (if possible)
-      // For now, refresh cache handles this broadly if rebuild is true. 
-      // But we already patched RAM, so it's instant for users.
+      // 3. Immediatly update the "pond" (bundle) from RAM for this subject
+      const subjectSlug = topic.subjectSlug;
+      if (subjectSlug) {
+        const subjectTopics = contentCache.topics.filter(t => t.subjectSlug === subjectSlug);
+        const freeTopics = subjectTopics.filter(t => t.status === 'free');
+        const premiumTopics = subjectTopics.filter(t => t.status === 'premium' || t.status === 'live');
+        const metadata = subjectTopics.map(t => ({ 
+          id: t.id, slug: t.slug, title: t.title, chapter: t.chapter, 
+          status: t.status, order: t.order, teaser: t.teaser,
+          examRelevance: t.examRelevance, estimatedTime: t.estimatedTime
+        }));
+
+        // Write bundles back to Firestore
+        await Promise.all([
+          runFirestoreOp(db => db.collection('bundles').doc(`${subjectSlug}_free`).set({ data: freeTopics, lastUpdated: contentCache.lastUpdated }), 'UpdateBundleFree'),
+          runFirestoreOp(db => db.collection('bundles').doc(`${subjectSlug}_premium`).set({ data: premiumTopics, lastUpdated: contentCache.lastUpdated }), 'UpdateBundlePremium'),
+          runFirestoreOp(db => db.collection('bundles').doc(`${subjectSlug}_metadata`).set({ data: metadata, lastUpdated: contentCache.lastUpdated }), 'UpdateBundleMeta')
+        ]);
+        console.log(`[Admin] Bundles updated for ${subjectSlug}`);
+      }
       
       res.json({ success: true, topicId, lastUpdated: contentCache.lastUpdated });
     } catch (err: any) {
@@ -634,10 +659,31 @@ async function startServer() {
     if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
 
     try {
+      const topicToDelete = contentCache.topics.find(t => t.id === topicId);
       await runFirestoreOp(dbInstance => dbInstance.collection('topics').doc(topicId).delete(), 'DeleteTopicFirestore');
       contentCache.topics = contentCache.topics.filter(t => t.id !== topicId);
       contentCache.lastUpdated = Date.now();
-      res.json({ success: true });
+
+      // Update bundle from RAM
+      const subjectSlug = topicToDelete?.subjectSlug;
+      if (subjectSlug) {
+        const subjectTopics = contentCache.topics.filter(t => t.subjectSlug === subjectSlug);
+        const freeTopics = subjectTopics.filter(t => t.status === 'free');
+        const premiumTopics = subjectTopics.filter(t => t.status === 'premium' || t.status === 'live');
+        const metadata = subjectTopics.map(t => ({ 
+          id: t.id, slug: t.slug, title: t.title, chapter: t.chapter, 
+          status: t.status, order: t.order, teaser: t.teaser,
+          examRelevance: t.examRelevance, estimatedTime: t.estimatedTime
+        }));
+
+        await Promise.all([
+          runFirestoreOp(db => db.collection('bundles').doc(`${subjectSlug}_free`).set({ data: freeTopics, lastUpdated: contentCache.lastUpdated }), 'UpdateBundleFree'),
+          runFirestoreOp(db => db.collection('bundles').doc(`${subjectSlug}_premium`).set({ data: premiumTopics, lastUpdated: contentCache.lastUpdated }), 'UpdateBundlePremium'),
+          runFirestoreOp(db => db.collection('bundles').doc(`${subjectSlug}_metadata`).set({ data: metadata, lastUpdated: contentCache.lastUpdated }), 'UpdateBundleMeta')
+        ]);
+      }
+
+      res.json({ success: true, lastUpdated: contentCache.lastUpdated });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -663,7 +709,31 @@ async function startServer() {
         contentCache.subjects.push({ ...subjectData, id: subjectId });
       }
       contentCache.lastUpdated = Date.now();
-      res.json({ success: true, subjectId });
+
+      // Update the subjects bundle in Firestore instantly
+      await runFirestoreOp(db => db.collection('bundles').doc('subjects').set({ data: contentCache.subjects, lastUpdated: contentCache.lastUpdated }), 'UpdateSubjectsBundle');
+      
+      res.json({ success: true, subjectId, lastUpdated: contentCache.lastUpdated });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // API: Admin Subject Delete
+  app.post('/api/admin/delete-subject', async (req, res) => {
+    const { userId, subjectId } = req.body || {};
+    const isAdmin = await checkIsAdmin(userId);
+    if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+
+    try {
+      await runFirestoreOp(dbInstance => dbInstance.collection('subjects').doc(subjectId).delete(), 'DeleteSubjectFirestore');
+      contentCache.subjects = contentCache.subjects.filter(s => s.id !== subjectId);
+      contentCache.lastUpdated = Date.now();
+
+      // Update the subjects bundle in Firestore instantly
+      await runFirestoreOp(db => db.collection('bundles').doc('subjects').set({ data: contentCache.subjects, lastUpdated: contentCache.lastUpdated }), 'UpdateSubjectsBundle');
+      
+      res.json({ success: true, lastUpdated: contentCache.lastUpdated });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -700,7 +770,15 @@ async function startServer() {
         contentCache.notifications.push({ ...notification, id: ref.id });
       }
       contentCache.lastUpdated = Date.now();
-      res.json({ success: true });
+
+      // Update the app_config bundle (which includes notifications)
+      await runFirestoreOp(db => db.collection('bundles').doc('app_config').set({ 
+        notifications: contentCache.notifications, 
+        settings: { global: contentCache.settings },
+        lastUpdated: contentCache.lastUpdated 
+      }), 'UpdateAppConfigBundle');
+
+      res.json({ success: true, lastUpdated: contentCache.lastUpdated });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
