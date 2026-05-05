@@ -49,7 +49,8 @@ export function PremiumPage() {
   };
 
   // Sort subjects to show Live ones first
-  const validPdfs = subjects.filter(s => s.status === 'live' && s.pdfVisible);
+  const normalizedSubjects = Array.isArray(subjects) ? subjects : [];
+  const validPdfs = normalizedSubjects.filter(s => s.status === 'live' && s.pdfVisible);
 
   const togglePdfSelection = (slug: string) => {
     if (profile?.ownedPdfs?.includes(slug)) return;

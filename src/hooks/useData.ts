@@ -72,7 +72,7 @@ export async function fetchGlobalData(force = false) {
       }
 
       if (data) {
-        const normalizedSubjects = normalizeArray(data.subjects);
+        const normalizedSubjects = normalizeArray(data.subjects || data.data);
         setCache('subjects', normalizedSubjects);
         
         let allTopics: Topic[] = [];
