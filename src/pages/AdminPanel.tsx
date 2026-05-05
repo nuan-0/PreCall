@@ -1037,7 +1037,7 @@ D. Article 22
       </header>
 
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Live Subjects" value={subjects.filter(s => s.status === 'live').length.toString()} icon={BookOpen} color="violet" subtitle="Active categories" />
+        <StatCard title="Live Subjects" value={(Array.isArray(subjects) ? subjects : []).filter(s => s.status === 'live').length.toString()} icon={BookOpen} color="violet" subtitle="Active categories" />
         <StatCard title="Total Topics" value={topics.length.toString()} icon={FileText} color="blue" subtitle="Revision units" />
         <StatCard title="Current Price" value={settings?.price ? `₹${settings.price}` : '₹999'} icon={Zap} color="amber" subtitle="Premium access" />
         <StatCard title="Sponsor" value={settings?.sponsorName || 'None'} icon={Users} color="emerald" subtitle="Active partner" />
@@ -1569,7 +1569,7 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
     }
   };
 
-  const filteredTopics = topics.filter(t => filterSubject === 'all' || t.subjectSlug === filterSubject);
+  const filteredTopics = (Array.isArray(topics) ? topics : []).filter(t => filterSubject === 'all' || t.subjectSlug === filterSubject);
 
   useEffect(() => {
     setSelectedIds(new Set());
@@ -2499,7 +2499,7 @@ function AdminAccess({ showConfirm }: { showConfirm: any }) {
       async () => {
         setIsSaving(true);
         try {
-          const dynamicAdmins = adminEmails.filter(e => e !== 'precall.admin@gmail.com');
+          const dynamicAdmins = (Array.isArray(adminEmails) ? adminEmails : []).filter(e => e !== 'precall.admin@gmail.com');
           const newAdminList = [...dynamicAdmins, emailToAdd];
           
           const response = await fetch('/api/admin/save-admins', {
@@ -2541,7 +2541,7 @@ function AdminAccess({ showConfirm }: { showConfirm: any }) {
       async () => {
         setIsSaving(true);
         try {
-          const dynamicAdmins = adminEmails.filter(e => e !== 'precall.admin@gmail.com' && e !== emailToRemove);
+          const dynamicAdmins = (Array.isArray(adminEmails) ? adminEmails : []).filter(e => e !== 'precall.admin@gmail.com' && e !== emailToRemove);
           const response = await fetch('/api/admin/save-admins', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

@@ -3,7 +3,7 @@ import { Subject, Topic, AppSettings, UserProfile, AppNotification } from '../ty
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 
-const CACHE_PREFIX = 'precall_cache_';
+const CACHE_PREFIX = 'precall_cache_v5_';
 // Add in-memory cache to prevent multiple renders
 let memoryCache: Record<string, any> = {};
 let globalFetchPromise: Promise<void> | null = null;
@@ -15,6 +15,12 @@ export function getCache<T>(key: string): T | null {
   if (!cached) return null;
   try {
     const parsed = JSON.parse(cached);
+    // Explicit array guard for known collections
+    if (['subjects', 'topics_all', 'notifications_all'].includes(key) && !Array.isArray(parsed)) {
+      const normalized = normalizeArray(parsed);
+      memoryCache[key] = normalized;
+      return normalized as unknown as T;
+    }
     memoryCache[key] = parsed;
     return parsed;
   } catch {
@@ -73,11 +79,13 @@ export async function fetchGlobalData(force = false) {
 
       if (data) {
         const normalizedSubjects = normalizeArray(data.subjects || data.data);
+        const normalizedSettings = data.settings || {};
+        const normalizedNotifications = normalizeArray(data.notifications);
+        
         setCache('subjects', normalizedSubjects);
         
         let allTopics: Topic[] = [];
         
-        // Always derive allTopics from subjects as the single source of truth
         normalizedSubjects.forEach((subj: Subject) => {
           const subjTopics = normalizeArray(subj.topics);
           if (subjTopics.length > 0) {
@@ -86,8 +94,8 @@ export async function fetchGlobalData(force = false) {
         });
         
         setCache('topics_all', allTopics);
-        if (data.settings) setCache('settings', data.settings);
-        if (data.notifications) setCache('notifications_all', normalizeArray(data.notifications));
+        if (normalizedSettings) setCache('settings', normalizedSettings);
+        if (normalizedNotifications.length > 0) setCache('notifications_all', normalizedNotifications);
         if (data.lastUpdated) localStorage.setItem(CACHE_PREFIX + 'lastUpdated', data.lastUpdated.toString());
         
         eventTarget.dispatchEvent(new Event('data_updated'));
