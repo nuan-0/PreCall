@@ -20,7 +20,7 @@ async function extractDocs() {
     const topicsSnap = await getDocs(collection(db, 'topics'));
     const topicsBySubject: Record<string, any[]> = {};
     topicsSnap.forEach(doc => {
-      const topic = { id: doc.id, ...doc.data() };
+      const topic: any = { id: doc.id, ...doc.data() };
       const slug = topic.subjectSlug;
       if (slug) {
         if (!topicsBySubject[slug]) topicsBySubject[slug] = [];

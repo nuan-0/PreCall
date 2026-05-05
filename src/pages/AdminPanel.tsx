@@ -275,7 +275,7 @@ export function AdminPanel() {
       
       const topicsBySubject: Record<string, any[]> = {};
       topicsSnap.forEach((tDoc) => {
-        const topic = { id: tDoc.id, ...tDoc.data() };
+        const topic: any = { id: tDoc.id, ...tDoc.data() };
         const slug = topic.subjectSlug;
         if (slug) {
           if (!topicsBySubject[slug]) topicsBySubject[slug] = [];
