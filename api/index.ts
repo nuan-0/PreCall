@@ -429,23 +429,23 @@ async function startServer() {
             subjects = normalizeArray(rawData?.data || rawData?.subjects || rawData);
           }
 
-          // Force Fallback if bundle fetch failed OR yielded 0 subjects
-          let fallbackUsed = subjects.length === 0;
-          let fallbackTopics: any[] = [];
+          // Fetch fallback collections (always fetch topics to ensure robustness)
+          const [rawSubjectsSnap, rawTopicsSnap] = await Promise.all([
+            subjects.length === 0 ? db.collection('subjects').get().catch(() => null) : Promise.resolve(null),
+            db.collection('topics').get().catch(() => null)
+          ]);
 
-          if (fallbackUsed) {
-            console.log('[Cache] Bundled subjects empty or missing. Falling back to collections...');
-            const [rawSubjectsSnap, rawTopicsSnap] = await Promise.all([
-              db.collection('subjects').get().catch(() => null),
-              db.collection('topics').get().catch(() => null)
-            ]);
-            
-            if (rawSubjectsSnap && !rawSubjectsSnap.empty) {
-              rawSubjectsSnap.forEach(doc => subjects.push({ id: doc.id, ...doc.data() }));
-            }
-            if (rawTopicsSnap && !rawTopicsSnap.empty) {
-              rawTopicsSnap.forEach(doc => fallbackTopics.push({ id: doc.id, ...doc.data() }));
-            }
+          if (rawSubjectsSnap && !rawSubjectsSnap.empty) {
+            console.log('[Cache] Subjects bundle empty, using subjects collection fallback');
+            rawSubjectsSnap.forEach(doc => {
+              const data = doc.data();
+              subjects.push({ id: doc.id, slug: data.slug || doc.id, ...data });
+            });
+          }
+
+          let fallbackTopics: any[] = [];
+          if (rawTopicsSnap && !rawTopicsSnap.empty) {
+            rawTopicsSnap.forEach(doc => fallbackTopics.push({ id: doc.id, ...doc.data() }));
           }
 
           // Fetch individual topic bundles for each subject in parallel
@@ -453,8 +453,9 @@ async function startServer() {
             const topicBundles = await Promise.all(subjects.map(async (s: any) => {
               try {
                 let topicsFromBundles: any[] = [];
-                // If we didn't use fallback for subjects, we should try bundles for topics first
-                if (!fallbackUsed) {
+                // If we didn't use fallback for subjects collection (meaning we used bundles), 
+                // we should try bundles for topics first
+                if (subjectsBundleDoc?.exists) {
                   // Try BOTH naming versions: "{slug}_x" and "topics_{slug}_x"
                   const getDocWithFallback = async (baseName: string) => {
                     const d1 = await db.collection('bundles').doc(baseName).get().catch(() => null);
@@ -505,8 +506,9 @@ async function startServer() {
               const bundle = topicBundles.find(b => b.slug === s.slug);
               if (bundle && bundle.topics.length > 0) {
                 s.topics = bundle.topics;
-              } else if (!s.topics) {
-                s.topics = [];
+              } else {
+                // Ensure s.topics is always a normalized array even if no bundle found
+                s.topics = normalizeArray(s.topics);
               }
             });
           }
@@ -618,34 +620,8 @@ async function startServer() {
         await refreshContentCache(true);
       }
 
-      // If we have nothing and it's currently refreshing, wait briefly but not forever
-      if (!contentCache.hasLoadedFirstTime && activeRefreshPromise) {
-        const timeout = new Promise(resolve => setTimeout(() => resolve('timeout'), 5000));
-        const result = await Promise.race([activeRefreshPromise, timeout]);
-        if (result === 'timeout') {
-          console.warn('[API Content] Cache refresh is taking too long, responding with partial/empty data');
-        }
-      }
-
-      // If Quota is exceeded, inform client specifically
-      if (contentCache.isQuotaExceeded) {
-        return res.status(503).json({ 
-          error: 'Database service is currently under heavy load (Quota Exceeded).', 
-          errorType: 'quota', 
-          status: 'error'
-        });
-      }
-
-      // If we still have nothing after waiting, try one last check but don't block
-      if (!contentCache.hasLoadedFirstTime) {
-        if (process.env.VITE_USE_LOCAL_DATA === 'true') {
-           return res.json({ status: 'local_mode', lastUpdated: 0, subjects: [], topics: [], settings: null });
-        }
-        // If it still hasn't loaded, return what we have (even if empty) to avoid 500
-      }
-
       // Check if client version is still valid
-      if (clientLastUpdated >= contentCache.lastUpdated && contentCache.lastUpdated > 0 && !contentCache.isRefreshing) {
+      if (!forceRefresh && clientLastUpdated >= contentCache.lastUpdated && contentCache.lastUpdated > 0 && !contentCache.isRefreshing) {
         return res.json({ status: 'unchanged', lastUpdated: contentCache.lastUpdated });
       }
 
@@ -708,7 +684,7 @@ async function startServer() {
 
       const subjectRef = subjectDoc.docs[0].ref;
       const subject = subjectDoc.docs[0].data();
-      let topics = subject.topics || [];
+      let topics = normalizeArray(subject.topics);
       const existingIdx = topics.findIndex((t: any) => t.id === topicId || (t.slug === topic.slug));
       
       if (existingIdx !== -1) {

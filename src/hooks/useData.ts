@@ -86,27 +86,36 @@ export async function fetchGlobalData(force = false) {
       }
 
       if (data) {
-        const normalizedSubjects = normalizeArray(data.subjects || data.data);
+        // Deeply normalize subjects and their nested topics
+        const rawSubjects = data.subjects || data.data;
+        const subjectsArray = normalizeArray(rawSubjects);
+        
+        const normalizedSubjects = subjectsArray.map((subj: any) => ({
+          ...subj,
+          topics: normalizeArray(subj.topics)
+        }));
+
         const normalizedSettings = data.settings || {};
         const normalizedNotifications = normalizeArray(data.notifications);
         
         setCache('subjects', normalizedSubjects);
         
         let allTopics: Topic[] = [];
-        
         normalizedSubjects.forEach((subj: Subject) => {
-          const subjTopics = normalizeArray(subj.topics);
-          if (subjTopics.length > 0) {
-            allTopics = [...allTopics, ...subjTopics];
+          if (subj.topics && Array.isArray(subj.topics)) {
+            allTopics = [...allTopics, ...subj.topics];
           }
         });
         
         setCache('topics_all', allTopics);
         if (normalizedSettings) setCache('settings', normalizedSettings);
         if (normalizedNotifications.length > 0) setCache('notifications_all', normalizedNotifications);
-        if (data.lastUpdated) localStorage.setItem(CACHE_PREFIX + 'lastUpdated', data.lastUpdated.toString());
         
-        eventTarget.dispatchEvent(new Event('data_updated'));
+        // Only trigger update and save timestamp if we actually got data or if it's explicitly cleared
+        if (normalizedSubjects.length > 0 || data.lastUpdated) {
+          if (data.lastUpdated) localStorage.setItem(CACHE_PREFIX + 'lastUpdated', data.lastUpdated.toString());
+          eventTarget.dispatchEvent(new Event('data_updated'));
+        }
       }
     } catch (err: any) {
       console.error('[Data Fetch] Error:', err.message);
