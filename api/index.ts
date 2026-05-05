@@ -394,6 +394,21 @@ async function startServer() {
         let adminEmails: string[] = [];
         let admins: string[] = [];
 
+        const normalizeArray = (input: any): any[] => {
+          if (!input) return [];
+          if (Array.isArray(input)) return input;
+          if (typeof input === 'object') {
+            // Check if it's an object with numeric keys (0, 1, 2...)
+            const keys = Object.keys(input).filter(k => !isNaN(Number(k)));
+            if (keys.length > 0) {
+              return keys.sort((a, b) => Number(a) - Number(b)).map(k => input[k]);
+            }
+            // If it's a general object, return it as a single-element array if it's not empty
+            return Object.keys(input).length > 0 ? [input] : [];
+          }
+          return [];
+        };
+
         try {
           // Fetch consolidated bundles instead of raw collections
           const [subjectsBundleDoc, appConfigBundleDoc, adminsSnap, adminEmailsDoc] = await Promise.all([
@@ -405,9 +420,12 @@ async function startServer() {
 
           if (subjectsBundleDoc?.exists) {
             const rawData = subjectsBundleDoc.data();
-            subjects = rawData?.data || rawData?.subjects || [];
-          } else {
-            // Fallback to subjects collection if bundle doesn't exist
+            subjects = normalizeArray(rawData?.data || rawData?.subjects);
+          }
+
+          // Force Fallback if bundle fetch failed OR yielded 0 subjects
+          if (subjects.length === 0) {
+            console.log('[Cache] Bundled subjects empty or missing. Falling back to subjects collection...');
             const rawSubjectsSnap = await db.collection('subjects').get().catch(() => null);
             if (rawSubjectsSnap && !rawSubjectsSnap.empty) {
               rawSubjectsSnap.forEach(doc => subjects.push({ id: doc.id, ...doc.data() }));
@@ -431,11 +449,11 @@ async function startServer() {
                    getDocWithFallback(`${s.slug}_premium`)
                 ]);
 
-                // Merge them into a single topics array
+                // Merge them into a single topics array with normalization
                 const mergedTopics = [
-                  ...(meta?.exists ? (meta.data()?.data || []) : []),
-                  ...(free?.exists ? (free.data()?.data || []) : []),
-                  ...(prem?.exists ? (prem.data()?.data || []) : [])
+                  ...normalizeArray(meta?.exists ? meta.data()?.data : null),
+                  ...normalizeArray(free?.exists ? free.data()?.data : null),
+                  ...normalizeArray(prem?.exists ? prem.data()?.data : null)
                 ];
 
                 return {
