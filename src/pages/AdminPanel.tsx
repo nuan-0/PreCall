@@ -574,7 +574,7 @@ function AdminOverview({ showConfirm }: { showConfirm: any }) {
   const refreshServerCache = async (rebuild = false) => {
     const toastId = toast.loading(rebuild ? 'Rebuilding & Refreshing...' : 'Refreshing server cache...');
     try {
-      const response = await fetch('/api/admin/refresh-cache', {
+      const response = await fetch('/api/admin/rebuild-cache', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: user?.uid, rebuild })
@@ -786,10 +786,10 @@ D. The Fundamental Duties
         await bundleService.rebuildAllBundles();
         
         // Force server cache refresh
-        fetch('/api/admin/refresh-cache', {
+        fetch('/api/admin/rebuild-cache', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: user?.uid })
+          body: JSON.stringify({ userId: user?.uid, rebuild: true })
         }).catch(err => console.warn('Cache refresh failed:', err));
 
         toast.success(`Seeded ${addedSubjects} subjects and ${addedTopics} topics! Bundles rebuilt.`);
@@ -863,10 +863,10 @@ D. The Fundamental Duties
           await bundleService.rebuildTopicBundle('polity');
           
           // Force server cache refresh
-          fetch('/api/admin/refresh-cache', {
+          fetch('/api/admin/rebuild-cache', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: user?.uid })
+            body: JSON.stringify({ userId: user?.uid, rebuild: true })
           }).catch(err => console.warn('Cache refresh failed:', err));
 
           toast.success('Preamble content added and bundle rebuilt!');
@@ -956,10 +956,10 @@ D. Article 22
           await bundleService.rebuildTopicBundle('polity');
           
           // Force server cache refresh
-          fetch('/api/admin/refresh-cache', {
+          fetch('/api/admin/rebuild-cache', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: user?.uid })
+            body: JSON.stringify({ userId: user?.uid, rebuild: true })
           }).catch(err => console.warn('Cache refresh failed:', err));
 
           toast.success('Article 21 content added and bundle rebuilt!');
@@ -1167,6 +1167,7 @@ function AdminSubjects({ showConfirm }: { showConfirm: any }) {
         if (data.success) {
           toast.success('Subject saved and RAM cache updated!');
           setEditingSubject(null);
+          window.dispatchEvent(new Event('data_updated'));
         } else {
           throw new Error(data.error);
         }
@@ -1550,15 +1551,17 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
       async () => {
         const toastId = toast.loading(`Deleting ${count} topics...`);
         try {
-          for (const topicId of selectedIds) {
-            await fetch('/api/admin/delete-topic', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ userId: user?.uid, topicId })
-            });
-          }
+          const response = await fetch('/api/admin/bulk-delete-topics', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: user?.uid, topicIds: Array.from(selectedIds) })
+          });
+          const data = await response.json();
+          if(!data.success) throw new Error(data.error);
+
           toast.success(`${count} topics deleted and cache updated`, { id: toastId });
           setSelectedIds(new Set());
+          window.dispatchEvent(new Event('data_updated'));
         } catch (err) {
           toast.error('Failed to delete some topics', { id: toastId });
         }
@@ -1598,6 +1601,7 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
         if (data.success) {
           toast.success('Topic saved and RAM cache updated!');
           setEditingTopic(null);
+          window.dispatchEvent(new Event('data_updated'));
         } else {
           throw new Error(data.error);
         }
@@ -1629,6 +1633,7 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
           const data = await response.json();
           if (data.success) {
             toast.success('Topic deleted and RAM refreshed');
+            window.dispatchEvent(new Event('data_updated'));
           } else {
             throw new Error(data.error);
           }
@@ -1652,14 +1657,16 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
 
         const toastId = toast.loading(`Deleting ${filteredTopics.length} topics...`);
         try {
-          for (const t of filteredTopics) {
-            await fetch('/api/admin/delete-topic', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ userId: user?.uid, topicId: t.id })
-            });
-          }
+          const response = await fetch('/api/admin/bulk-delete-topics', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: user?.uid, topicIds: filteredTopics.map(t => t.id) })
+          });
+          const data = await response.json();
+          if(!data.success) throw new Error(data.error);
+
           toast.success(`Successfully deleted ${filteredTopics.length} topics and updated cache`, { id: toastId });
+          window.dispatchEvent(new Event('data_updated'));
         } catch (e) {
           toast.error('Failed to delete some topics', { id: toastId });
         }
@@ -2218,6 +2225,7 @@ function AdminSettings({ showConfirm }: { showConfirm: any }) {
           const data = await response.json();
           if (data.success) {
             toast.success('Settings updated and RAM cache refreshed!');
+            window.dispatchEvent(new Event('data_updated'));
           } else {
             throw new Error(data.error);
           }
@@ -2349,6 +2357,48 @@ function AdminSettings({ showConfirm }: { showConfirm: any }) {
         </div>
 
         <div className="space-y-8">
+          <Card className="p-8 border-slate-200 shadow-sm space-y-6">
+            <div className="flex items-center gap-3 pb-2 border-b border-slate-100">
+              <div className="p-1.5 rounded-lg bg-emerald-100 text-emerald-600">
+                <RefreshCw className="h-4 w-4" />
+              </div>
+              <h4 className="text-xs font-bold text-slate-900 uppercase tracking-widest">Auto-Sync Status</h4>
+            </div>
+            <p className="text-xs font-medium text-slate-500 leading-relaxed">
+              System pings Firestore every 2 hours and after every save. Your bundles for 2016 and other years are preserved and updated smartly automatically.
+            </p>
+            <Button 
+              variant="outline" 
+              className="w-full text-xs"
+              icon={RefreshCw}
+              onClick={() => {
+                showConfirm(
+                  'Force Global Sync',
+                  'The system syncs automatically, but you can force a full rebuild if you notice data inconsistency. Continue?',
+                  async () => {
+                    try {
+                      const response = await fetch('/api/admin/rebuild-cache', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userId: user?.uid })
+                      });
+                      const data = await response.json();
+                      if (data.success) {
+                        toast.success(`Sync Complete! ${data.subjectsCount} subjects and ${data.topicsCount} topics verified.`);
+                      } else {
+                        toast.error(data.error || 'Sync failed');
+                      }
+                    } catch (e: any) {
+                      toast.error(`Sync failed: ${e.message}`);
+                    }
+                  }
+                );
+              }}
+            >
+              Force Global Sync
+            </Button>
+          </Card>
+
           <Card className="p-8 border-slate-200 shadow-sm bg-slate-50 space-y-6">
             <div className="flex items-center gap-3">
               <div className="p-1.5 rounded-lg bg-violet-100 text-violet-600">

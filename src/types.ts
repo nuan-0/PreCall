@@ -10,7 +10,7 @@ export interface Subject {
   pdfPassword?: string;
   pdfVisible?: boolean;
   pdfAccessType?: 'free' | 'premium';
-  lastUpdated?: number;
+  topics?: Topic[]; // Added for Bundle Architecture
 }
 
 export interface Topic {
@@ -24,7 +24,7 @@ export interface Topic {
   order: number;
   examRelevance: string;
   estimatedTime: string;
-  lastUpdated: number;
+  lastUpdated: string;
   pdfUrl?: string;
   pdfPassword?: string;
   infographicUrl?: string;

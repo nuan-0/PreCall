@@ -381,115 +381,65 @@ async function startServer() {
       console.log(`[Cache] Refreshing content cache (Rebuild: ${forceRebuild})...`);
       try {
         let subjects: any[] = [];
-        let topics: any[] = [];
-        let metadataTopics: any[] = [];
         let settings: any = null;
         let notifications: any[] = [];
-        let totalReads = 0;
+        let adminEmails: string[] = [];
+        let admins: string[] = [];
 
-        // Step 1: Try reading from bundles first (Highest read efficiency: 1 read = 100+ documents)
-        console.log('[Cache] Attempting bundle fetch...');
         try {
-          const bundlesSnap = await runLiteOp(() => liteGetDocs(liteCollection(clientDb, 'bundles')), 'CacheBundles');
-          totalReads += bundlesSnap.docs.length;
+          const [rawSubjectsSnap, rawSettingsSnap, rawNotificationsSnap, rawAdminsSnap, rawEmailsSnap, rawTopicsSnap] = await Promise.all([
+             db.collection('subjects').get().catch(() => null),
+             db.collection('settings').doc('global').get().catch(() => null),
+             db.collection('notifications').get().catch(() => null),
+             db.collection('admins').get().catch(() => null),
+             db.collection('settings').doc('admins').get().catch(() => null),
+             db.collection('topics').get().catch(() => null)
+          ]);
 
-          if (bundlesSnap.docs.length > 0) {
-            bundlesSnap.docs.forEach((doc: any) => {
-              const docData = doc.data();
-              const bundleData = docData.data;
-              
-              if (doc.id === 'subjects') {
-                subjects = bundleData || [];
-              } else if (doc.id === 'app_config') {
-                if (docData.settings) settings = docData.settings.global || docData.settings || {};
-                if (docData.notifications) notifications = docData.notifications || [];
-              } else if (doc.id.includes('_free') || doc.id.includes('_premium')) {
-                if (bundleData) topics = topics.concat(bundleData);
-              } else if (doc.id.includes('_metadata')) {
-                if (bundleData) metadataTopics = metadataTopics.concat(bundleData);
-              }
-            });
-            console.log(`[Cache] Bundles loaded: ${subjects.length} subjects, ${topics.length} topics found.`);
-          } else {
-            console.warn('[Cache] No bundles found in Firestore.');
+          if (rawSubjectsSnap && !rawSubjectsSnap.empty) {
+             rawSubjectsSnap.forEach(doc => subjects.push({ id: doc.id, ...doc.data() }));
           }
-        } catch (bundleErr: any) {
-          console.error('[Cache] Bundle fetch failed:', bundleErr.message);
+
+          if (rawTopicsSnap && !rawTopicsSnap.empty) {
+             const allTopics: any[] = [];
+             rawTopicsSnap.forEach(t => allTopics.push({ id: t.id, ...t.data() }));
+             subjects.forEach(sub => {
+                if (!sub.topics || sub.topics.length === 0) {
+                   sub.topics = allTopics.filter(t => t.subjectSlug === sub.slug);
+                }
+             });
+          }
+
+          if (rawSettingsSnap?.exists) {
+             settings = rawSettingsSnap.data();
+          }
+          if (rawNotificationsSnap && !rawNotificationsSnap.empty) {
+             rawNotificationsSnap.forEach(doc => notifications.push({ id: doc.id, ...doc.data() }));
+          }
+          if (rawAdminsSnap && !rawAdminsSnap.empty) {
+             rawAdminsSnap.forEach(doc => admins.push(doc.id));
+          }
+          if (rawEmailsSnap?.exists) {
+            adminEmails = rawEmailsSnap.data()?.emails || [];
+          }
+        } catch (fallbackErr: any) {
+          console.error('[Cache] Fetch failed:', fallbackErr.message);
+          if (subjects.length === 0 && !contentCache.hasLoadedFirstTime) throw fallbackErr;
         }
 
-        // Step 2: fallback to single fetches if bundles are empty or force rebuild requested
-        if (subjects.length === 0 || topics.length === 0 || !settings || forceRebuild) {
-          console.log(`[Cache] Filling gaps from single collections...`);
-          
-          try {
-            const [rawSubjectsSnap, rawTopicsSnap, rawSettingsSnap, rawNotificationsSnap, rawAdminsSnap, rawAdminEmailsSnap] = await Promise.all([
-               runLiteOp(() => liteGetDocs(liteCollection(clientDb, 'subjects')), 'FallbackSubjects').catch(e => ({ docs: [], error: e })),
-               runLiteOp(() => liteGetDocs(liteCollection(clientDb, 'topics')), 'FallbackTopics').catch(e => ({ docs: [], error: e })),
-               runLiteOp(() => liteGetDoc(liteDoc(clientDb, 'settings', 'global')), 'FallbackSettings').catch(e => ({ exists: () => false, data: () => null, error: e })),
-               runLiteOp(() => liteGetDocs(liteCollection(clientDb, 'notifications')), 'FallbackNotifications').catch(e => ({ docs: [], error: e })),
-               runLiteOp(() => liteGetDocs(liteCollection(clientDb, 'admins')), 'FallbackAdmins').catch(e => ({ docs: [], error: e })),
-               runLiteOp(() => liteGetDoc(liteDoc(clientDb, 'settings', 'admins')), 'FallbackAdminEmails').catch(e => ({ exists: () => false, data: () => null, error: e }))
-            ]);
-            
-            totalReads += ((rawSubjectsSnap.docs?.length || 0) + (rawTopicsSnap.docs?.length || 0) + 1 + (rawNotificationsSnap.docs?.length || 0) + (rawAdminsSnap.docs?.length || 0) + 1);
-
-            if ((subjects.length === 0 || forceRebuild) && (rawSubjectsSnap.docs?.length || 0) > 0) {
-               subjects = [];
-               rawSubjectsSnap.forEach((doc: any) => subjects.push({ id: doc.id, ...doc.data() }));
-            }
-            if ((topics.length === 0 || forceRebuild) && (rawTopicsSnap.docs?.length || 0) > 0) {
-               topics = [];
-               rawTopicsSnap.forEach((doc: any) => topics.push({ id: doc.id, ...doc.data() }));
-            }
-            if (!settings || forceRebuild) {
-               if (rawSettingsSnap.exists()) settings = rawSettingsSnap.data();
-               else settings = contentCache.settings || {};
-            }
-            if ((notifications.length === 0 || forceRebuild) && (rawNotificationsSnap.docs?.length || 0) > 0) {
-               notifications = [];
-               rawNotificationsSnap.forEach((doc: any) => notifications.push({ id: doc.id, ...doc.data() }));
-            }
-            
-            // Always refresh admin UIDs to the cache
-            const adminUids: string[] = [];
-            if (rawAdminsSnap.docs) {
-              rawAdminsSnap.forEach((doc: any) => adminUids.push(doc.id));
-              contentCache.admins = adminUids;
-            }
-
-            if (rawAdminEmailsSnap.exists()) {
-              contentCache.adminEmails = rawAdminEmailsSnap.data().emails || [];
-            }
-
-          } catch (fallbackErr: any) {
-            console.error('[Cache] Fallback fetch failed:', fallbackErr.message);
-            // If fallback also fails and we have NOTHING, then we have a real problem
-            if (subjects.length === 0 && !contentCache.hasLoadedFirstTime) throw fallbackErr;
-          }
-        }
-
-        // Add topics from metadata if they weren't in full content bundles
-        const uniqueTopicsMap = new Map();
-        topics.forEach(t => { if (t.id || t.slug) uniqueTopicsMap.set(t.id || t.slug, t); });
-        metadataTopics.forEach(t => { if (t.id || t.slug) uniqueTopicsMap.set(t.id || t.slug, t); });
-        topics = Array.from(uniqueTopicsMap.values());
-
-        // Final data cleaning and sorting
-        const uniqueSubjectsMap = new Map();
-        subjects.forEach(s => { if (s.id || s.slug) uniqueSubjectsMap.set(s.id || s.slug, s); });
-        subjects = Array.from(uniqueSubjectsMap.values()).sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
-        topics.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+        subjects.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
 
         contentCache.subjects = subjects;
-        contentCache.topics = topics;
+        contentCache.topics = []; // topics are now nested inside subjects
         contentCache.settings = settings;
-        contentCache.notifications = notifications; 
+        contentCache.notifications = notifications;
+        contentCache.admins = admins;
+        contentCache.adminEmails = adminEmails;
         contentCache.lastUpdated = Date.now();
         contentCache.hasLoadedFirstTime = true;
         contentCache.isQuotaExceeded = false;
 
-        console.log(`[Cache] Success: ${subjects.length} subjects, ${topics.length} topics cached. (Total Reads: ${totalReads})`);
-        usageTracker.reads += totalReads;
+        console.log(`[Cache] Success: ${subjects.length} subjects cached with Bundle Architecture.`);
       } catch (err: any) {
         if (err.code === 'resource-exhausted' || err.message?.includes('quota')) {
            contentCache.isQuotaExceeded = true;
@@ -512,7 +462,7 @@ async function startServer() {
     refreshContentCache().catch(err => {
       console.warn('[Cache] Initial refresh failed (might be quota):', err.message);
     });
-    // Refresh every 2 hours to save quota (manual refresh still available for Admin)
+    // Refresh every 2 hours to keep RAM warm and bundles fresh as requested
     setInterval(refreshContentCache, 1000 * 60 * 60 * 2);
   }
 
@@ -538,9 +488,17 @@ async function startServer() {
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 
+  // Prevent caching for all admin routes to ensure instant updates
+  app.use('/api/admin', (req, res, next) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    next();
+  });
+
   // API: Get all cached content
   app.get('/api/content/all', async (req, res) => {
     try {
+      res.set('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400');
+
       const clientLastUpdated = parseInt(req.query.lastUpdated as string || '0');
 
       // If we have nothing and it's currently refreshing, wait briefly but not forever
@@ -570,7 +528,7 @@ async function startServer() {
       }
 
       // Check if client version is still valid
-      if (clientLastUpdated >= contentCache.lastUpdated && contentCache.lastUpdated > 0) {
+      if (clientLastUpdated >= contentCache.lastUpdated && contentCache.lastUpdated > 0 && !contentCache.isRefreshing) {
         return res.json({ status: 'unchanged', lastUpdated: contentCache.lastUpdated });
       }
 
@@ -590,21 +548,23 @@ async function startServer() {
   });
 
   // API: Force refresh content cache (Admin only)
-  app.post('/api/admin/refresh-cache', async (req, res) => {
-    const { userId, rebuild = false } = req.body || {};
+  app.post('/api/admin/rebuild-cache', async (req, res) => {
+    const { userId, rebuild = true } = req.body || {};
     const isAdmin = await checkIsAdmin(userId);
     if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
 
     try {
+      console.log(`[Admin] Cache Rebuild triggered by ${userId}`);
       await refreshContentCache(rebuild);
       res.json({ 
         success: true, 
         subjectsCount: contentCache.subjects.length, 
-        topicsCount: contentCache.topics.length,
+        topicsCount: (contentCache.topics || []).length,
         lastUpdated: contentCache.lastUpdated
       });
-    } catch (error) {
-      res.status(500).json({ error: 'Failed to refresh cache' });
+    } catch (error: any) {
+      console.error('[Admin API] Rebuild failed:', error);
+      res.status(500).json({ error: error.message || 'Failed to rebuild cache' });
     }
   });
 
@@ -616,41 +576,39 @@ async function startServer() {
 
     try {
       const topicId = topic.id || `${topic.subjectSlug}-${topic.slug}`;
-      const topicData = { ...topic, lastUpdated: new Date().toISOString() };
-      delete topicData.id;
-
-      // 1. Update Firestore
-      await runFirestoreOp(dbInstance => dbInstance.collection('topics').doc(topicId).set(topicData, { merge: true }), 'SaveTopicFirestore');
-
-      // 2. Update RAM Cache instantly
-      const existingIdx = contentCache.topics.findIndex(t => t.id === topicId || (t.slug === topic.slug && t.subjectSlug === topic.subjectSlug));
-      if (existingIdx !== -1) {
-        contentCache.topics[existingIdx] = { ...topicData, id: topicId };
-      } else {
-        contentCache.topics.push({ ...topicData, id: topicId });
-      }
-      contentCache.lastUpdated = Date.now();
-
-      // 3. Immediatly update the "pond" (bundle) from RAM for this subject
+      const topicData = { ...topic, id: topicId, lastUpdated: new Date().toISOString() };
       const subjectSlug = topic.subjectSlug;
-      if (subjectSlug) {
-        const subjectTopics = contentCache.topics.filter(t => t.subjectSlug === subjectSlug);
-        const freeTopics = subjectTopics.filter(t => t.status === 'free');
-        const premiumTopics = subjectTopics.filter(t => t.status === 'premium' || t.status === 'live');
-        const metadata = subjectTopics.map(t => ({ 
-          id: t.id, slug: t.slug, title: t.title, chapter: t.chapter, 
-          status: t.status, order: t.order, teaser: t.teaser,
-          examRelevance: t.examRelevance, estimatedTime: t.estimatedTime
-        }));
 
-        // Write bundles back to Firestore
-        await Promise.all([
-          runFirestoreOp(db => db.collection('bundles').doc(`${subjectSlug}_free`).set({ data: freeTopics, lastUpdated: contentCache.lastUpdated }), 'UpdateBundleFree'),
-          runFirestoreOp(db => db.collection('bundles').doc(`${subjectSlug}_premium`).set({ data: premiumTopics, lastUpdated: contentCache.lastUpdated }), 'UpdateBundlePremium'),
-          runFirestoreOp(db => db.collection('bundles').doc(`${subjectSlug}_metadata`).set({ data: metadata, lastUpdated: contentCache.lastUpdated }), 'UpdateBundleMeta')
-        ]);
-        console.log(`[Admin] Bundles updated for ${subjectSlug}`);
+      if (!subjectSlug) {
+        return res.status(400).json({ error: 'Topic must have a subjectSlug' });
       }
+
+      // Find the subject doc ID by slug
+      const subjectDoc = await db.collection('subjects').where('slug', '==', subjectSlug).get();
+      if (subjectDoc.empty) {
+        return res.status(404).json({ error: 'Subject not found' });
+      }
+
+      const subjectRef = subjectDoc.docs[0].ref;
+      const subject = subjectDoc.docs[0].data();
+      let topics = subject.topics || [];
+      const existingIdx = topics.findIndex((t: any) => t.id === topicId || (t.slug === topic.slug));
+      
+      if (existingIdx !== -1) {
+        topics[existingIdx] = { ...topics[existingIdx], ...topicData };
+      } else {
+        topics.push(topicData);
+      }
+
+      await runFirestoreOp(dbInstance => subjectRef.update({ topics }), 'SaveTopicToSubject');
+
+      // Update RAM Cache directly
+      const cacheSubjIdx = contentCache.subjects.findIndex(s => s.slug === subjectSlug);
+      if (cacheSubjIdx > -1) {
+         contentCache.subjects[cacheSubjIdx].topics = topics;
+      }
+
+      contentCache.lastUpdated = Date.now();
       
       res.json({ success: true, topicId, lastUpdated: contentCache.lastUpdated });
     } catch (err: any) {
@@ -665,30 +623,149 @@ async function startServer() {
     if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
 
     try {
-      const topicToDelete = contentCache.topics.find(t => t.id === topicId);
-      await runFirestoreOp(dbInstance => dbInstance.collection('topics').doc(topicId).delete(), 'DeleteTopicFirestore');
-      contentCache.topics = contentCache.topics.filter(t => t.id !== topicId);
-      contentCache.lastUpdated = Date.now();
-
-      // Update bundle from RAM
-      const subjectSlug = topicToDelete?.subjectSlug;
-      if (subjectSlug) {
-        const subjectTopics = contentCache.topics.filter(t => t.subjectSlug === subjectSlug);
-        const freeTopics = subjectTopics.filter(t => t.status === 'free');
-        const premiumTopics = subjectTopics.filter(t => t.status === 'premium' || t.status === 'live');
-        const metadata = subjectTopics.map(t => ({ 
-          id: t.id, slug: t.slug, title: t.title, chapter: t.chapter, 
-          status: t.status, order: t.order, teaser: t.teaser,
-          examRelevance: t.examRelevance, estimatedTime: t.estimatedTime
-        }));
-
-        await Promise.all([
-          runFirestoreOp(db => db.collection('bundles').doc(`${subjectSlug}_free`).set({ data: freeTopics, lastUpdated: contentCache.lastUpdated }), 'UpdateBundleFree'),
-          runFirestoreOp(db => db.collection('bundles').doc(`${subjectSlug}_premium`).set({ data: premiumTopics, lastUpdated: contentCache.lastUpdated }), 'UpdateBundlePremium'),
-          runFirestoreOp(db => db.collection('bundles').doc(`${subjectSlug}_metadata`).set({ data: metadata, lastUpdated: contentCache.lastUpdated }), 'UpdateBundleMeta')
-        ]);
+      // We must search all subjects to find where it is deleted from
+      const subjectsSnap = await db.collection('subjects').get();
+      for (const doc of subjectsSnap.docs) {
+         const data = doc.data();
+         if (data.topics && data.topics.some((t:any) => t.id === topicId || t.slug === topicId)) {
+            const newTopics = data.topics.filter((t:any) => t.id !== topicId && t.slug !== topicId);
+            await runFirestoreOp(dbInstance => doc.ref.update({ topics: newTopics }), 'DeleteTopicFromSubject');
+            
+            // update RAM cache
+            const cacheSubjIdx = contentCache.subjects.findIndex(s => s.slug === data.slug);
+            if (cacheSubjIdx > -1) {
+               contentCache.subjects[cacheSubjIdx].topics = newTopics;
+            }
+            break;
+         }
       }
 
+      contentCache.lastUpdated = Date.now();
+      res.json({ success: true, lastUpdated: contentCache.lastUpdated });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // API: Run Migration for Topics to Subjects
+  app.get('/api/admin/run-migration', async (req, res) => {
+    try {
+      console.log('Starting migration via API trigger...');
+      const subjectsSnap = await db.collection('subjects').get();
+      const topicsSnap = await db.collection('topics').get();
+      
+      if (subjectsSnap.empty || topicsSnap.empty) {
+        return res.json({ success: true, message: 'No data to migrate or subjects/topics are empty.' });
+      }
+
+      const topicsBySubject: Record<string, any[]> = {};
+      topicsSnap.forEach((tDoc: any) => {
+        const topic = { id: tDoc.id, ...tDoc.data() };
+        const slug = topic.subjectSlug;
+        if (slug) {
+          if (!topicsBySubject[slug]) topicsBySubject[slug] = [];
+          topicsBySubject[slug].push(topic);
+        }
+      });
+
+      const batch = db.batch();
+      let count = 0;
+      
+      subjectsSnap.forEach((sDoc: any) => {
+        const subject = sDoc.data();
+        const slug = subject.slug;
+        const subjectTopics = topicsBySubject[slug] || [];
+        batch.update(sDoc.ref, { topics: subjectTopics });
+        count++;
+      });
+      
+      await batch.commit();
+
+      // Force cache rebuild now that it's migrated
+      await refreshContentCache(true);
+      
+      res.json({ success: true, message: `Migrated ${count} subjects.` });
+    } catch (e: any) {
+      console.error('Migration failed:', e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // API: Admin Bulk Delete Topics
+  app.post('/api/admin/bulk-delete-topics', async (req, res) => {
+    const { userId, topicIds } = req.body || {};
+    const isAdmin = await checkIsAdmin(userId);
+    if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+
+    try {
+      const subjectsSnap = await db.collection('subjects').get();
+      const batch = db.batch();
+      let updated = false;
+
+      for (const doc of subjectsSnap.docs) {
+         const data = doc.data();
+         if (data.topics && data.topics.some((t:any) => topicIds.includes(t.id) || topicIds.includes(t.slug))) {
+            const newTopics = data.topics.filter((t:any) => !topicIds.includes(t.id) && !topicIds.includes(t.slug));
+            batch.update(doc.ref, { topics: newTopics });
+            updated = true;
+            
+            // update RAM cache
+            const cacheSubjIdx = contentCache.subjects.findIndex(s => s.slug === data.slug);
+            if (cacheSubjIdx > -1) {
+               contentCache.subjects[cacheSubjIdx].topics = newTopics;
+            }
+         }
+      }
+
+      if (updated) {
+         await batch.commit();
+      }
+
+      contentCache.lastUpdated = Date.now();
+      res.json({ success: true, lastUpdated: contentCache.lastUpdated });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // API: Admin Bulk Update Status
+  app.post('/api/admin/bulk-update-topic-status', async (req, res) => {
+    const { userId, topicIds, status } = req.body || {};
+    const isAdmin = await checkIsAdmin(userId);
+    if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+
+    try {
+      const subjectsSnap = await db.collection('subjects').get();
+      const batch = db.batch();
+      let updated = false;
+
+      for (const doc of subjectsSnap.docs) {
+         const data = doc.data();
+         let changed = false;
+         let newTopics = (data.topics || []).map((t: any) => {
+            if (topicIds.includes(t.id) || topicIds.includes(t.slug)) {
+               changed = true;
+               return { ...t, status, lastUpdated: new Date().toISOString() };
+            }
+            return t;
+         });
+
+         if (changed) {
+            batch.update(doc.ref, { topics: newTopics });
+            updated = true;
+            // RAM refresh
+            const cacheSubjIdx = contentCache.subjects.findIndex(s => s.slug === data.slug);
+            if (cacheSubjIdx > -1) {
+               contentCache.subjects[cacheSubjIdx].topics = newTopics;
+            }
+         }
+      }
+
+      if (updated) {
+         await batch.commit();
+      }
+
+      contentCache.lastUpdated = Date.now();
       res.json({ success: true, lastUpdated: contentCache.lastUpdated });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -710,14 +787,15 @@ async function startServer() {
 
       const existingIdx = contentCache.subjects.findIndex(s => s.id === subjectId || s.slug === subject.slug);
       if (existingIdx !== -1) {
-        contentCache.subjects[existingIdx] = { ...subjectData, id: subjectId };
+        contentCache.subjects[existingIdx] = { 
+           ...contentCache.subjects[existingIdx], 
+           ...subjectData, 
+           id: subjectId 
+        };
       } else {
-        contentCache.subjects.push({ ...subjectData, id: subjectId });
+        contentCache.subjects.push({ ...subjectData, id: subjectId, topics: [] });
       }
       contentCache.lastUpdated = Date.now();
-
-      // Update the subjects bundle in Firestore instantly
-      await runFirestoreOp(db => db.collection('bundles').doc('subjects').set({ data: contentCache.subjects, lastUpdated: contentCache.lastUpdated }), 'UpdateSubjectsBundle');
       
       res.json({ success: true, subjectId, lastUpdated: contentCache.lastUpdated });
     } catch (err: any) {
@@ -735,9 +813,6 @@ async function startServer() {
       await runFirestoreOp(dbInstance => dbInstance.collection('subjects').doc(subjectId).delete(), 'DeleteSubjectFirestore');
       contentCache.subjects = contentCache.subjects.filter(s => s.id !== subjectId);
       contentCache.lastUpdated = Date.now();
-
-      // Update the subjects bundle in Firestore instantly
-      await runFirestoreOp(db => db.collection('bundles').doc('subjects').set({ data: contentCache.subjects, lastUpdated: contentCache.lastUpdated }), 'UpdateSubjectsBundle');
       
       res.json({ success: true, lastUpdated: contentCache.lastUpdated });
     } catch (err: any) {
@@ -755,7 +830,8 @@ async function startServer() {
       await runFirestoreOp(dbInstance => dbInstance.collection('settings').doc('global').set(settings, { merge: true }), 'SaveSettingsFirestore');
       contentCache.settings = { ...contentCache.settings, ...settings };
       contentCache.lastUpdated = Date.now();
-      res.json({ success: true });
+      
+      res.json({ success: true, lastUpdated: contentCache.lastUpdated });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -802,12 +878,8 @@ async function startServer() {
       contentCache.adminEmails = emails;
       contentCache.lastUpdated = Date.now();
       
-      // Update the app_config bundle since it's conceptually part of it
-      await runFirestoreOp(db => db.collection('bundles').doc('app_config').set({ 
-        notifications: contentCache.notifications, 
-        settings: { ...contentCache.settings, adminEmails: emails },
-        lastUpdated: contentCache.lastUpdated 
-      }, { merge: true }), 'UpdateAppConfigBundleWithAdmins');
+      // Implicit Rebuild on Admin list change
+      await refreshContentCache(true);
 
       res.json({ success: true, lastUpdated: contentCache.lastUpdated });
     } catch (err: any) {
@@ -1047,6 +1119,7 @@ async function startServer() {
 
   // API: Create Order
   app.post('/api/create-order', async (req, res) => {
+    res.set('Cache-Control', 'no-store');
     console.log('[Order] Request received:', JSON.stringify(req.body));
     const { amount, couponCode, productType, productSlugs, productSlug, userId } = req.body;
     let finalAmount = amount; // default to what client sent, but we will verify for PDFs
@@ -1174,6 +1247,7 @@ async function startServer() {
 
   // API: Verify Payment
   app.post('/api/verify-payment', async (req, res) => {
+    res.set('Cache-Control', 'no-store');
     const { 
       razorpay_payment_id, 
       razorpay_order_id, 
@@ -1295,7 +1369,7 @@ async function startServer() {
   });
 
   // Catch-all for missing API routes to prevent falling through to SPA HTML
-  app.all('/api/*all', (req, res) => {
+  app.all('/api/*', (req, res) => {
     res.status(404).json({ error: 'API route not found', path: req.path });
   });
 
@@ -1311,7 +1385,7 @@ async function startServer() {
       app.use(vite.middlewares);
 
       // Final catch-all for SPA fallback (Express 5 compatible)
-      app.get('*all', async (req, res, next) => {
+      app.get('*', async (req, res, next) => {
         // Skip if path starts with /api
         if (req.path.startsWith('/api')) return next();
 
@@ -1331,7 +1405,12 @@ async function startServer() {
       const distPath = path.join(process.cwd(), 'dist');
       app.use(express.static(distPath));
       
-      app.get('*all', (req, res) => {
+      // Safety for API routes
+      app.all('/api/*', (req, res) => {
+        res.status(404).json({ error: `API route not found: ${req.method} ${req.url}` });
+      });
+
+      app.get('*', (req, res) => {
         if (req.path.startsWith('/api')) return res.status(404).json({ error: 'API route not found' });
         res.sendFile(path.join(distPath, 'index.html'));
       });
