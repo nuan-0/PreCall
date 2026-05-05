@@ -403,8 +403,12 @@ async function startServer() {
             if (keys.length > 0) {
               return keys.sort((a, b) => Number(a) - Number(b)).map(k => input[k]);
             }
-            // If it's a general object, return it as a single-element array if it's not empty
-            return Object.keys(input).length > 0 ? [input] : [];
+            // If it's a general object but we expected an array of subjects/topics, 
+            // it might be that the subjects are stored as document fields.
+            // However, we only treat it as an array if it looks like a list.
+            // If it has NO numeric keys but has some fields, and we are desperate, 
+            // OR if it's just a single item that was meant to be in a list.
+            return [];
           }
           return [];
         };
@@ -420,7 +424,8 @@ async function startServer() {
 
           if (subjectsBundleDoc?.exists) {
             const rawData = subjectsBundleDoc.data();
-            subjects = normalizeArray(rawData?.data || rawData?.subjects);
+            // Try standard keys FIRST, then fallback to normalized root object if it contains numeric keys
+            subjects = normalizeArray(rawData?.data || rawData?.subjects || rawData);
           }
 
           // Force Fallback if bundle fetch failed OR yielded 0 subjects

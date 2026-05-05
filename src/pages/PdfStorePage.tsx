@@ -60,7 +60,7 @@ export function PdfStorePage() {
   };
 
   // Only subjects with PDFs actually uploaded and visible
-  const validPdfs = subjects.filter(s => s.status === 'live' && s.pdfVisible && s.pdfUrl);
+  const validPdfs = (Array.isArray(subjects) ? subjects : []).filter(s => s.status === 'live' && s.pdfVisible && s.pdfUrl);
 
   const togglePdfSelection = (slug: string) => {
     // Check if owned - users can still toggle for "simulation/testing" if they want to see the UI,

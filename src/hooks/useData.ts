@@ -27,6 +27,18 @@ export function setCache<T>(key: string, data: T) {
   localStorage.setItem(CACHE_PREFIX + key, JSON.stringify(data));
 }
 
+const normalizeArray = (input: any): any[] => {
+  if (!input) return [];
+  if (Array.isArray(input)) return input;
+  if (typeof input === 'object') {
+    const keys = Object.keys(input).filter(k => !isNaN(Number(k)));
+    if (keys.length > 0) {
+      return keys.sort((a, b) => Number(a) - Number(b)).map(k => input[k]);
+    }
+  }
+  return [];
+};
+
 export async function fetchGlobalData(force = false) {
   if (globalFetchPromise && !force) return globalFetchPromise;
   
@@ -59,21 +71,23 @@ export async function fetchGlobalData(force = false) {
         data = json;
       }
 
-      if (data && data.subjects) {
-        setCache('subjects', data.subjects);
+      if (data) {
+        const normalizedSubjects = normalizeArray(data.subjects);
+        setCache('subjects', normalizedSubjects);
         
         let allTopics: Topic[] = [];
         
         // Always derive allTopics from subjects as the single source of truth
-        data.subjects.forEach((subj: Subject) => {
-          if (subj.topics && subj.topics.length > 0) {
-            allTopics = [...allTopics, ...subj.topics];
+        normalizedSubjects.forEach((subj: Subject) => {
+          const subjTopics = normalizeArray(subj.topics);
+          if (subjTopics.length > 0) {
+            allTopics = [...allTopics, ...subjTopics];
           }
         });
         
         setCache('topics_all', allTopics);
         if (data.settings) setCache('settings', data.settings);
-        if (data.notifications) setCache('notifications_all', data.notifications);
+        if (data.notifications) setCache('notifications_all', normalizeArray(data.notifications));
         if (data.lastUpdated) localStorage.setItem(CACHE_PREFIX + 'lastUpdated', data.lastUpdated.toString());
         
         eventTarget.dispatchEvent(new Event('data_updated'));
