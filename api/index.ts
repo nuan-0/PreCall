@@ -375,10 +375,18 @@ async function startServer() {
 
   const refreshContentCache = async (forceRebuild = false) => {
     if (activeRefreshPromise && !forceRebuild) return activeRefreshPromise;
+    
+    // Check if we should skip due to cache being fresh (unless forced)
+    const CACHE_TTL = 1000 * 60 * 60 * 2; // 2 hours
+    if (!forceRebuild && contentCache.hasLoadedFirstTime && (Date.now() - contentCache.lastUpdated < CACHE_TTL)) {
+      console.log('[Cache] Using fresh RAM cache.');
+      return;
+    }
+
     contentCache.isRefreshing = true;
     
     activeRefreshPromise = (async () => {
-      console.log(`[Cache] Refreshing content cache (Rebuild: ${forceRebuild})...`);
+      console.log(`[Cache] Refreshing content cache (Force: ${forceRebuild})...`);
       try {
         let subjects: any[] = [];
         let settings: any = null;
@@ -388,7 +396,6 @@ async function startServer() {
 
         try {
           // Fetch consolidated bundles instead of raw collections
-          // We still fetch admins from original collections as they are not bundled
           const [subjectsBundleDoc, appConfigBundleDoc, adminsSnap, adminEmailsDoc] = await Promise.all([
             db.collection('bundles').doc('subjects').get().catch(() => null),
             db.collection('bundles').doc('app_config').get().catch(() => null),
@@ -397,7 +404,8 @@ async function startServer() {
           ]);
 
           if (subjectsBundleDoc?.exists) {
-            subjects = subjectsBundleDoc.data()?.data || [];
+            const rawData = subjectsBundleDoc.data();
+            subjects = rawData?.data || rawData?.subjects || [];
           } else {
             // Fallback to subjects collection if bundle doesn't exist
             const rawSubjectsSnap = await db.collection('subjects').get().catch(() => null);
@@ -410,11 +418,17 @@ async function startServer() {
           if (subjects.length > 0) {
             const topicBundles = await Promise.all(subjects.map(async (s: any) => {
               try {
-                // Fetch the three parts of the topic bundle for this subject
+                // Try BOTH naming versions: "{slug}_x" and "topics_{slug}_x"
+                const getDocWithFallback = async (baseName: string) => {
+                  const d1 = await db.collection('bundles').doc(baseName).get().catch(() => null);
+                  if (d1?.exists) return d1;
+                  return await db.collection('bundles').doc(`topics_${baseName}`).get().catch(() => null);
+                };
+
                 const [meta, free, prem] = await Promise.all([
-                   db.collection('bundles').doc(`${s.slug}_metadata`).get().catch(() => null),
-                   db.collection('bundles').doc(`${s.slug}_free`).get().catch(() => null),
-                   db.collection('bundles').doc(`${s.slug}_premium`).get().catch(() => null)
+                   getDocWithFallback(`${s.slug}_metadata`),
+                   getDocWithFallback(`${s.slug}_free`),
+                   getDocWithFallback(`${s.slug}_premium`)
                 ]);
 
                 // Merge them into a single topics array
@@ -543,6 +557,12 @@ async function startServer() {
       res.set('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400');
 
       const clientLastUpdated = parseInt(req.query.lastUpdated as string || '0');
+      const forceRefresh = req.query.force_refresh === 'true';
+
+      if (forceRefresh) {
+        console.log('[API] Force refresh requested');
+        await refreshContentCache(true);
+      }
 
       // If we have nothing and it's currently refreshing, wait briefly but not forever
       if (!contentCache.hasLoadedFirstTime && activeRefreshPromise) {

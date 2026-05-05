@@ -46,9 +46,9 @@ export async function fetchGlobalData(force = false) {
       } else {
         // 1 & 3. PWA Local Storage & Edge Caching
         const lastUpdated = localStorage.getItem(CACHE_PREFIX + 'lastUpdated') || '0';
-        console.log('[Prod Data] Fetching via Edge API endpoint...');
+        console.log('[Prod Data] Fetching via Edge API endpoint (Force Refresh: true)...');
         
-        const res = await fetch(`/api/content/all?lastUpdated=${lastUpdated}`);
+        const res = await fetch(`/api/content/all?lastUpdated=${lastUpdated}&force_refresh=true`);
         if (!res.ok) throw new Error('Failed to fetch from API');
         
         const json = await res.json();
