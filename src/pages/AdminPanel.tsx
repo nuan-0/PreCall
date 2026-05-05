@@ -10,6 +10,7 @@ import { useSubjects, useTopics, useSettings, useNotifications } from '../hooks/
 import { useAuth } from '../contexts/AuthContext';
 import { Subject, Topic, AppSettings, AppNotification, Coupon } from '../types';
 import { cn } from '../lib/utils';
+import { bundleService } from '../services/bundleService';
 
 export const INITIAL_SUBJECTS = [
   { id: 'polity', slug: 'polity', title: 'Polity', description: 'Constitutional framework, Governance, and Rights.', status: 'live', order: 1 },

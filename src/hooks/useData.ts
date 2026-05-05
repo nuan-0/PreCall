@@ -33,8 +33,8 @@ export async function fetchGlobalData(force = false) {
   globalFetchPromise = (async () => {
     try {
       const hostname = window.location.hostname;
-      // 5. Dev Environment Shield
-      const isDev = hostname === 'localhost' || hostname.includes('ais-dev') || hostname.includes('run.app');
+      // Refined Dev Shield: Only use mock data on localhost to allow live data on AIS previews and shared links
+      const isDev = hostname === 'localhost'; 
       
       let data: any;
 

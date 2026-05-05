@@ -387,40 +387,83 @@ async function startServer() {
         let admins: string[] = [];
 
         try {
-          const [rawSubjectsSnap, rawSettingsSnap, rawNotificationsSnap, rawAdminsSnap, rawEmailsSnap, rawTopicsSnap] = await Promise.all([
-             db.collection('subjects').get().catch(() => null),
-             db.collection('settings').doc('global').get().catch(() => null),
-             db.collection('notifications').get().catch(() => null),
-             db.collection('admins').get().catch(() => null),
-             db.collection('settings').doc('admins').get().catch(() => null),
-             db.collection('topics').get().catch(() => null)
+          // Fetch consolidated bundles instead of raw collections
+          // We still fetch admins from original collections as they are not bundled
+          const [subjectsBundleDoc, appConfigBundleDoc, adminsSnap, adminEmailsDoc] = await Promise.all([
+            db.collection('bundles').doc('subjects').get().catch(() => null),
+            db.collection('bundles').doc('app_config').get().catch(() => null),
+            db.collection('admins').get().catch(() => null),
+            db.collection('settings').doc('admins').get().catch(() => null)
           ]);
 
-          if (rawSubjectsSnap && !rawSubjectsSnap.empty) {
-             rawSubjectsSnap.forEach(doc => subjects.push({ id: doc.id, ...doc.data() }));
+          if (subjectsBundleDoc?.exists) {
+            subjects = subjectsBundleDoc.data()?.data || [];
+          } else {
+            // Fallback to subjects collection if bundle doesn't exist
+            const rawSubjectsSnap = await db.collection('subjects').get().catch(() => null);
+            if (rawSubjectsSnap && !rawSubjectsSnap.empty) {
+              rawSubjectsSnap.forEach(doc => subjects.push({ id: doc.id, ...doc.data() }));
+            }
           }
 
-          if (rawTopicsSnap && !rawTopicsSnap.empty) {
-             const allTopics: any[] = [];
-             rawTopicsSnap.forEach(t => allTopics.push({ id: t.id, ...t.data() }));
-             subjects.forEach(sub => {
-                if (!sub.topics || sub.topics.length === 0) {
-                   sub.topics = allTopics.filter(t => t.subjectSlug === sub.slug);
-                }
-             });
+          // Fetch individual topic bundles for each subject in parallel
+          if (subjects.length > 0) {
+            const topicBundles = await Promise.all(subjects.map(async (s: any) => {
+              try {
+                // Fetch the three parts of the topic bundle for this subject
+                const [meta, free, prem] = await Promise.all([
+                   db.collection('bundles').doc(`${s.slug}_metadata`).get().catch(() => null),
+                   db.collection('bundles').doc(`${s.slug}_free`).get().catch(() => null),
+                   db.collection('bundles').doc(`${s.slug}_premium`).get().catch(() => null)
+                ]);
+
+                // Merge them into a single topics array
+                const mergedTopics = [
+                  ...(meta?.exists ? (meta.data()?.data || []) : []),
+                  ...(free?.exists ? (free.data()?.data || []) : []),
+                  ...(prem?.exists ? (prem.data()?.data || []) : [])
+                ];
+
+                return {
+                  slug: s.slug,
+                  topics: mergedTopics
+                };
+              } catch (e) {
+                console.warn(`[Cache] Failed to fetch topic bundles for ${s.slug}:`, e);
+                return { slug: s.slug, topics: [] };
+              }
+            }));
+
+            // Map topics back into the subjects array
+            subjects.forEach(s => {
+              const bundle = topicBundles.find(b => b.slug === s.slug);
+              if (bundle && bundle.topics.length > 0) {
+                s.topics = bundle.topics;
+              }
+            });
           }
 
-          if (rawSettingsSnap?.exists) {
-             settings = rawSettingsSnap.data();
+          if (appConfigBundleDoc?.exists) {
+            const configData = appConfigBundleDoc.data();
+            settings = configData?.settings?.global || configData?.settings || null;
+            notifications = configData?.notifications || [];
+          } else {
+            // Fallback for settings/notifications
+            const [rawSettingsSnap, rawNotificationsSnap] = await Promise.all([
+              db.collection('settings').doc('global').get().catch(() => null),
+              db.collection('notifications').get().catch(() => null)
+            ]);
+            if (rawSettingsSnap?.exists) settings = rawSettingsSnap.data();
+            if (rawNotificationsSnap && !rawNotificationsSnap.empty) {
+              rawNotificationsSnap.forEach(doc => notifications.push({ id: doc.id, ...doc.data() }));
+            }
           }
-          if (rawNotificationsSnap && !rawNotificationsSnap.empty) {
-             rawNotificationsSnap.forEach(doc => notifications.push({ id: doc.id, ...doc.data() }));
+
+          if (adminsSnap && !adminsSnap.empty) {
+            adminsSnap.forEach(doc => admins.push(doc.id));
           }
-          if (rawAdminsSnap && !rawAdminsSnap.empty) {
-             rawAdminsSnap.forEach(doc => admins.push(doc.id));
-          }
-          if (rawEmailsSnap?.exists) {
-            adminEmails = rawEmailsSnap.data()?.emails || [];
+          if (adminEmailsDoc?.exists) {
+            adminEmails = adminEmailsDoc.data()?.emails || [];
           }
         } catch (fallbackErr: any) {
           console.error('[Cache] Fetch failed:', fallbackErr.message);
