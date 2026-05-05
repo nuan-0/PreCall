@@ -398,17 +398,19 @@ async function startServer() {
           if (!input) return [];
           if (Array.isArray(input)) return input;
           if (typeof input === 'object' && input !== null) {
+            // Priority 1: Numeric keys (0, 1, 2...)
             const keys = Object.keys(input).filter(k => !isNaN(Number(k)));
             if (keys.length > 0) {
               return keys.sort((a, b) => Number(a) - Number(b)).map(k => input[k]);
             }
-            // If it's the root object but has data fields directly, return it as one item
-            if (input.slug || input.id) return [input];
-            // If it's an object with string keys (not numeric) but values are objects
+            // Priority 2: Data items as direct object values (e.g. { "slug-1": {...}, "slug-2": {...} })
             const values = Object.values(input);
             if (values.length > 0 && typeof values[0] === 'object' && values[0] !== null) {
-              return values;
+              // Only return values if it's not a single subject/topic doc
+              if (!(input.slug || input.id)) return values;
             }
+            // Priority 3: Single item
+            if (input.slug || input.id) return [input];
           }
           return [];
         };
@@ -424,18 +426,25 @@ async function startServer() {
 
           if (subjectsBundleDoc?.exists) {
             const rawData = subjectsBundleDoc.data();
-            // Try standard keys FIRST, then fallback to normalized root object if it contains numeric keys
             subjects = normalizeArray(rawData?.data || rawData?.subjects || rawData);
           }
 
           // Force Fallback if bundle fetch failed OR yielded 0 subjects
-          let fallbackUsed = false;
-          if (subjects.length === 0) {
-            fallbackUsed = true;
-            console.log('[Cache] Bundled subjects empty or missing. Falling back to subjects collection...');
-            const rawSubjectsSnap = await db.collection('subjects').get().catch(() => null);
+          let fallbackUsed = subjects.length === 0;
+          let fallbackTopics: any[] = [];
+
+          if (fallbackUsed) {
+            console.log('[Cache] Bundled subjects empty or missing. Falling back to collections...');
+            const [rawSubjectsSnap, rawTopicsSnap] = await Promise.all([
+              db.collection('subjects').get().catch(() => null),
+              db.collection('topics').get().catch(() => null)
+            ]);
+            
             if (rawSubjectsSnap && !rawSubjectsSnap.empty) {
               rawSubjectsSnap.forEach(doc => subjects.push({ id: doc.id, ...doc.data() }));
+            }
+            if (rawTopicsSnap && !rawTopicsSnap.empty) {
+              rawTopicsSnap.forEach(doc => fallbackTopics.push({ id: doc.id, ...doc.data() }));
             }
           }
 
@@ -443,6 +452,7 @@ async function startServer() {
           if (subjects.length > 0) {
             const topicBundles = await Promise.all(subjects.map(async (s: any) => {
               try {
+                let topicsFromBundles: any[] = [];
                 // If we didn't use fallback for subjects, we should try bundles for topics first
                 if (!fallbackUsed) {
                   // Try BOTH naming versions: "{slug}_x" and "topics_{slug}_x"
@@ -459,25 +469,31 @@ async function startServer() {
                   ]);
 
                   // Merge them into a single topics array with normalization
-                  const mergedTopics = [
+                  topicsFromBundles = [
                     ...normalizeArray(meta?.exists ? (meta.data()?.data || meta.data()) : null),
                     ...normalizeArray(free?.exists ? (free.data()?.data || free.data()) : null),
                     ...normalizeArray(prem?.exists ? (prem.data()?.data || prem.data()) : null)
                   ];
 
                   // Also check for nested topics field inside meta (some schemas use meta.topics)
-                  if (meta?.exists && mergedTopics.length === 0) {
+                  if (meta?.exists && topicsFromBundles.length === 0) {
                     const metaData = meta.data();
                     const nested = normalizeArray(metaData?.topics || metaData?.data?.topics);
-                    if (nested.length > 0) mergedTopics.push(...nested);
+                    if (nested.length > 0) topicsFromBundles.push(...nested);
                   }
-
-                  if (mergedTopics.length > 0) return { slug: s.slug, topics: mergedTopics };
                 }
                 
-                // Fallback: If no topic bundles found OR we are in fallback mode for subjects, 
-                // use the topics already inside the subject object (from original topics-to-subjects migration)
-                return { slug: s.slug, topics: normalizeArray(s.topics) };
+                // Combine all available sources for topics
+                const allTopics = [
+                  ...topicsFromBundles,
+                  ...normalizeArray(s.topics), // Topics embedded in subject (from migration)
+                  ...fallbackTopics.filter((t: any) => t.subjectSlug === s.slug) // Topics from topics collection
+                ];
+
+                // De-duplicate by slug to be safe
+                const uniqueTopics = Array.from(new Map(allTopics.map(t => [t.slug, t])).values());
+
+                return { slug: s.slug, topics: uniqueTopics };
               } catch (e) {
                 console.warn(`[Cache] Failed to fetch topic bundles for ${s.slug}:`, e);
                 return { slug: s.slug, topics: normalizeArray(s.topics) };
@@ -489,6 +505,8 @@ async function startServer() {
               const bundle = topicBundles.find(b => b.slug === s.slug);
               if (bundle && bundle.topics.length > 0) {
                 s.topics = bundle.topics;
+              } else if (!s.topics) {
+                s.topics = [];
               }
             });
           }

@@ -36,11 +36,19 @@ export function setCache<T>(key: string, data: T) {
 const normalizeArray = (input: any): any[] => {
   if (!input) return [];
   if (Array.isArray(input)) return input;
-  if (typeof input === 'object') {
+  if (typeof input === 'object' && input !== null) {
+    // Priority 1: Numeric keys (0, 1, 2...)
     const keys = Object.keys(input).filter(k => !isNaN(Number(k)));
     if (keys.length > 0) {
       return keys.sort((a, b) => Number(a) - Number(b)).map(k => input[k]);
     }
+    // Priority 2: Data items as direct object values (if they look like collections)
+    const values = Object.values(input);
+    if (values.length > 0 && typeof values[0] === 'object' && values[0] !== null) {
+      if (!(input.slug || input.id)) return values;
+    }
+    // Priority 3: Single item
+    if (input.slug || input.id) return [input];
   }
   return [];
 };
