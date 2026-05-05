@@ -28,7 +28,7 @@ export const LOCAL_TOPICS: Topic[] = [
     teaser: 'Detailed analysis of Right to Life and Personal Liberty.', 
     examRelevance: 'High',
     estimatedTime: '15 mins',
-    lastUpdated: 1714521600000,
+    lastUpdated: "2024-05-01T00:00:00Z",
     pdfUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
     infographicUrl: 'https://placehold.co/1200x800/6366f1/white?text=Article+21+Infographic'
   },
@@ -43,7 +43,7 @@ export const LOCAL_TOPICS: Topic[] = [
     teaser: 'Overview of the Preamble of the Indian Constitution.', 
     examRelevance: 'High',
     estimatedTime: '10 mins',
-    lastUpdated: 1714521600000,
+    lastUpdated: "2024-05-01T00:00:00Z",
     pdfUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf'
   }
 ];

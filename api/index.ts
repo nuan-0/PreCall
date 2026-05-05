@@ -439,7 +439,7 @@ async function startServer() {
         contentCache.hasLoadedFirstTime = true;
         contentCache.isQuotaExceeded = false;
 
-        console.log(`[Cache] Success: ${subjects.length} subjects cached with Bundle Architecture.`);
+        console.log(`[Cache] Success: ${subjects.length} subjects cached.`);
       } catch (err: any) {
         if (err.code === 'resource-exhausted' || err.message?.includes('quota')) {
            contentCache.isQuotaExceeded = true;
@@ -852,13 +852,6 @@ async function startServer() {
         contentCache.notifications.push({ ...notification, id: ref.id });
       }
       contentCache.lastUpdated = Date.now();
-
-      // Update the app_config bundle (which includes notifications)
-      await runFirestoreOp(db => db.collection('bundles').doc('app_config').set({ 
-        notifications: contentCache.notifications, 
-        settings: { global: contentCache.settings },
-        lastUpdated: contentCache.lastUpdated 
-      }), 'UpdateAppConfigBundle');
 
       res.json({ success: true, lastUpdated: contentCache.lastUpdated });
     } catch (err: any) {

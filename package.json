@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@google/genai": "^1.29.0",
+    "@types/cors": "^2.8.19",
     "@types/multer": "^2.1.0",
     "@types/qrcode": "^1.5.6",
     "canvas-confetti": "^1.9.4",

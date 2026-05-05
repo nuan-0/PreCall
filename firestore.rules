@@ -78,7 +78,8 @@ service cloud.firestore {
       return data.title is string && data.title.size() > 0 && data.title.size() < 100 &&
              data.slug is string && data.slug.size() > 0 && data.slug.size() < 100 &&
              data.status in ['live', 'coming_soon'] &&
-             data.order is number;
+             data.order is number &&
+             (!('topics' in data) || data.topics is list);
     }
 
     function isValidTopic(data) {
@@ -104,6 +105,11 @@ service cloud.firestore {
     // ===============================================================
     // Rules
     // ===============================================================
+
+    match /bundles/{bundleId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
 
     match /subjects/{subjectId} {
       allow read: if true;

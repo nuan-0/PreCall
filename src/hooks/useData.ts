@@ -60,19 +60,16 @@ export async function fetchGlobalData(force = false) {
       }
 
       if (data && data.subjects) {
-        // Handle 2. Bundle Architecture mapping -> nested topics back to flat memory array for legacy UI
         setCache('subjects', data.subjects);
         
-        let allTopics: Topic[] = data.topics || [];
+        let allTopics: Topic[] = [];
         
-        if (allTopics.length === 0 && data.subjects.length > 0) {
-           // Flatten nested topics from Subject bundle architecture
-           data.subjects.forEach((subj: Subject) => {
-             if (subj.topics && subj.topics.length > 0) {
-               allTopics = [...allTopics, ...subj.topics];
-             }
-           });
-        }
+        // Always derive allTopics from subjects as the single source of truth
+        data.subjects.forEach((subj: Subject) => {
+          if (subj.topics && subj.topics.length > 0) {
+            allTopics = [...allTopics, ...subj.topics];
+          }
+        });
         
         setCache('topics_all', allTopics);
         if (data.settings) setCache('settings', data.settings);
