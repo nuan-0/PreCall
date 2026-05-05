@@ -263,6 +263,50 @@ export function AdminPanel() {
     setConfirmState({ isOpen: true, title, message, onConfirm });
   };
 
+  const handleMigration = async () => {
+    const confirm = window.confirm("Are you sure you want to run the database migration?");
+    if (!confirm) return;
+    
+    const toastId = toast.loading("Fetching topics and subjects from live Firestore...");
+    try {
+      // 1. Fetch subjects directly from Firestore, bypassing Dev Shield
+      const subjectsSnap = await getDocs(collection(db, 'subjects'));
+      const topicsSnap = await getDocs(collection(db, 'topics'));
+      
+      const topicsBySubject: Record<string, any[]> = {};
+      topicsSnap.forEach((tDoc) => {
+        const topic = { id: tDoc.id, ...tDoc.data() };
+        const slug = topic.subjectSlug;
+        if (slug) {
+          if (!topicsBySubject[slug]) topicsBySubject[slug] = [];
+          topicsBySubject[slug].push(topic);
+        }
+      });
+
+      const batch = writeBatch(db);
+      let count = 0;
+      
+      subjectsSnap.forEach((sDoc) => {
+        const subject = sDoc.data();
+        const slug = subject.slug;
+        const subjectTopics = topicsBySubject[slug] || [];
+        batch.update(sDoc.ref, { topics: subjectTopics });
+        count++;
+      });
+      
+      await batch.commit();
+      
+      // Let backend run its bundle updater script (legacy approach fallback) 
+      // or we can just rely on the API. But the prompt specifically asked us to group and save to live db *directly from the Admin UI using active client auth*.
+      
+      toast.success(`Migration Complete! Migrated topics into ${count} subjects.`, { id: toastId });
+      alert("Migration Complete");
+    } catch (error: any) {
+      toast.error('Migration failed: ' + error.message, { id: toastId });
+      console.error(error);
+    }
+  };
+
   // Close mobile menu on route change
   useEffect(() => {
     setIsMobileMenuOpen(false);
@@ -292,6 +336,13 @@ export function AdminPanel() {
             <span className="block text-xl font-black text-slate-900 leading-none tracking-tight">PreCall</span>
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Control Center</span>
           </div>
+        </div>
+
+        <div className="mb-6">
+          <Button onClick={handleMigration} className="w-full bg-red-600 hover:bg-red-700 text-white font-bold h-12 shadow-lg shadow-red-200">
+            <RefreshCw className="w-5 h-5 mr-2" />
+            MIGRATION
+          </Button>
         </div>
         
         <nav className="space-y-1.5">
