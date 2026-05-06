@@ -33,23 +33,35 @@ export function setCache<T>(key: string, data: T) {
   localStorage.setItem(CACHE_PREFIX + key, JSON.stringify(data));
 }
 
-const normalizeArray = (input: any): any[] => {
-  if (!input) return [];
+const normalizeArray = (input: any, debugLabel = 'Array'): any[] => {
+  if (!input) {
+    console.error(`[Normalizer:${debugLabel}] Input is falsy:`, input);
+    return [];
+  }
   if (Array.isArray(input)) return input;
+  
+  console.error(`[Normalizer:${debugLabel}] Object Input detected. Keys:`, Object.keys(input), 'Type:', typeof input, 'IsHTML:', typeof input === 'string' && input.trim().toLowerCase().startsWith('<!doctype'));
+
   if (typeof input === 'object' && input !== null) {
-    // Priority 1: Numeric keys (0, 1, 2...)
-    const keys = Object.keys(input).filter(k => !isNaN(Number(k)));
+    const keys = Object.keys(input).filter(k => k.trim() !== '' && !isNaN(Number(k)));
     if (keys.length > 0) {
+      console.log(`[Normalizer:${debugLabel}] Using Priority 1 (Numeric Keys). Found ${keys.length} ordered keys.`);
       return keys.sort((a, b) => Number(a) - Number(b)).map(k => input[k]);
     }
-    // Priority 2: Data items as direct object values (if they look like collections)
     const values = Object.values(input);
     if (values.length > 0 && typeof values[0] === 'object' && values[0] !== null) {
-      if (!(input.slug || input.id)) return values;
+      if (!(input.slug || input.id)) {
+        console.log(`[Normalizer:${debugLabel}] Using Priority 2 (Direct Object Values). Returning ${values.length} items.`);
+        return values;
+      }
     }
-    // Priority 3: Single item
-    if (input.slug || input.id) return [input];
+    if (input.slug || input.id) {
+      console.log(`[Normalizer:${debugLabel}] Using Priority 3 (Single Item).`);
+      return [input];
+    }
   }
+  
+  console.error(`[Normalizer:${debugLabel}] Failed to normalize! Returning []. Original input:`, input);
   return [];
 };
 
@@ -75,9 +87,20 @@ export async function fetchGlobalData(force = false) {
         console.log('[Prod Data] Fetching via Edge API endpoint (Force Refresh: true)...');
         
         const res = await fetch(`/api/content/all?lastUpdated=${lastUpdated}&force_refresh=true`);
-        if (!res.ok) throw new Error('Failed to fetch from API');
+        if (!res.ok) {
+          const text = await res.text().catch(() => 'No text');
+          console.error('[Prod Data] API Failed with status', res.status, text.slice(0, 100));
+          throw new Error('Failed to fetch from API - Status: ' + res.status);
+        }
         
-        const json = await res.json();
+        const rawText = await res.text();
+        let json;
+        try {
+          json = JSON.parse(rawText);
+        } catch (e: any) {
+          console.error('[Diagnostic] Failed to parse JSON. Raw Data preview:', typeof rawText, rawText.substring(0, 500));
+          throw e;
+        }
         if (json.status === 'unchanged') {
           console.log('[Prod Data] API returned unchanged. Returning from Zero-Read PWA Cache!');
           return;
@@ -88,15 +111,15 @@ export async function fetchGlobalData(force = false) {
       if (data) {
         // Deeply normalize subjects and their nested topics
         const rawSubjects = data.subjects || data.data;
-        const subjectsArray = normalizeArray(rawSubjects);
+        const subjectsArray = normalizeArray(rawSubjects, 'SubjectsRoot');
         
         const normalizedSubjects = subjectsArray.map((subj: any) => ({
           ...subj,
-          topics: normalizeArray(subj.topics)
+          topics: normalizeArray(subj.topics, `TopicsList[${subj.slug || subj.id}]`)
         }));
 
         const normalizedSettings = data.settings || {};
-        const normalizedNotifications = normalizeArray(data.notifications);
+        const normalizedNotifications = normalizeArray(data.notifications, 'NotificationsRoot');
         
         setCache('subjects', normalizedSubjects);
         

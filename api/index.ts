@@ -394,24 +394,34 @@ async function startServer() {
         let adminEmails: string[] = [];
         let admins: string[] = [];
 
-        const normalizeArray = (input: any): any[] => {
-          if (!input) return [];
+        const normalizeArray = (input: any, debugLabel = 'Array'): any[] => {
+          if (!input) {
+            console.error(`[API Normalizer:${debugLabel}] Input is falsy:`, input);
+            return [];
+          }
           if (Array.isArray(input)) return input;
+          
+          console.error(`[API Normalizer:${debugLabel}] Object Input detected. Keys:`, Object.keys(input), 'Type:', typeof input);
+
           if (typeof input === 'object' && input !== null) {
-            // Priority 1: Numeric keys (0, 1, 2...)
-            const keys = Object.keys(input).filter(k => !isNaN(Number(k)));
+            const keys = Object.keys(input).filter(k => k.trim() !== '' && !isNaN(Number(k)));
             if (keys.length > 0) {
+              console.log(`[API Normalizer:${debugLabel}] Using Priority 1 (Numeric Keys). Found ${keys.length} items.`);
               return keys.sort((a, b) => Number(a) - Number(b)).map(k => input[k]);
             }
-            // Priority 2: Data items as direct object values (e.g. { "slug-1": {...}, "slug-2": {...} })
             const values = Object.values(input);
             if (values.length > 0 && typeof values[0] === 'object' && values[0] !== null) {
-              // Only return values if it's not a single subject/topic doc
-              if (!(input.slug || input.id)) return values;
+              if (!(input.slug || input.id)) {
+                console.log(`[API Normalizer:${debugLabel}] Using Priority 2 (Object Values). Found ${values.length} items.`);
+                return values;
+              }
             }
-            // Priority 3: Single item
-            if (input.slug || input.id) return [input];
+            if (input.slug || input.id) {
+               console.log(`[API Normalizer:${debugLabel}] Using Priority 3 (Single Item).`);
+               return [input];
+            }
           }
+          console.error(`[API Normalizer:${debugLabel}] Failed to normalize! Returning empty array. Original input keys:`, Object.keys(input));
           return [];
         };
 
