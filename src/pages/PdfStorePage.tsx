@@ -404,60 +404,14 @@ export function PdfStorePage() {
                     </motion.div>
                   )}
 
-                  {/* Coupon Section */}
+                  {/* Informational Message */}
                   <div className="py-4 border-t border-slate-100">
-                    {selectedPdfSlugs.length > 1 ? (
-                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-center">
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed">
-                          Coupons only apply to single PDF purchases.<br/>
-                          <span className="text-violet-400">Bundle pricing already includes a natural discount.</span>
-                        </p>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="relative flex-1">
-                            <input
-                              type="text"
-                              placeholder="ENTER COUPON CODE"
-                              className="w-full h-10 pl-4 pr-10 text-[10px] font-black uppercase tracking-widest bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20"
-                              value={couponCode}
-                              onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                              disabled={!!appliedCoupon}
-                            />
-                            {appliedCoupon && (
-                              <div className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-500">
-                                <Check className="h-4 w-4" />
-                              </div>
-                            )}
-                          </div>
-                          {appliedCoupon ? (
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="text-rose-500 hover:text-rose-600 font-bold text-[10px]"
-                              onClick={() => { setAppliedCoupon(null); setCouponCode(''); }}
-                            >
-                              Remove
-                            </Button>
-                          ) : (
-                            <Button 
-                              size="sm" 
-                              className="h-10 text-[10px] font-black px-4"
-                              onClick={handleApplyCoupon}
-                              loading={isValidatingCoupon}
-                            >
-                              Apply
-                            </Button>
-                          )}
-                        </div>
-                        {appliedCoupon && (
-                          <p className="text-[10px] text-emerald-600 font-bold px-1">
-                            Applied: {appliedCoupon.type === 'percentage' ? `${appliedCoupon.discountPercentage}% Off` : `₹${appliedCoupon.discountAmount} Off`}
-                          </p>
-                        )}
-                      </>
-                    )}
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-center">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed">
+                        This PDF provides deep "Theoretical Revision".<br/>
+                        <span className="text-violet-400">For our visual Mnemonics, Pictographs, Gold Points, and specific UPSC Traps, unlock the Precall Premium.</span>
+                      </p>
+                    </div>
                   </div>
 
                   <div className="pt-4 border-t border-slate-100">

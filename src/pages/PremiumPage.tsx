@@ -136,7 +136,8 @@ export function PremiumPage() {
     }
 
     try {
-      const amountValue = type === 'premium' ? parseInt(price.replace(/,/g, '')) : 149;
+      const pdfPrice = parseInt(settings?.pdfPrice || '199');
+      const amountValue = type === 'premium' ? parseInt(price.replace(/,/g, '')) : pdfPrice;
       const amountInPaise = amountValue * 100;
       
       const orderRes = await fetch('/api/create-order', {
@@ -475,7 +476,7 @@ export function PremiumPage() {
                   
                   {isSelected && (
                     <div className="mt-4 pt-4 border-t border-violet-100 flex items-center justify-between">
-                      <span className="text-sm font-black text-violet-900">₹149</span>
+                      <span className="text-sm font-black text-violet-900">₹{settings?.pdfPrice || '199'}</span>
                       <Button 
                         size="sm" 
                         className="h-8 text-[10px] font-black"
