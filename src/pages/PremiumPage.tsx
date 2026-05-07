@@ -24,7 +24,6 @@ export function PremiumPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successType, setSuccessType] = useState<'premium' | 'pdf'>('premium');
-  const [selectedPdfSlugs, setSelectedPdfSlugs] = useState<string[]>([]);
   const [couponCode, setCouponCode] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
@@ -48,24 +47,6 @@ export function PremiumPage() {
     });
   };
 
-  // Sort subjects to show Live ones first
-  const normalizedSubjects = Array.isArray(subjects) ? subjects : [];
-  const validPdfs = normalizedSubjects.filter(s => s.status === 'live' && s.pdfVisible);
-
-  const togglePdfSelection = (slug: string) => {
-    if (profile?.ownedPdfs?.includes(slug)) return;
-    
-    setSelectedPdfSlugs(prev => 
-      prev.includes(slug) ? prev.filter(s => s !== slug) : [...prev, slug]
-    );
-  };
-
-  const selectAllPdfs = () => {
-    if (validPdfs.length === 0) return;
-    const slugs = validPdfs.map(s => s.slug).filter(slug => !profile?.ownedPdfs?.includes(slug));
-    setSelectedPdfSlugs(slugs);
-  };
-
   const handleApplyCoupon = async () => {
     if (!couponCode.trim()) return;
     setIsValidatingCoupon(true);
@@ -73,7 +54,7 @@ export function PremiumPage() {
       const res = await fetch('/api/validate-coupon', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: couponCode.trim() })
+        body: JSON.stringify({ code: couponCode.trim(), productType: 'premium' })
       });
       const data = await res.json();
       if (res.ok) {
@@ -395,116 +376,6 @@ export function PremiumPage() {
           </Card>
         </div>
       </div>
-
-      {/* PDF Store Section */}
-      <section id="pdf-store" className="mb-24">
-        <header className="text-center mb-16">
-          <Badge variant="new" className="mb-6 h-7 px-4 shadow-sm bg-blue-100 text-blue-700 uppercase">PDF Store & Bundles</Badge>
-          <h2 className="text-3xl font-bold text-violet-950 mb-4 tracking-tight">Revision PDF Store</h2>
-          <p className="text-slate-500 font-medium max-w-xl mx-auto leading-relaxed">
-            Already know what you need? Buy individual high-yield subject PDFs or bundle them for focused offline revision.
-          </p>
-        </header>
-
-        {selectedPdfSlugs.length >= 2 && validPdfs.length > 0 && selectedPdfSlugs.length >= Math.ceil(validPdfs.length / 2) && !isPremium && (
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-10 p-6 rounded-3xl bg-amber-50 border-2 border-amber-200 flex flex-col md:flex-row items-center justify-between gap-6"
-          >
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
-                <Crown className="h-6 w-6" />
-              </div>
-              <div>
-                <h4 className="text-amber-950 font-bold">Bundle Recommended!</h4>
-                <p className="text-sm text-amber-700 font-medium">You've selected multiple PDFs. It is more cost-effective to get <b>Season Premium Access for ₹{price}</b> for all current and future PDFs.</p>
-              </div>
-            </div>
-            <Button onClick={handleUpgrade} className="bg-amber-600 hover:bg-amber-700 shadow-xl shadow-amber-200 whitespace-nowrap">
-              Upgrade to Premium
-            </Button>
-          </motion.div>
-        )}
-
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {subjectsLoading ? (
-            Array.from({ length: 4 }).map((_, i) => (
-              <Card key={i} className="p-6 h-48 border-slate-100 flex flex-col justify-between">
-                <div>
-                  <Skeleton className="h-10 w-10 mb-4 rounded-xl" />
-                  <Skeleton className="h-6 w-3/4 mb-2" />
-                  <Skeleton className="h-4 w-1/2" />
-                </div>
-              </Card>
-            ))
-          ) : validPdfs.length > 0 ? (
-            validPdfs.map((subject) => {
-              const isOwned = profile?.ownedPdfs?.includes(subject.slug) || isPremium;
-              const isSelected = selectedPdfSlugs.includes(subject.slug);
-
-              return (
-                <Card 
-                  key={subject.slug} 
-                  onClick={() => !isOwned && togglePdfSelection(subject.slug)}
-                  className={cn(
-                    "p-6 cursor-pointer transition-all duration-300 border-slate-100 relative group",
-                    isSelected && "border-violet-500 bg-violet-50/50 shadow-lg shadow-violet-100",
-                    isOwned && "opacity-80 cursor-default bg-emerald-50/20"
-                  )}
-                >
-                  <div className="mb-4 flex items-start justify-between">
-                    <div className={cn(
-                      "h-10 w-10 rounded-xl flex items-center justify-center transition-colors",
-                      isSelected ? "bg-violet-600 text-white" : "bg-slate-50 text-slate-400 group-hover:bg-violet-100 group-hover:text-violet-600"
-                    )}>
-                      <FileText className="h-5 w-5" />
-                    </div>
-                    {isOwned ? (
-                      <Badge variant="free" className="h-6 px-2 bg-emerald-100 text-emerald-700">Owned</Badge>
-                    ) : (
-                      <div className={cn(
-                        "h-6 w-6 rounded-full border-2 flex items-center justify-center transition-all",
-                        isSelected ? "border-violet-600 bg-violet-600 text-white" : "border-slate-200"
-                      )}>
-                        {isSelected && <Check className="h-3 w-3" />}
-                      </div>
-                    )}
-                  </div>
-                  <h4 className="font-bold text-violet-950 mb-1">{subject.title}</h4>
-                  <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">High-Yield PDF</p>
-                  
-                  {isSelected && (
-                    <div className="mt-4 pt-4 border-t border-violet-100 flex items-center justify-between">
-                      <span className="text-sm font-black text-violet-900">₹{settings?.pdfPrice || '199'}</span>
-                      <Button 
-                        size="sm" 
-                        className="h-8 text-[10px] font-black"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handlePayment('pdf', subject.slug);
-                        }}
-                      >
-                        Buy Now
-                      </Button>
-                    </div>
-                  )}
-                </Card>
-              );
-            })
-          ) : (
-            <div className="col-span-full py-12 text-center">
-              <p className="text-slate-400 font-bold uppercase tracking-widest">No subject PDFs available for purchase yet.</p>
-            </div>
-          )}
-        </div>
-
-        <div className="mt-12 text-center">
-          <Button variant="ghost" className="text-slate-400 hover:text-violet-600 font-black text-[10px] uppercase tracking-widest" onClick={selectAllPdfs}>
-            Select All Subjects
-          </Button>
-        </div>
-      </section>
 
       {/* FAQ Section */}
       <section className="mb-24 max-w-3xl mx-auto">

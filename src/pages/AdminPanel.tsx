@@ -263,48 +263,7 @@ export function AdminPanel() {
     setConfirmState({ isOpen: true, title, message, onConfirm });
   };
 
-  const handleMigration = () => {
-    showConfirm(
-      "Run Database Migration?", 
-      "This will embed topics directly into subject documents. This ensures efficient data loading from a single source. Are you sure?",
-      async () => {
-        const toastId = toast.loading("Processing migration...");
-        try {
-          // 1. Fetch subjects directly from Firestore, bypassing Dev Shield
-          const subjectsSnap = await getDocs(collection(db, 'subjects'));
-          const topicsSnap = await getDocs(collection(db, 'topics'));
-          
-          const topicsBySubject: Record<string, any[]> = {};
-          topicsSnap.forEach((tDoc) => {
-            const topic: any = { id: tDoc.id, ...tDoc.data() };
-            const slug = topic.subjectSlug;
-            if (slug) {
-              if (!topicsBySubject[slug]) topicsBySubject[slug] = [];
-              topicsBySubject[slug].push(topic);
-            }
-          });
 
-          const batch = writeBatch(db);
-          let count = 0;
-          
-          subjectsSnap.forEach((sDoc) => {
-            const subject = sDoc.data();
-            const slug = subject.slug;
-            const subjectTopics = topicsBySubject[slug] || [];
-            batch.update(sDoc.ref, { topics: subjectTopics });
-            count++;
-          });
-          
-          await batch.commit();
-          
-          toast.success(`Migration Complete! topics synced into ${count} subjects.`, { id: toastId });
-        } catch (error: any) {
-          toast.error('Migration failed: ' + error.message, { id: toastId });
-          console.error(error);
-        }
-      }
-    );
-  };
 
   // Close mobile menu on route change
   useEffect(() => {
@@ -337,12 +296,7 @@ export function AdminPanel() {
           </div>
         </div>
 
-        <div className="mb-6">
-          <Button onClick={handleMigration} className="w-full bg-red-600 hover:bg-red-700 text-white font-bold h-12 shadow-lg shadow-red-200">
-            <RefreshCw className="w-5 h-5 mr-2" />
-            MIGRATION
-          </Button>
-        </div>
+
         
         <nav className="space-y-1.5">
           <AdminNavLink to="/admin" icon={LayoutDashboard} active={location.pathname === '/admin'} onClick={() => setIsMobileMenuOpen(false)}>Overview</AdminNavLink>
