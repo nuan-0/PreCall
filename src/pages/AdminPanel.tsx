@@ -1031,8 +1031,8 @@ D. Article 22
         <div className="flex items-center gap-3">
           <Button 
             onClick={async () => {
+              const toastId = toast.loading('Refreshing cache from Firebase...');
               try {
-                const toastId = toast.loading('Refreshing cache from Firebase...');
                 const res = await fetch('/api/admin/refresh-bundle', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },

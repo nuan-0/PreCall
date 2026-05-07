@@ -12,7 +12,8 @@ import crypto from 'crypto';
 import admin from 'firebase-admin';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import fs from 'fs';
-fs.writeFileSync('server_startup.txt', 'HELLO I AM THE SERVER ' + Date.now() + '\n');
+// 
+
 import { initializeApp } from 'firebase/app';
 import { getFirestore as getLiteFirestore, collection as liteCollection, getDocs as liteGetDocs, doc as liteDoc, getDoc as liteGetDoc } from 'firebase/firestore/lite';
 // import fetch from 'node-fetch'; // No longer needed in Node 18+
@@ -358,6 +359,38 @@ async function startServer() {
   seedRazorpayTestAccount();
 
   // --- CONTENT CACHE LOGIC ---
+  const normalizeArray = (input: any, debugLabel = 'Array'): any[] => {
+    if (!input) {
+      console.error(`[API Normalizer:${debugLabel}] Input is falsy:`, input);
+      return [];
+    }
+    if (Array.isArray(input)) return input;
+    
+    console.error(`[API Normalizer:${debugLabel}] Object Input detected. Keys:`, Object.keys(input), 'Type:', typeof input);
+    console.log(`[API Normalizer:${debugLabel}] Object Input detected. Keys:${Object.keys(input)} Type:${typeof input}\n`);
+
+    if (typeof input === 'object' && input !== null) {
+      const entries = Object.entries(input).filter(([k]) => k.trim() !== '' && !isNaN(Number(k)));
+      if (entries.length > 0) {
+        console.log(`[API Normalizer:${debugLabel}] Using Priority 1 (Numeric Keys). Found ${entries.length} items.`);
+        return entries.sort((a, b) => Number(a[0]) - Number(b[0])).map(e => e[1]);
+      }
+      const values = Object.values(input);
+      if (values.length > 0 && typeof values[0] === 'object' && values[0] !== null) {
+        if (!(input.slug || input.id)) {
+          console.log(`[API Normalizer:${debugLabel}] Using Priority 2 (Object Values). Found ${values.length} items.`);
+          return values;
+        }
+      }
+      if (input.slug || input.id) {
+          console.log(`[API Normalizer:${debugLabel}] Using Priority 3 (Single Item).`);
+          return [input];
+      }
+    }
+    console.error(`[API Normalizer:${debugLabel}] Failed to normalize! Returning empty array. Original input keys:`, Object.keys(input));
+    return [];
+  };
+
   const contentCache = {
     subjects: [] as any[],
     topics: [] as any[],
@@ -393,57 +426,22 @@ async function startServer() {
         let adminEmails: string[] = [];
         let admins: string[] = [];
 
-        const normalizeArray = (input: any, debugLabel = 'Array'): any[] => {
-          if (!input) {
-            console.error(`[API Normalizer:${debugLabel}] Input is falsy:`, input);
-            return [];
-          }
-          if (Array.isArray(input)) return input;
-          
-          console.error(`[API Normalizer:${debugLabel}] Object Input detected. Keys:`, Object.keys(input), 'Type:', typeof input);
-          fs.appendFileSync('normalizer_log.txt', `[API Normalizer:${debugLabel}] Object Input detected. Keys:${Object.keys(input)} Type:${typeof input}\n`);
-
-          if (typeof input === 'object' && input !== null) {
-            const entries = Object.entries(input).filter(([k]) => k.trim() !== '' && !isNaN(Number(k)));
-            if (entries.length > 0) {
-              console.log(`[API Normalizer:${debugLabel}] Using Priority 1 (Numeric Keys). Found ${entries.length} items.`);
-              return entries.sort((a, b) => Number(a[0]) - Number(b[0])).map(e => e[1]);
-            }
-            const values = Object.values(input);
-            if (values.length > 0 && typeof values[0] === 'object' && values[0] !== null) {
-              if (!(input.slug || input.id)) {
-                console.log(`[API Normalizer:${debugLabel}] Using Priority 2 (Object Values). Found ${values.length} items.`);
-                fs.appendFileSync('normalizer_log.txt', `[API Normalizer:${debugLabel}] Priority 2. ${values.length} items.\n`);
-                return values;
-              }
-            }
-            if (input.slug || input.id) {
-               console.log(`[API Normalizer:${debugLabel}] Using Priority 3 (Single Item).`);
-               fs.appendFileSync('normalizer_log.txt', `[API Normalizer:${debugLabel}] Priority 3.\n`);
-               return [input];
-            }
-          }
-          console.error(`[API Normalizer:${debugLabel}] Failed to normalize! Returning empty array. Original input keys:`, Object.keys(input));
-          fs.appendFileSync('normalizer_log.txt', `[API Normalizer:${debugLabel}] Failed to normalize! Returning empty array.\n`);
-          return [];
-        };
-
         const fetchDocWithFallback = async (collectionName: string, docId: string) => {
           try {
             if (!db) throw new Error("Admin SDK DB not acquired");
             const adminDoc = await db.collection(collectionName).doc(docId).get();
             if (adminDoc.exists) return { exists: true, data: () => adminDoc.data(), id: adminDoc.id };
           } catch (e: any) {
-            fs.appendFileSync('fallback_log.txt', `[Admin Failed] ${collectionName}/${docId}: ${e.message}\n`);
+            
             if (clientDb) {
                try {
                   const clientDoc = await runLiteOp(() => liteGetDoc(liteDoc(clientDb, collectionName, docId)), `${collectionName}/${docId}`);
                   if (clientDoc.exists()) {
-                     fs.appendFileSync('fallback_log.txt', `[Client Success] ${collectionName}/${docId}\n`);
+                     
                      return { exists: true, data: () => clientDoc.data(), id: clientDoc.id };
                   }
                } catch (e2: any) {
-                  fs.appendFileSync('fallback_log.txt', `[Client Failed] ${collectionName}/${docId}: ${e2.message}\n`);
+                  
                }
             }
           }
@@ -461,19 +459,19 @@ async function startServer() {
             }
             return []; // Actually return empty if it worked but had no items
           } catch (e: any) {
-            fs.appendFileSync('fallback_log.txt', `[Admin Failed] ${collectionName}: ${e.message}\n`);
+            
             if (clientDb) {
                try {
                   const clientSnap = await runLiteOp(() => liteGetDocs(liteCollection(clientDb, collectionName)), collectionName);
                   if (clientSnap && !clientSnap.empty) {
-                    fs.appendFileSync('fallback_log.txt', `[Client Success] ${collectionName}\n`);
+                    
                     const result: any[] = [];
                     clientSnap.forEach((doc: any) => result.push({ id: doc.id, ...doc.data(), data: () => doc.data() }));
                     return result;
                   }
                   return [];
                } catch (e2: any) {
-                  fs.appendFileSync('fallback_log.txt', `[Client Failed] ${collectionName}: ${e2.message}\n`);
+                  
                }
             }
             return null; // Return null on absolute failure
@@ -492,7 +490,7 @@ async function startServer() {
           if (subjectsBundleDoc?.exists) {
             const rawData = subjectsBundleDoc.data();
             subjects = normalizeArray(rawData?.data || rawData?.subjects || rawData, 'subjectsBundleData');
-            fs.appendFileSync('fallback_log.txt', `[LOG] Subjects initialized from bundle. Size: ${subjects.length}\n`);
+            
           }
 
           // Fetch fallback collections (always fetch topics to ensure robustness)
@@ -506,7 +504,7 @@ async function startServer() {
             rawSubjectsSnap.forEach(docData => {
               subjects.push({ id: docData.id, slug: docData.slug || docData.id, ...docData.data() });
             });
-            fs.appendFileSync('fallback_log.txt', `[LOG] Subjects appended from rawSubjectsSnap. Size now: ${subjects.length}\n`);
+            
           }
 
           let fallbackTopics: any[] = [];
@@ -603,11 +601,11 @@ async function startServer() {
           }
         } catch (fallbackErr: any) {
           console.error('[Cache] Fetch failed:', fallbackErr.message);
-          fs.appendFileSync('fallback_log.txt', `[LOG] FATAL ERROR IN REFRESH: ${fallbackErr.message}\n${fallbackErr.stack}\n`);
+          
           if (subjects.length === 0 && !contentCache.hasLoadedFirstTime) throw fallbackErr;
         }
 
-        fs.appendFileSync('fallback_log.txt', `[LOG] Successfully completed try/catch. Subjects size: ${subjects.length}\n`);
+        
 
         subjects.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
 
@@ -678,7 +676,7 @@ async function startServer() {
   app.get('/api/test1234', (req, res) => res.json({ test: 1234 }));
   // API: Get all cached content
   app.get('/api/content/all', async (req, res) => {
-    fs.appendFileSync('server_startup.txt', 'API HIT /api/content/all\n');
+    
     try {
       res.set('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400');
 
@@ -699,7 +697,7 @@ async function startServer() {
         return res.json({ status: 'unchanged', lastUpdated: contentCache.lastUpdated });
       }
 
-      fs.appendFileSync('server_startup.txt', 'ABOUT TO SEND JSON WITH MARKER\n');
+      
       res.json({
         MARKER: "AI_STUDIO_SERVER_123",
         subjects: contentCache.subjects || [],
