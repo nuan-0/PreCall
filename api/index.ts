@@ -91,6 +91,8 @@ async function startServer() {
     } catch(err) { throw err; }
   }
 
+  let adminSdkReady = false;
+
   try {
     const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
     if (fs.existsSync(configPath)) {
@@ -126,6 +128,7 @@ async function startServer() {
             projectId: sa.project_id || configProjectId,
             storageBucket: config.storageBucket || (sa.project_id ? `${sa.project_id}.firebasestorage.app` : undefined)
           });
+          adminSdkReady = true;
           console.log('✅ Firebase Admin initialized via Service Account. Project:', admin.app().options.projectId);
         } catch (err: any) {
           console.error('❌ CRITICAL: Failed to parse FIREBASE_SERVICE_ACCOUNT JSON:', err.message);
@@ -135,15 +138,11 @@ async function startServer() {
           throw new Error('Invalid FIREBASE_SERVICE_ACCOUNT JSON. Please check settings.');
         }
       } else {
-        console.log('[Firebase] RED ALERT: FIREBASE_SERVICE_ACCOUNT not found. Falling back to default credentials.');
-        console.log('[Firebase] Project ID from config:', configProjectId);
-        // Explicitly set the project ID even when using ADC
-        admin.initializeApp({
-          projectId: configProjectId || undefined
-        });
-        console.log('✅ Firebase Admin initialized. Project:', admin.app().options.projectId);
+        console.log('[Firebase] RED ALERT: FIREBASE_SERVICE_ACCOUNT not found. Using ONLY Lite Client to avoid timeout.');
+        adminSdkReady = false;
       }
     } else {
+      adminSdkReady = true;
       console.log('[Firebase] Already initialized. Project:', admin.app().options.projectId);
     }
   } catch (error) {
@@ -151,22 +150,22 @@ async function startServer() {
   }
 
   // Define DB with explicit database ID if present
-  let db: admin.firestore.Firestore;
+  let db: admin.firestore.Firestore | null = null;
   try {
-    const app = admin.app();
-    if (firestoreDatabaseId) {
-      console.log(`[Firebase] Accessing specific database: ${firestoreDatabaseId}`);
-      db = getFirestore(app, firestoreDatabaseId);
-    } else {
-      console.log('[Firebase] Accessing default database');
-      db = getFirestore(app);
+    if (adminSdkReady) {
+      const app = admin.app();
+      if (firestoreDatabaseId) {
+        console.log(`[Firebase] Accessing specific database: ${firestoreDatabaseId}`);
+        db = getFirestore(app, firestoreDatabaseId);
+      } else {
+        console.log('[Firebase] Accessing default database');
+        db = getFirestore(app);
+      }
+      // Simple verification check (lazy, will fail on first access if permission denied)
+      console.log('✅ Firestore instance acquired');
     }
-    // Simple verification check (lazy, will fail on first access if permission denied)
-    console.log('✅ Firestore instance acquired');
   } catch (err: any) {
     console.error('❌ Failed to acquire Firestore instance:', err.message);
-    // Fallback to default
-    db = admin.firestore();
   }
 
 
@@ -431,6 +430,7 @@ async function startServer() {
 
         const fetchDocWithFallback = async (collectionName: string, docId: string) => {
           try {
+            if (!db) throw new Error("Admin SDK DB not acquired");
             const adminDoc = await db.collection(collectionName).doc(docId).get();
             if (adminDoc.exists) return { exists: true, data: () => adminDoc.data(), id: adminDoc.id };
           } catch (e: any) {
@@ -452,6 +452,7 @@ async function startServer() {
 
         const fetchColWithFallback = async (collectionName: string): Promise<any[] | null> => {
           try {
+            if (!db) throw new Error("Admin SDK DB not acquired");
             const adminSnap = await db.collection(collectionName).get();
             if (adminSnap && !adminSnap.empty) {
                const result: any[] = [];
@@ -684,9 +685,13 @@ async function startServer() {
       const clientLastUpdated = parseInt(req.query.lastUpdated as string || '0');
 
       // Wait for initial load if necessary
-      if (!contentCache.hasLoadedFirstTime && activeRefreshPromise) {
-        console.log(`[API] Waiting for initial cache load...`);
-        await activeRefreshPromise;
+      if (!contentCache.hasLoadedFirstTime) {
+        console.log(`[API] Cold boot detected, ensuring cache is loaded...`);
+        if (activeRefreshPromise) {
+          await activeRefreshPromise;
+        } else {
+          await refreshContentCache();
+        }
       }
 
       // Check if client version is still valid

@@ -105,6 +105,10 @@ export async function fetchGlobalData(force = false) {
           console.log('[Prod Data] API returned unchanged. Returning from Zero-Read PWA Cache!');
           return;
         }
+        if (json.status === 'error') {
+          console.error('[Prod Data] API returned error:', json.error);
+          throw new Error('API Error: ' + json.error);
+        }
         data = json;
       }
 

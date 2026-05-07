@@ -14,6 +14,7 @@ import { doc, setDoc, onSnapshot, getDoc, collection, addDoc, updateDoc, arrayUn
 import { auth, db } from '../firebase';
 import { isEmailAdmin, FOUNDER_EMAIL } from '../config/admins';
 import { UserProfile } from '../types';
+import { toast } from 'sonner';
 
 interface AuthContextType {
   user: User | null;
@@ -198,6 +199,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         message: error.message,
         customData: error.customData
       });
+      if (window.self !== window.top) {
+        toast.error("Google Login is blocked inside the preview. Please click 'Open App in New Tab' to sign in.", { duration: 10000 });
+      } else {
+        toast.error("Login failed: " + error.message);
+      }
       throw error;
     }
   };
