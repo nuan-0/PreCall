@@ -1,0 +1,4 @@
+[FETCH] Subject bundle DOES NOT EXIST
+[FETCH] Subject error: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[FETCH] Topics error: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[FETCH] rawSubjectsSnap EMPTY or NULL

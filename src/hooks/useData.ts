@@ -86,7 +86,7 @@ export async function fetchGlobalData(force = false) {
         const lastUpdated = localStorage.getItem(CACHE_PREFIX + 'lastUpdated') || '0';
         console.log('[Prod Data] Fetching via Edge API endpoint (Force Refresh: true)...');
         
-        const res = await fetch(`/api/content/all?lastUpdated=${lastUpdated}&force_refresh=true`);
+        const res = await fetch(`/api/content/all?lastUpdated=${lastUpdated}`);
         if (!res.ok) {
           const text = await res.text().catch(() => 'No text');
           console.error('[Prod Data] API Failed with status', res.status, text.slice(0, 100));

@@ -1,0 +1,674 @@
+[Admin Failed] bundles/app_config: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/subjects: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] admins: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] settings/admins: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Client Failed] admins: Request failed with error: Missing or insufficient permissions.
+[Client Success] bundles/subjects
+[Client Failed] settings/admins: Request failed with error: Missing or insufficient permissions.
+[Admin Failed] topics: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Client Success] topics
+[Admin Failed] bundles/polity_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/polity_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/geography_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/modern-history_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/polity_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/modern-history_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/economy_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/geography_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/economy_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/geography_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/environment_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/environment_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/science-tech_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/art-culture_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/science-tech_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/modern-history_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/ancient-history_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/environment_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/art-culture_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/ancient-history_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/medieval-history_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/miscellaneous_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/science-tech_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/miscellaneous_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/art-culture_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/medieval-history_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/ancient-history_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/economy_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/miscellaneous_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/medieval-history_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Client Success] bundles/geography_metadata
+[Client Success] bundles/modern-history_free
+[Client Success] bundles/science-tech_metadata
+[Client Success] bundles/environment_metadata
+[Client Success] bundles/economy_free
+[Client Success] bundles/miscellaneous_metadata
+[Client Success] bundles/science-tech_free
+[Client Success] bundles/polity_free
+[Client Success] bundles/art-culture_free
+[Client Success] bundles/ancient-history_free
+[Client Success] bundles/geography_free
+[Client Success] bundles/miscellaneous_free
+[Client Success] bundles/modern-history_metadata
+[Client Success] bundles/polity_metadata
+[Client Success] bundles/medieval-history_metadata
+[Client Success] bundles/economy_metadata
+[Client Success] bundles/medieval-history_free
+[Client Success] bundles/environment_free
+[Client Success] bundles/art-culture_metadata
+[Client Success] bundles/ancient-history_metadata
+[Client Success] bundles/environment_premium
+[Client Success] bundles/ancient-history_premium
+[Client Success] bundles/medieval-history_premium
+[Client Success] bundles/economy_premium
+[Client Success] bundles/science-tech_premium
+[Client Success] bundles/modern-history_premium
+[Client Success] bundles/geography_premium
+[Client Success] bundles/miscellaneous_premium
+[Client Success] bundles/art-culture_premium
+[Admin Failed] bundles/app_config: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] settings/admins: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/subjects: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] admins: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Client Failed] settings/admins: Request failed with error: Missing or insufficient permissions.
+[Client Success] bundles/subjects
+[Client Failed] admins: Request failed with error: Missing or insufficient permissions.
+[LOG] Subjects initialized from bundle. Size: 10
+[Admin Failed] topics: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Client Success] topics
+[Admin Failed] bundles/polity_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/modern-history_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/polity_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/geography_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/modern-history_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/polity_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/geography_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/modern-history_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/economy_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/economy_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/geography_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/economy_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/environment_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/environment_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/environment_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/science-tech_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/science-tech_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/art-culture_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/science-tech_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/art-culture_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/art-culture_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/ancient-history_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/medieval-history_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/ancient-history_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/ancient-history_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/medieval-history_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/medieval-history_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/miscellaneous_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/miscellaneous_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/miscellaneous_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Client Success] bundles/art-culture_free
+[Client Success] bundles/science-tech_free
+[Client Success] bundles/geography_metadata
+[Client Success] bundles/environment_free
+[Client Success] bundles/polity_free
+[Client Success] bundles/medieval-history_metadata
+[Client Success] bundles/ancient-history_metadata
+[Client Success] bundles/ancient-history_free
+[Client Success] bundles/modern-history_free
+[Client Success] bundles/art-culture_metadata
+[Client Success] bundles/economy_free
+[Client Success] bundles/miscellaneous_free
+[Client Success] bundles/geography_free
+[Client Success] bundles/medieval-history_free
+[Client Success] bundles/miscellaneous_metadata
+[Client Success] bundles/economy_metadata
+[Client Success] bundles/polity_metadata
+[Client Success] bundles/modern-history_metadata
+[Client Success] bundles/environment_metadata
+[Client Success] bundles/science-tech_metadata
+[Client Success] bundles/ancient-history_premium
+[Client Success] bundles/medieval-history_premium
+[Client Success] bundles/geography_premium
+[Client Success] bundles/miscellaneous_premium
+[Client Success] bundles/science-tech_premium
+[Client Success] bundles/environment_premium
+[Admin Failed] bundles/app_config: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] settings/admins: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/subjects: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] admins: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Client Failed] settings/admins: Request failed with error: Missing or insufficient permissions.
+[Client Success] bundles/subjects
+[Client Failed] admins: Request failed with error: Missing or insufficient permissions.
+[LOG] Subjects initialized from bundle. Size: 10
+[Admin Failed] topics: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Client Success] topics
+[Admin Failed] bundles/polity_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/environment_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/environment_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/polity_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/environment_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/modern-history_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/geography_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/art-culture_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/science-tech_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/ancient-history_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/medieval-history_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/ancient-history_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/art-culture_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/modern-history_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/medieval-history_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/medieval-history_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/geography_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/miscellaneous_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/modern-history_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/miscellaneous_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/miscellaneous_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/geography_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/economy_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/art-culture_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/economy_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/economy_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/polity_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/ancient-history_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/science-tech_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/science-tech_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Client Success] bundles/modern-history_free
+[Client Success] bundles/geography_free
+[Client Success] bundles/polity_free
+[Client Success] bundles/ancient-history_metadata
+[Client Success] bundles/medieval-history_free
+[Client Success] bundles/medieval-history_metadata
+[Client Success] bundles/science-tech_free
+[Client Success] bundles/environment_free
+[Client Success] bundles/science-tech_metadata
+[Client Success] bundles/miscellaneous_metadata
+[Client Success] bundles/environment_metadata
+[Client Success] bundles/geography_metadata
+[Client Success] bundles/art-culture_metadata
+[Client Success] bundles/economy_metadata
+[Client Success] bundles/art-culture_free
+[Client Success] bundles/miscellaneous_free
+[Client Success] bundles/economy_free
+[Client Success] bundles/modern-history_metadata
+[Client Success] bundles/polity_metadata
+[Client Success] bundles/ancient-history_free
+[Client Success] bundles/medieval-history_premium
+[Client Success] bundles/ancient-history_premium
+[Client Success] bundles/geography_premium
+[Client Success] bundles/environment_premium
+[Client Success] bundles/miscellaneous_premium
+[Client Success] bundles/economy_premium
+[Client Success] bundles/science-tech_premium
+[Client Success] bundles/art-culture_premium
+[Client Success] bundles/modern-history_premium
+[Admin Failed] bundles/subjects: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/app_config: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] settings/admins: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] admins: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Client Success] bundles/subjects
+[Client Failed] settings/admins: Request failed with error: Missing or insufficient permissions.
+[Client Failed] admins: Request failed with error: Missing or insufficient permissions.
+[LOG] Subjects initialized from bundle. Size: 10
+[Admin Failed] topics: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Client Success] topics
+[Admin Failed] bundles/modern-history_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/modern-history_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/modern-history_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/science-tech_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/polity_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/polity_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/economy_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/environment_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/geography_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/geography_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/economy_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/environment_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/polity_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/economy_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/environment_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/science-tech_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/art-culture_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/science-tech_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/geography_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/art-culture_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/art-culture_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/ancient-history_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/ancient-history_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/ancient-history_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/medieval-history_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/medieval-history_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/miscellaneous_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/miscellaneous_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/miscellaneous_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/medieval-history_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Client Success] bundles/modern-history_metadata
+[Client Success] bundles/modern-history_free
+[Client Success] bundles/economy_free
+[Client Success] bundles/ancient-history_free
+[Client Success] bundles/medieval-history_metadata
+[Client Success] bundles/miscellaneous_free
+[Client Success] bundles/ancient-history_metadata
+[Client Success] bundles/economy_metadata
+[Client Success] bundles/science-tech_metadata
+[Client Success] bundles/geography_free
+[Client Success] bundles/polity_metadata
+[Client Success] bundles/environment_free
+[Client Success] bundles/art-culture_free
+[Client Success] bundles/miscellaneous_metadata
+[Client Success] bundles/art-culture_metadata
+[Client Success] bundles/science-tech_free
+[Client Success] bundles/environment_metadata
+[Client Success] bundles/medieval-history_free
+[Client Success] bundles/geography_metadata
+[Client Success] bundles/polity_free
+[Admin Failed] bundles/subjects: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/app_config: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] settings/admins: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] admins: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Client Failed] admins: Request failed with error: Missing or insufficient permissions.
+[Client Success] bundles/subjects
+[Client Failed] settings/admins: Request failed with error: Missing or insufficient permissions.
+[LOG] Subjects initialized from bundle. Size: 10
+[Admin Failed] topics: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Client Success] topics
+[Admin Failed] bundles/polity_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/modern-history_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/polity_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/geography_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/geography_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/economy_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/environment_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/environment_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/economy_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/modern-history_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/science-tech_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/environment_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/modern-history_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/ancient-history_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/ancient-history_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/ancient-history_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/science-tech_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/art-culture_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/art-culture_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/geography_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/economy_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/polity_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/medieval-history_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/art-culture_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/science-tech_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/medieval-history_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/miscellaneous_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/medieval-history_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/miscellaneous_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/miscellaneous_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Client Success] bundles/art-culture_metadata
+[Client Success] bundles/medieval-history_free
+[Client Success] bundles/economy_metadata
+[Client Success] bundles/polity_metadata
+[Client Success] bundles/modern-history_metadata
+[Client Success] bundles/environment_free
+[Client Success] bundles/miscellaneous_free
+[Client Success] bundles/miscellaneous_metadata
+[Client Success] bundles/geography_metadata
+[Client Success] bundles/science-tech_free
+[Client Success] bundles/economy_free
+[Client Success] bundles/medieval-history_metadata
+[Client Success] bundles/modern-history_free
+[Client Success] bundles/science-tech_metadata
+[Client Success] bundles/environment_metadata
+[Client Success] bundles/polity_free
+[Client Success] bundles/art-culture_free
+[Client Success] bundles/ancient-history_metadata
+[Client Success] bundles/ancient-history_free
+[Client Success] bundles/geography_free
+[Client Success] bundles/miscellaneous_premium
+[Client Success] bundles/environment_premium
+[Client Success] bundles/medieval-history_premium
+[Client Success] bundles/geography_premium
+[Client Success] bundles/ancient-history_premium
+[Admin Failed] bundles/subjects: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/app_config: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] settings/admins: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] admins: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Client Failed] settings/admins: Request failed with error: Missing or insufficient permissions.
+[Client Failed] admins: Request failed with error: Missing or insufficient permissions.
+[Client Success] bundles/subjects
+[LOG] Subjects initialized from bundle. Size: 10
+[Admin Failed] topics: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Client Success] topics
+[Admin Failed] bundles/polity_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/geography_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/environment_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/geography_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/economy_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/polity_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/modern-history_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/science-tech_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/geography_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/modern-history_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/modern-history_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/economy_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/environment_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/science-tech_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/polity_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/science-tech_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/environment_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/art-culture_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/ancient-history_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/art-culture_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/art-culture_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/economy_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/ancient-history_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/medieval-history_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/ancient-history_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/miscellaneous_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/medieval-history_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/miscellaneous_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/miscellaneous_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/medieval-history_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Client Success] bundles/science-tech_metadata
+[Client Success] bundles/medieval-history_metadata
+[Client Success] bundles/polity_free
+[Client Success] bundles/ancient-history_metadata
+[Client Success] bundles/modern-history_metadata
+[Client Success] bundles/miscellaneous_free
+[Client Success] bundles/environment_metadata
+[Client Success] bundles/geography_free
+[Client Success] bundles/miscellaneous_metadata
+[Client Success] bundles/geography_metadata
+[Client Success] bundles/medieval-history_free
+[Client Success] bundles/modern-history_free
+[Client Success] bundles/art-culture_metadata
+[Client Success] bundles/science-tech_free
+[Client Success] bundles/economy_free
+[Client Success] bundles/polity_metadata
+[Client Success] bundles/ancient-history_premium
+[Client Success] bundles/environment_premium
+[Client Success] bundles/geography_premium
+[Client Success] bundles/economy_premium
+[Client Success] bundles/modern-history_premium
+[Client Success] bundles/science-tech_premium
+[Admin Failed] bundles/app_config: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/subjects: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] settings/admins: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] admins: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Client Failed] settings/admins: Request failed with error: Missing or insufficient permissions.
+[Client Failed] admins: Request failed with error: Missing or insufficient permissions.
+[Client Success] bundles/subjects
+[LOG] Subjects initialized from bundle. Size: 10
+[Admin Failed] topics: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Client Success] topics
+[Admin Failed] bundles/modern-history_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/polity_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/modern-history_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/ancient-history_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/science-tech_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/art-culture_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/economy_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/ancient-history_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/environment_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/geography_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/art-culture_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/miscellaneous_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/medieval-history_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/economy_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/environment_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/science-tech_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/medieval-history_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/miscellaneous_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/geography_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/economy_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/art-culture_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/modern-history_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/medieval-history_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/ancient-history_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/geography_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/polity_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/polity_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/miscellaneous_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/environment_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/science-tech_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Client Success] bundles/ancient-history_free
+[Client Success] bundles/economy_metadata
+[Client Success] bundles/miscellaneous_free
+[Client Success] bundles/art-culture_free
+[Client Success] bundles/modern-history_free
+[Client Success] bundles/art-culture_metadata
+[Client Success] bundles/science-tech_metadata
+[Client Success] bundles/medieval-history_metadata
+[Client Success] bundles/geography_free
+[Client Success] bundles/medieval-history_free
+[Client Success] bundles/environment_free
+[Client Success] bundles/science-tech_free
+[Client Success] bundles/polity_metadata
+[Client Success] bundles/modern-history_metadata
+[Client Success] bundles/environment_metadata
+[Client Success] bundles/miscellaneous_metadata
+[Client Success] bundles/ancient-history_metadata
+[Client Success] bundles/geography_metadata
+[Client Success] bundles/economy_free
+[Client Success] bundles/polity_free
+[Client Success] bundles/geography_premium
+[Client Success] bundles/environment_premium
+[Client Success] bundles/miscellaneous_premium
+[Client Success] bundles/art-culture_premium
+[Client Success] bundles/medieval-history_premium
+[Admin Failed] bundles/app_config: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/subjects: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] admins: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] settings/admins: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Client Failed] settings/admins: Request failed with error: Missing or insufficient permissions.
+[Client Failed] admins: Request failed with error: Missing or insufficient permissions.
+[Client Success] bundles/subjects
+[LOG] Subjects initialized from bundle. Size: 10
+[Admin Failed] topics: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Client Success] topics
+[Admin Failed] bundles/geography_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/modern-history_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/geography_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/economy_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/modern-history_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/polity_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/polity_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/economy_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/science-tech_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/art-culture_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/environment_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/ancient-history_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/art-culture_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/art-culture_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/modern-history_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/economy_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/polity_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/ancient-history_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/environment_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/science-tech_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/medieval-history_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/geography_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/ancient-history_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/science-tech_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/environment_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/medieval-history_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/medieval-history_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/miscellaneous_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/miscellaneous_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/miscellaneous_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Client Success] bundles/medieval-history_metadata
+[Client Success] bundles/economy_metadata
+[Client Success] bundles/medieval-history_free
+[Client Success] bundles/ancient-history_free
+[Client Success] bundles/environment_metadata
+[Client Success] bundles/geography_free
+[Client Success] bundles/geography_metadata
+[Client Success] bundles/economy_free
+[Client Success] bundles/art-culture_metadata
+[Client Success] bundles/polity_free
+[Client Success] bundles/modern-history_free
+[Client Success] bundles/art-culture_free
+[Client Success] bundles/modern-history_metadata
+[Client Success] bundles/miscellaneous_metadata
+[Client Success] bundles/polity_metadata
+[Client Success] bundles/environment_free
+[Client Success] bundles/science-tech_free
+[Client Success] bundles/miscellaneous_free
+[Client Success] bundles/science-tech_metadata
+[Client Success] bundles/ancient-history_metadata
+[Client Success] bundles/science-tech_premium
+[Client Success] bundles/geography_premium
+[Client Success] bundles/art-culture_premium
+[Client Success] bundles/miscellaneous_premium
+[Client Success] bundles/medieval-history_premium
+[Client Success] bundles/modern-history_premium
+[Client Success] bundles/ancient-history_premium
+[Client Success] bundles/economy_premium
+[Client Success] bundles/environment_premium
+[Admin Failed] admins: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] settings/admins: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/app_config: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/subjects: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Client Failed] settings/admins: Request failed with error: Missing or insufficient permissions.
+[Client Success] bundles/subjects
+[Client Failed] admins: Request failed with error: Missing or insufficient permissions.
+[LOG] Subjects initialized from bundle. Size: 10
+[Admin Failed] topics: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Client Success] topics
+[Admin Failed] bundles/polity_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/polity_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/polity_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/economy_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/geography_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/modern-history_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/environment_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/modern-history_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/science-tech_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/ancient-history_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/environment_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/art-culture_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/art-culture_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/miscellaneous_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/ancient-history_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/science-tech_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/medieval-history_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/miscellaneous_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/geography_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/economy_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/geography_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/medieval-history_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/art-culture_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/medieval-history_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/miscellaneous_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/environment_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/ancient-history_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/modern-history_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/economy_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/science-tech_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Client Success] bundles/polity_metadata
+[Client Success] bundles/economy_free
+[Client Success] bundles/geography_metadata
+[Client Success] bundles/modern-history_free
+[Client Success] bundles/polity_free
+[Client Success] bundles/medieval-history_free
+[Client Success] bundles/geography_free
+[Client Success] bundles/miscellaneous_free
+[Client Success] bundles/science-tech_metadata
+[Client Success] bundles/modern-history_metadata
+[Client Success] bundles/miscellaneous_metadata
+[Client Success] bundles/art-culture_free
+[Client Success] bundles/ancient-history_metadata
+[Client Success] bundles/ancient-history_free
+[Client Success] bundles/science-tech_free
+[Client Success] bundles/art-culture_metadata
+[Client Success] bundles/environment_free
+[Client Success] bundles/medieval-history_metadata
+[Client Success] bundles/environment_metadata
+[Client Success] bundles/medieval-history_premium
+[Client Success] bundles/geography_premium
+[Client Success] bundles/environment_premium
+[Client Success] bundles/ancient-history_premium
+[Client Success] bundles/modern-history_premium
+[Client Success] bundles/art-culture_premium
+[Client Success] bundles/economy_premium
+[Client Success] bundles/science-tech_premium
+[Client Success] bundles/economy_metadata
+[Client Success] bundles/miscellaneous_premium
+[Client Success] bundles/polity_premium
+[Admin Failed] notifications: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] settings/global: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Client Success] settings/global
+[Client Failed] notifications: Request failed with error: Missing or insufficient permissions.
+[LOG] Successfully completed try/catch. Subjects size: 10
+[Admin Failed] bundles/subjects: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/app_config: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] settings/admins: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] admins: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Client Success] bundles/subjects
+[Client Failed] settings/admins: Request failed with error: Missing or insufficient permissions.
+[Client Failed] admins: Request failed with error: Missing or insufficient permissions.
+[LOG] Subjects initialized from bundle. Size: 10
+[Admin Failed] topics: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Client Success] topics
+[Admin Failed] bundles/geography_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/modern-history_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/economy_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/polity_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/polity_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/environment_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/modern-history_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/modern-history_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/environment_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/geography_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/environment_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/polity_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/economy_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/geography_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/economy_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/science-tech_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/art-culture_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/art-culture_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/science-tech_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/art-culture_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/ancient-history_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/ancient-history_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/medieval-history_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/science-tech_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/ancient-history_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/miscellaneous_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/miscellaneous_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/miscellaneous_free: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/medieval-history_premium: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] bundles/medieval-history_metadata: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Client Success] bundles/modern-history_free
+[Client Success] bundles/modern-history_metadata
+[Client Success] bundles/environment_metadata
+[Client Success] bundles/polity_free
+[Client Success] bundles/economy_metadata
+[Client Success] bundles/environment_free
+[Client Success] bundles/polity_metadata
+[Client Success] bundles/environment_premium
+[Client Success] bundles/geography_premium
+[Client Success] bundles/modern-history_premium
+[Client Success] bundles/polity_premium
+[Client Success] bundles/economy_premium
+[Client Success] bundles/geography_metadata
+[Client Success] bundles/miscellaneous_metadata
+[Client Success] bundles/science-tech_free
+[Client Success] bundles/miscellaneous_free
+[Client Success] bundles/ancient-history_metadata
+[Client Success] bundles/art-culture_metadata
+[Client Success] bundles/medieval-history_metadata
+[Client Success] bundles/medieval-history_free
+[Client Success] bundles/ancient-history_free
+[Client Success] bundles/art-culture_free
+[Client Success] bundles/geography_free
+[Client Success] bundles/economy_free
+[Client Success] bundles/science-tech_metadata
+[Client Success] bundles/art-culture_premium
+[Client Success] bundles/medieval-history_premium
+[Client Success] bundles/science-tech_premium
+[Client Success] bundles/ancient-history_premium
+[Client Success] bundles/miscellaneous_premium
+[Admin Failed] settings/global: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Admin Failed] notifications: 7 PERMISSION_DENIED: Missing or insufficient permissions.
+[Client Success] settings/global
+[Client Failed] notifications: Request failed with error: Missing or insufficient permissions.
+[LOG] Successfully completed try/catch. Subjects size: 10

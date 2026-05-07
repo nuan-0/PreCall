@@ -12,6 +12,7 @@ import crypto from 'crypto';
 import admin from 'firebase-admin';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import fs from 'fs';
+fs.writeFileSync('server_startup.txt', 'HELLO I AM THE SERVER ' + Date.now() + '\n');
 import { initializeApp } from 'firebase/app';
 import { getFirestore as getLiteFirestore, collection as liteCollection, getDocs as liteGetDocs, doc as liteDoc, getDoc as liteGetDoc } from 'firebase/firestore/lite';
 // import fetch from 'node-fetch'; // No longer needed in Node 18+
@@ -376,10 +377,9 @@ async function startServer() {
   const refreshContentCache = async (forceRebuild = false) => {
     if (activeRefreshPromise && !forceRebuild) return activeRefreshPromise;
     
-    // Check if we should skip due to cache being fresh (unless forced)
-    const CACHE_TTL = 1000 * 60 * 60 * 2; // 2 hours
-    if (!forceRebuild && contentCache.hasLoadedFirstTime && (Date.now() - contentCache.lastUpdated < CACHE_TTL)) {
-      console.log('[Cache] Using fresh RAM cache.');
+    // Strict Server-Side Caching: ONLY fetch from Firebase if cold boot or manually forced.
+    if (!forceRebuild && contentCache.hasLoadedFirstTime) {
+      console.log('[Cache] Using persistent RAM cache. No auto-refresh.');
       return;
     }
 
@@ -402,60 +402,115 @@ async function startServer() {
           if (Array.isArray(input)) return input;
           
           console.error(`[API Normalizer:${debugLabel}] Object Input detected. Keys:`, Object.keys(input), 'Type:', typeof input);
+          fs.appendFileSync('normalizer_log.txt', `[API Normalizer:${debugLabel}] Object Input detected. Keys:${Object.keys(input)} Type:${typeof input}\n`);
 
           if (typeof input === 'object' && input !== null) {
-            const keys = Object.keys(input).filter(k => k.trim() !== '' && !isNaN(Number(k)));
-            if (keys.length > 0) {
-              console.log(`[API Normalizer:${debugLabel}] Using Priority 1 (Numeric Keys). Found ${keys.length} items.`);
-              return keys.sort((a, b) => Number(a) - Number(b)).map(k => input[k]);
+            const entries = Object.entries(input).filter(([k]) => k.trim() !== '' && !isNaN(Number(k)));
+            if (entries.length > 0) {
+              console.log(`[API Normalizer:${debugLabel}] Using Priority 1 (Numeric Keys). Found ${entries.length} items.`);
+              return entries.sort((a, b) => Number(a[0]) - Number(b[0])).map(e => e[1]);
             }
             const values = Object.values(input);
             if (values.length > 0 && typeof values[0] === 'object' && values[0] !== null) {
               if (!(input.slug || input.id)) {
                 console.log(`[API Normalizer:${debugLabel}] Using Priority 2 (Object Values). Found ${values.length} items.`);
+                fs.appendFileSync('normalizer_log.txt', `[API Normalizer:${debugLabel}] Priority 2. ${values.length} items.\n`);
                 return values;
               }
             }
             if (input.slug || input.id) {
                console.log(`[API Normalizer:${debugLabel}] Using Priority 3 (Single Item).`);
+               fs.appendFileSync('normalizer_log.txt', `[API Normalizer:${debugLabel}] Priority 3.\n`);
                return [input];
             }
           }
           console.error(`[API Normalizer:${debugLabel}] Failed to normalize! Returning empty array. Original input keys:`, Object.keys(input));
+          fs.appendFileSync('normalizer_log.txt', `[API Normalizer:${debugLabel}] Failed to normalize! Returning empty array.\n`);
           return [];
+        };
+
+        const fetchDocWithFallback = async (collectionName: string, docId: string) => {
+          try {
+            const adminDoc = await db.collection(collectionName).doc(docId).get();
+            if (adminDoc.exists) return { exists: true, data: () => adminDoc.data(), id: adminDoc.id };
+          } catch (e: any) {
+            fs.appendFileSync('fallback_log.txt', `[Admin Failed] ${collectionName}/${docId}: ${e.message}\n`);
+            if (clientDb) {
+               try {
+                  const clientDoc = await runLiteOp(() => liteGetDoc(liteDoc(clientDb, collectionName, docId)), `${collectionName}/${docId}`);
+                  if (clientDoc.exists()) {
+                     fs.appendFileSync('fallback_log.txt', `[Client Success] ${collectionName}/${docId}\n`);
+                     return { exists: true, data: () => clientDoc.data(), id: clientDoc.id };
+                  }
+               } catch (e2: any) {
+                  fs.appendFileSync('fallback_log.txt', `[Client Failed] ${collectionName}/${docId}: ${e2.message}\n`);
+               }
+            }
+          }
+          return null;
+        };
+
+        const fetchColWithFallback = async (collectionName: string): Promise<any[] | null> => {
+          try {
+            const adminSnap = await db.collection(collectionName).get();
+            if (adminSnap && !adminSnap.empty) {
+               const result: any[] = [];
+               adminSnap.forEach(doc => result.push({ id: doc.id, ...doc.data(), data: () => doc.data() }));
+               return result;
+            }
+            return []; // Actually return empty if it worked but had no items
+          } catch (e: any) {
+            fs.appendFileSync('fallback_log.txt', `[Admin Failed] ${collectionName}: ${e.message}\n`);
+            if (clientDb) {
+               try {
+                  const clientSnap = await runLiteOp(() => liteGetDocs(liteCollection(clientDb, collectionName)), collectionName);
+                  if (clientSnap && !clientSnap.empty) {
+                    fs.appendFileSync('fallback_log.txt', `[Client Success] ${collectionName}\n`);
+                    const result: any[] = [];
+                    clientSnap.forEach((doc: any) => result.push({ id: doc.id, ...doc.data(), data: () => doc.data() }));
+                    return result;
+                  }
+                  return [];
+               } catch (e2: any) {
+                  fs.appendFileSync('fallback_log.txt', `[Client Failed] ${collectionName}: ${e2.message}\n`);
+               }
+            }
+            return null; // Return null on absolute failure
+          }
         };
 
         try {
           // Fetch consolidated bundles instead of raw collections
           const [subjectsBundleDoc, appConfigBundleDoc, adminsSnap, adminEmailsDoc] = await Promise.all([
-            db.collection('bundles').doc('subjects').get().catch(() => null),
-            db.collection('bundles').doc('app_config').get().catch(() => null),
-            db.collection('admins').get().catch(() => null),
-            db.collection('settings').doc('admins').get().catch(() => null)
+            fetchDocWithFallback('bundles', 'subjects'),
+            fetchDocWithFallback('bundles', 'app_config'),
+            fetchColWithFallback('admins'),
+            fetchDocWithFallback('settings', 'admins')
           ]);
 
           if (subjectsBundleDoc?.exists) {
             const rawData = subjectsBundleDoc.data();
-            subjects = normalizeArray(rawData?.data || rawData?.subjects || rawData);
+            subjects = normalizeArray(rawData?.data || rawData?.subjects || rawData, 'subjectsBundleData');
+            fs.appendFileSync('fallback_log.txt', `[LOG] Subjects initialized from bundle. Size: ${subjects.length}\n`);
           }
 
           // Fetch fallback collections (always fetch topics to ensure robustness)
           const [rawSubjectsSnap, rawTopicsSnap] = await Promise.all([
-            subjects.length === 0 ? db.collection('subjects').get().catch(() => null) : Promise.resolve(null),
-            db.collection('topics').get().catch(() => null)
+            subjects.length === 0 ? fetchColWithFallback('subjects') : Promise.resolve(null),
+            fetchColWithFallback('topics')
           ]);
 
-          if (rawSubjectsSnap && !rawSubjectsSnap.empty) {
+          if (rawSubjectsSnap && rawSubjectsSnap.length > 0) {
             console.log('[Cache] Subjects bundle empty, using subjects collection fallback');
-            rawSubjectsSnap.forEach(doc => {
-              const data = doc.data();
-              subjects.push({ id: doc.id, slug: data.slug || doc.id, ...data });
+            rawSubjectsSnap.forEach(docData => {
+              subjects.push({ id: docData.id, slug: docData.slug || docData.id, ...docData.data() });
             });
+            fs.appendFileSync('fallback_log.txt', `[LOG] Subjects appended from rawSubjectsSnap. Size now: ${subjects.length}\n`);
           }
 
           let fallbackTopics: any[] = [];
-          if (rawTopicsSnap && !rawTopicsSnap.empty) {
-            rawTopicsSnap.forEach(doc => fallbackTopics.push({ id: doc.id, ...doc.data() }));
+          if (rawTopicsSnap && rawTopicsSnap.length > 0) {
+            rawTopicsSnap.forEach(docData => fallbackTopics.push({ id: docData.id, ...docData.data() }));
           }
 
           // Fetch individual topic bundles for each subject in parallel
@@ -467,16 +522,16 @@ async function startServer() {
                 // we should try bundles for topics first
                 if (subjectsBundleDoc?.exists) {
                   // Try BOTH naming versions: "{slug}_x" and "topics_{slug}_x"
-                  const getDocWithFallback = async (baseName: string) => {
-                    const d1 = await db.collection('bundles').doc(baseName).get().catch(() => null);
+                  const getDocWithFallbackCombo = async (baseName: string) => {
+                    const d1 = await fetchDocWithFallback('bundles', baseName);
                     if (d1?.exists) return d1;
-                    return await db.collection('bundles').doc(`topics_${baseName}`).get().catch(() => null);
+                    return await fetchDocWithFallback('bundles', `topics_${baseName}`);
                   };
 
                   const [meta, free, prem] = await Promise.all([
-                     getDocWithFallback(`${s.slug}_metadata`),
-                     getDocWithFallback(`${s.slug}_free`),
-                     getDocWithFallback(`${s.slug}_premium`)
+                     getDocWithFallbackCombo(`${s.slug}_metadata`),
+                     getDocWithFallbackCombo(`${s.slug}_free`),
+                     getDocWithFallbackCombo(`${s.slug}_premium`)
                   ]);
 
                   // Merge them into a single topics array with normalization
@@ -530,25 +585,28 @@ async function startServer() {
           } else {
             // Fallback for settings/notifications
             const [rawSettingsSnap, rawNotificationsSnap] = await Promise.all([
-              db.collection('settings').doc('global').get().catch(() => null),
-              db.collection('notifications').get().catch(() => null)
+              fetchDocWithFallback('settings', 'global'),
+              fetchColWithFallback('notifications')
             ]);
             if (rawSettingsSnap?.exists) settings = rawSettingsSnap.data();
-            if (rawNotificationsSnap && !rawNotificationsSnap.empty) {
-              rawNotificationsSnap.forEach(doc => notifications.push({ id: doc.id, ...doc.data() }));
+            if (rawNotificationsSnap && rawNotificationsSnap.length > 0) {
+              rawNotificationsSnap.forEach(docData => notifications.push({ id: docData.id, ...docData.data() }));
             }
           }
 
-          if (adminsSnap && !adminsSnap.empty) {
-            adminsSnap.forEach(doc => admins.push(doc.id));
+          if (adminsSnap && adminsSnap.length > 0) {
+            adminsSnap.forEach(docData => admins.push(docData.id));
           }
           if (adminEmailsDoc?.exists) {
             adminEmails = adminEmailsDoc.data()?.emails || [];
           }
         } catch (fallbackErr: any) {
           console.error('[Cache] Fetch failed:', fallbackErr.message);
+          fs.appendFileSync('fallback_log.txt', `[LOG] FATAL ERROR IN REFRESH: ${fallbackErr.message}\n${fallbackErr.stack}\n`);
           if (subjects.length === 0 && !contentCache.hasLoadedFirstTime) throw fallbackErr;
         }
+
+        fs.appendFileSync('fallback_log.txt', `[LOG] Successfully completed try/catch. Subjects size: ${subjects.length}\n`);
 
         subjects.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
 
@@ -585,8 +643,7 @@ async function startServer() {
     refreshContentCache().catch(err => {
       console.warn('[Cache] Initial refresh failed (might be quota):', err.message);
     });
-    // Refresh every 2 hours to keep RAM warm and bundles fresh as requested
-    setInterval(refreshContentCache, 1000 * 60 * 60 * 2);
+    // No auto-refresh logic. Admin must manually trigger deployment via /api/admin/refresh-bundle
   }
 
   // Startup verification
@@ -617,25 +674,29 @@ async function startServer() {
     next();
   });
 
+  app.get('/api/test1234', (req, res) => res.json({ test: 1234 }));
   // API: Get all cached content
   app.get('/api/content/all', async (req, res) => {
+    fs.appendFileSync('server_startup.txt', 'API HIT /api/content/all\n');
     try {
       res.set('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400');
 
       const clientLastUpdated = parseInt(req.query.lastUpdated as string || '0');
-      const forceRefresh = req.query.force_refresh === 'true';
 
-      if (forceRefresh) {
-        console.log('[API] Force refresh requested');
-        await refreshContentCache(true);
+      // Wait for initial load if necessary
+      if (!contentCache.hasLoadedFirstTime && activeRefreshPromise) {
+        console.log(`[API] Waiting for initial cache load...`);
+        await activeRefreshPromise;
       }
 
       // Check if client version is still valid
-      if (!forceRefresh && clientLastUpdated >= contentCache.lastUpdated && contentCache.lastUpdated > 0 && !contentCache.isRefreshing) {
+      if (clientLastUpdated >= contentCache.lastUpdated && contentCache.lastUpdated > 0 && !contentCache.isRefreshing) {
         return res.json({ status: 'unchanged', lastUpdated: contentCache.lastUpdated });
       }
 
+      fs.appendFileSync('server_startup.txt', 'ABOUT TO SEND JSON WITH MARKER\n');
       res.json({
+        MARKER: "AI_STUDIO_SERVER_123",
         subjects: contentCache.subjects || [],
         topics: contentCache.topics || [],
         settings: contentCache.settings,
@@ -651,16 +712,17 @@ async function startServer() {
   });
 
   // API: Force refresh content cache (Admin only)
-  app.post('/api/admin/rebuild-cache', async (req, res) => {
+  app.post('/api/admin/refresh-bundle', async (req, res) => {
     const { userId, rebuild = true } = req.body || {};
     const isAdmin = await checkIsAdmin(userId);
     if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
 
     try {
       console.log(`[Admin] Cache Rebuild triggered by ${userId}`);
-      await refreshContentCache(rebuild);
+      await refreshContentCache(true);
       res.json({ 
         success: true, 
+        message: 'Cache updated successfully from Firebase',
         subjectsCount: contentCache.subjects.length, 
         topicsCount: (contentCache.topics || []).length,
         lastUpdated: contentCache.lastUpdated

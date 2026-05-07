@@ -1029,6 +1029,30 @@ D. Article 22
           <p className="text-slate-500 font-medium mt-1">Manage your high-yield content and app growth.</p>
         </div>
         <div className="flex items-center gap-3">
+          <Button 
+            onClick={async () => {
+              try {
+                const toastId = toast.loading('Refreshing cache from Firebase...');
+                const res = await fetch('/api/admin/refresh-bundle', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ userId: user?.uid, rebuild: true })
+                });
+                const data = await res.json();
+                if (data.success) {
+                  toast.success(data.message || 'Cache refreshed successfully!', { id: toastId });
+                } else {
+                  throw new Error(data.error);
+                }
+              } catch (e: any) {
+                toast.error(e.message || 'Failed to refresh cache', { id: toastId });
+              }
+            }}
+            className="bg-violet-600 hover:bg-violet-700 text-white rounded-full px-5 py-2.5 shadow-sm text-sm font-bold flex items-center gap-2 transition-all hover:shadow-md"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Update Live
+          </Button>
           <div className="px-5 py-2.5 rounded-full bg-emerald-50 border border-emerald-100 flex items-center gap-3 shadow-sm">
             <div className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
             <span className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">App is Live</span>
