@@ -996,6 +996,8 @@ D. Article 22
                 });
                 const data = await res.json();
                 if (data.success) {
+                  // Fetch the newly refreshed global data on the client side
+                  import('../hooks/useData').then(m => m.fetchGlobalData(true));
                   toast.success(data.message || 'Cache refreshed successfully!', { id: toastId });
                 } else {
                   throw new Error(data.error);

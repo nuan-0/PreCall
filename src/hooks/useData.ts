@@ -304,28 +304,15 @@ export function useNotifications(uid?: string, isAdmin?: boolean) {
     // Fetch user-specific notifications dynamically
     const q = query(collection(db, 'notifications'), where('userId', '==', uid));
     
-    let unsub = () => {};
-    const loadUserNotifs = async () => {
-      try {
-        const snap = await getDocs(q);
-        const fetched = snap.docs.map(d => ({ id: d.id, ...d.data() } as AppNotification));
-        setUserNotifs(fetched);
-        setLoading(false);
-        
-        // Listen for new ones while active
-        unsub = onSnapshot(q, (snapshot) => {
-          const updated = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as AppNotification));
-          setUserNotifs(updated);
-        }, (err) => {
-          console.warn('Notification snapshot err:', err);
-        });
-      } catch (err) {
-        console.warn('Failed to load user notifications:', err);
-        setLoading(false);
-      }
-    };
+    const unsub = onSnapshot(q, (snapshot) => {
+      const updated = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as AppNotification));
+      setUserNotifs(updated);
+      setLoading(false);
+    }, (err) => {
+      console.warn('Notification snapshot err:', err);
+      setLoading(false);
+    });
     
-    loadUserNotifs();
     return () => unsub();
   }, [uid]);
 

@@ -479,123 +479,33 @@ async function startServer() {
         };
 
         try {
-          // Fetch consolidated bundles instead of raw collections
-          const [subjectsBundleDoc, appConfigBundleDoc, adminsSnap, adminEmailsDoc] = await Promise.all([
-            fetchDocWithFallback('bundles', 'subjects'),
-            fetchDocWithFallback('bundles', 'app_config'),
+          // Fetch raw collections directly to ensure freshness (skip stale bundles)
+          const [rawSubjectsSnap, rawSettingsSnap, rawNotificationsSnap, adminsSnap, adminEmailsDoc] = await Promise.all([
+            fetchColWithFallback('subjects'),
+            fetchDocWithFallback('settings', 'global'),
+            fetchColWithFallback('notifications'),
             fetchColWithFallback('admins'),
             fetchDocWithFallback('settings', 'admins')
           ]);
 
-          if (subjectsBundleDoc?.exists) {
-            const rawData = subjectsBundleDoc.data();
-            subjects = normalizeArray(rawData?.data || rawData?.subjects || rawData, 'subjectsBundleData');
-            
-          }
-
-          // Fetch fallback collections (always fetch topics to ensure robustness)
-          const [rawSubjectsSnap, rawTopicsSnap] = await Promise.all([
-            subjects.length === 0 ? fetchColWithFallback('subjects') : Promise.resolve(null),
-            fetchColWithFallback('topics')
-          ]);
-
           if (rawSubjectsSnap && rawSubjectsSnap.length > 0) {
-            console.log('[Cache] Subjects bundle empty, using subjects collection fallback');
             rawSubjectsSnap.forEach(docData => {
               subjects.push({ id: docData.id, slug: docData.slug || docData.id, ...docData.data() });
             });
-            
-          }
-
-          let fallbackTopics: any[] = [];
-          if (rawTopicsSnap && rawTopicsSnap.length > 0) {
-            rawTopicsSnap.forEach(docData => fallbackTopics.push({ id: docData.id, ...docData.data() }));
-          }
-
-          // Fetch individual topic bundles for each subject in parallel
-          if (subjects.length > 0) {
-            const topicBundles = await Promise.all(subjects.map(async (s: any) => {
-              try {
-                let topicsFromBundles: any[] = [];
-                // If we didn't use fallback for subjects collection (meaning we used bundles), 
-                // we should try bundles for topics first
-                if (subjectsBundleDoc?.exists) {
-                  // Try BOTH naming versions: "{slug}_x" and "topics_{slug}_x"
-                  const getDocWithFallbackCombo = async (baseName: string) => {
-                    const d1 = await fetchDocWithFallback('bundles', baseName);
-                    if (d1?.exists) return d1;
-                    return await fetchDocWithFallback('bundles', `topics_${baseName}`);
-                  };
-
-                  const [meta, free, prem] = await Promise.all([
-                     getDocWithFallbackCombo(`${s.slug}_metadata`),
-                     getDocWithFallbackCombo(`${s.slug}_free`),
-                     getDocWithFallbackCombo(`${s.slug}_premium`)
-                  ]);
-
-                  // Merge them into a single topics array with normalization
-                  topicsFromBundles = [
-                    ...normalizeArray(meta?.exists ? (meta.data()?.data || meta.data()) : null),
-                    ...normalizeArray(free?.exists ? (free.data()?.data || free.data()) : null),
-                    ...normalizeArray(prem?.exists ? (prem.data()?.data || prem.data()) : null)
-                  ];
-
-                  // Also check for nested topics field inside meta (some schemas use meta.topics)
-                  if (meta?.exists && topicsFromBundles.length === 0) {
-                    const metaData = meta.data();
-                    const nested = normalizeArray(metaData?.topics || metaData?.data?.topics);
-                    if (nested.length > 0) topicsFromBundles.push(...nested);
-                  }
-                }
-                
-                // Combine all available sources for topics (later sources override earlier ones due to Map de-duplication)
-                const allTopics = [
-                  ...fallbackTopics.filter((t: any) => t.subjectSlug === s.slug), // Topics from topics collection (lowest priority)
-                  ...topicsFromBundles,
-                  ...normalizeArray(s.topics) // Topics embedded in subject (highest priority)
-                ];
-
-                // De-duplicate by slug to be safe
-                const uniqueTopics = Array.from(new Map(allTopics.map(t => [t.slug, t])).values());
-
-                return { slug: s.slug, topics: uniqueTopics };
-              } catch (e) {
-                console.warn(`[Cache] Failed to fetch topic bundles for ${s.slug}:`, e);
-                return { slug: s.slug, topics: normalizeArray(s.topics) };
-              }
-            }));
-
-            // Map topics back into the subjects array
+            // Sort topics inside each subject immediately and enforce them
             subjects.forEach(s => {
-              const bundle = topicBundles.find(b => b.slug === s.slug);
-              if (bundle && bundle.topics.length > 0) {
-                s.topics = bundle.topics;
-              } else {
-                // Ensure s.topics is always a normalized array even if no bundle found
-                s.topics = normalizeArray(s.topics);
-              }
+              s.topics = normalizeArray(s.topics).sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
             });
           }
 
-          if (appConfigBundleDoc?.exists) {
-            const configData = appConfigBundleDoc.data();
-            settings = configData?.settings?.global || configData?.settings || null;
-            notifications = (configData?.notifications || []).filter((n: any) => !n.userId || n.userId === 'all');
-          } else {
-            // Fallback for settings/notifications
-            const [rawSettingsSnap, rawNotificationsSnap] = await Promise.all([
-              fetchDocWithFallback('settings', 'global'),
-              fetchColWithFallback('notifications')
-            ]);
-            if (rawSettingsSnap?.exists) settings = rawSettingsSnap.data();
-            if (rawNotificationsSnap && rawNotificationsSnap.length > 0) {
-              rawNotificationsSnap.forEach(docData => {
-                const data = docData.data ? docData.data() : docData;
-                if (!data.userId || data.userId === 'all') {
-                  notifications.push({ id: docData.id, ...data });
-                }
-              });
-            }
+          if (rawSettingsSnap?.exists) settings = rawSettingsSnap.data();
+          if (rawNotificationsSnap && rawNotificationsSnap.length > 0) {
+            rawNotificationsSnap.forEach(docData => {
+              const data = docData.data ? docData.data() : docData;
+              if (!data.userId || data.userId === 'all') {
+                notifications.push({ id: docData.id, ...data });
+              }
+            });
           }
 
           if (adminsSnap && adminsSnap.length > 0) {
@@ -772,6 +682,9 @@ async function startServer() {
       } else {
         topics.push(topicData);
       }
+
+      // Sort topics by order before saving
+      topics.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
 
       await runFirestoreOp(dbInstance => subjectRef.update({ topics }), 'SaveTopicToSubject');
 
