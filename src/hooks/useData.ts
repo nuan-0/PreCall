@@ -83,10 +83,11 @@ export async function fetchGlobalData(force = false) {
         data = await res.json();
       } else {
         // 1 & 3. PWA Local Storage & Edge Caching
-        const lastUpdated = localStorage.getItem(CACHE_PREFIX + 'lastUpdated') || '0';
-        console.log('[Prod Data] Fetching via Edge API endpoint (Force Refresh: true)...');
+        const lastUpdated = force ? '0' : (localStorage.getItem(CACHE_PREFIX + 'lastUpdated') || '0');
+        const cacheBuster = force ? `&cb=${Date.now()}` : '';
+        console.log(`[Prod Data] Fetching via Edge API endpoint (Force Refresh: ${force})...`);
         
-        const res = await fetch(`/api/content/all?lastUpdated=${lastUpdated}`);
+        const res = await fetch(`/api/content/all?lastUpdated=${lastUpdated}${cacheBuster}`);
         if (!res.ok) {
           const text = await res.text().catch(() => 'No text');
           console.error('[Prod Data] API Failed with status', res.status, text.slice(0, 100));
@@ -207,7 +208,8 @@ export function useDashboardData() {
 export function useTopics(subjectSlug?: string) {
   const getFilteredTopics = () => {
     const all = getCache<Topic[]>('topics_all') || [];
-    return subjectSlug ? all.filter(t => t.subjectSlug === subjectSlug) : all;
+    const filtered = subjectSlug ? all.filter(t => t.subjectSlug === subjectSlug) : all;
+    return filtered.sort((a, b) => (a.order || 0) - (b.order || 0));
   };
   
   const [topics, setTopics] = useState<Topic[]>(getFilteredTopics);
