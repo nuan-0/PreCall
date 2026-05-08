@@ -6,7 +6,7 @@ import { collection, doc, setDoc, writeBatch, deleteDoc, addDoc, getDocs } from 
 import { ref, uploadBytes, getDownloadURL, uploadBytesResumable } from 'firebase/storage';
 import { db, storage, handleFirestoreError, OperationType } from '../firebase';
 import { toast } from 'sonner';
-import { useSubjects, useTopics, useSettings, useNotifications } from '../hooks/useData';
+import { useSubjects, useTopics, useSettings, useNotifications, fetchGlobalData } from '../hooks/useData';
 import { useAuth } from '../contexts/AuthContext';
 import { Subject, Topic, AppSettings, AppNotification, Coupon } from '../types';
 import { cn } from '../lib/utils';
@@ -439,6 +439,7 @@ function AdminNotifications({ showConfirm }: { showConfirm: any }) {
       if (data.success) {
         toast.success('Notification sent and RAM updated!');
         setNewNotification({ title: '', message: '', type: 'update' });
+        await fetchGlobalData(true);
       } else {
         throw new Error(data.error);
       }
@@ -467,6 +468,7 @@ function AdminNotifications({ showConfirm }: { showConfirm: any }) {
           const data = await response.json();
           if (data.success) {
             toast.success('Notification deleted and RAM updated');
+            await fetchGlobalData(true);
           } else {
             throw new Error(data.error);
           }
@@ -1195,7 +1197,7 @@ function AdminSubjects({ showConfirm }: { showConfirm: any }) {
         if (data.success) {
           toast.success('Subject saved and RAM cache updated!');
           setEditingSubject(null);
-          window.dispatchEvent(new Event('data_updated'));
+          await fetchGlobalData(true);
         } else {
           throw new Error(data.error);
         }
@@ -1589,7 +1591,7 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
 
           toast.success(`${count} topics deleted and cache updated`, { id: toastId });
           setSelectedIds(new Set());
-          window.dispatchEvent(new Event('data_updated'));
+          await fetchGlobalData(true);
         } catch (err) {
           toast.error('Failed to delete some topics', { id: toastId });
         }
@@ -1629,7 +1631,7 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
         if (data.success) {
           toast.success('Topic saved and RAM cache updated!');
           setEditingTopic(null);
-          window.dispatchEvent(new Event('data_updated'));
+          await fetchGlobalData(true);
         } else {
           throw new Error(data.error);
         }
@@ -1661,7 +1663,7 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
           const data = await response.json();
           if (data.success) {
             toast.success('Topic deleted and RAM refreshed');
-            window.dispatchEvent(new Event('data_updated'));
+            await fetchGlobalData(true);
           } else {
             throw new Error(data.error);
           }
@@ -1694,7 +1696,7 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
           if(!data.success) throw new Error(data.error);
 
           toast.success(`Successfully deleted ${filteredTopics.length} topics and updated cache`, { id: toastId });
-          window.dispatchEvent(new Event('data_updated'));
+          await fetchGlobalData(true);
         } catch (e) {
           toast.error('Failed to delete some topics', { id: toastId });
         }
@@ -2265,7 +2267,7 @@ function AdminSettings({ showConfirm }: { showConfirm: any }) {
           const data = await response.json();
           if (data.success) {
             toast.success('Settings updated and RAM cache refreshed!');
-            window.dispatchEvent(new Event('data_updated'));
+            await fetchGlobalData(true);
           } else {
             throw new Error(data.error);
           }
