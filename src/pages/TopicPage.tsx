@@ -290,7 +290,7 @@ D. Article 22
                   <h2 className="text-2xl font-black text-violet-950 tracking-tight">Topic Infographic</h2>
                 </div>
                 
-                {isPremium || isAdmin ? (
+                {topic.infographicStatus === 'free' || isPremium || isAdmin ? (
                   <div className="rounded-[2rem] overflow-hidden border border-slate-100 shadow-xl shadow-slate-200/50 bg-white">
                     <img 
                       src={topic.infographicUrl} 

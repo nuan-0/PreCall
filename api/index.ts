@@ -548,11 +548,11 @@ async function startServer() {
                   }
                 }
                 
-                // Combine all available sources for topics
+                // Combine all available sources for topics (later sources override earlier ones due to Map de-duplication)
                 const allTopics = [
+                  ...fallbackTopics.filter((t: any) => t.subjectSlug === s.slug), // Topics from topics collection (lowest priority)
                   ...topicsFromBundles,
-                  ...normalizeArray(s.topics), // Topics embedded in subject (from migration)
-                  ...fallbackTopics.filter((t: any) => t.subjectSlug === s.slug) // Topics from topics collection
+                  ...normalizeArray(s.topics) // Topics embedded in subject (highest priority)
                 ];
 
                 // De-duplicate by slug to be safe
@@ -580,7 +580,7 @@ async function startServer() {
           if (appConfigBundleDoc?.exists) {
             const configData = appConfigBundleDoc.data();
             settings = configData?.settings?.global || configData?.settings || null;
-            notifications = configData?.notifications || [];
+            notifications = (configData?.notifications || []).filter((n: any) => !n.userId || n.userId === 'all');
           } else {
             // Fallback for settings/notifications
             const [rawSettingsSnap, rawNotificationsSnap] = await Promise.all([
@@ -589,7 +589,12 @@ async function startServer() {
             ]);
             if (rawSettingsSnap?.exists) settings = rawSettingsSnap.data();
             if (rawNotificationsSnap && rawNotificationsSnap.length > 0) {
-              rawNotificationsSnap.forEach(docData => notifications.push({ id: docData.id, ...docData.data() }));
+              rawNotificationsSnap.forEach(docData => {
+                const data = docData.data ? docData.data() : docData;
+                if (!data.userId || data.userId === 'all') {
+                  notifications.push({ id: docData.id, ...data });
+                }
+              });
             }
           }
 
@@ -775,6 +780,15 @@ async function startServer() {
       if (cacheSubjIdx > -1) {
          contentCache.subjects[cacheSubjIdx].topics = topics;
       }
+      
+      // Update flat topics array too
+      const flatTopicIdx = (contentCache.topics || []).findIndex(t => t.id === topicId || t.slug === topic.slug);
+      if (flatTopicIdx !== -1) {
+        contentCache.topics![flatTopicIdx] = { ...contentCache.topics![flatTopicIdx], ...topicData };
+      } else {
+        if (!contentCache.topics) contentCache.topics = [];
+        contentCache.topics.push(topicData);
+      }
 
       contentCache.lastUpdated = Date.now();
       
@@ -803,6 +817,10 @@ async function startServer() {
             const cacheSubjIdx = contentCache.subjects.findIndex(s => s.slug === data.slug);
             if (cacheSubjIdx > -1) {
                contentCache.subjects[cacheSubjIdx].topics = newTopics;
+            }
+            
+            if (contentCache.topics) {
+               contentCache.topics = contentCache.topics.filter(t => t.id !== topicId && t.slug !== topicId);
             }
             break;
          }
@@ -881,6 +899,10 @@ async function startServer() {
             const cacheSubjIdx = contentCache.subjects.findIndex(s => s.slug === data.slug);
             if (cacheSubjIdx > -1) {
                contentCache.subjects[cacheSubjIdx].topics = newTopics;
+            }
+            
+            if (contentCache.topics) {
+               contentCache.topics = contentCache.topics.filter(t => !topicIds.includes(t.id) && !topicIds.includes(t.slug));
             }
          }
       }

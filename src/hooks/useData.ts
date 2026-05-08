@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Subject, Topic, AppSettings, UserProfile, AppNotification } from '../types';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 
 const CACHE_PREFIX = 'precall_cache_v5_';
 // Add in-memory cache to prevent multiple renders
@@ -272,25 +272,64 @@ export function useSettings() {
 }
 
 export function useNotifications(uid?: string, isAdmin?: boolean) {
-  const [notifications, setNotifications] = useState<AppNotification[]>(() => getCache<AppNotification[]>('notifications_all') || []);
-  const [loading, setLoading] = useState(!notifications.length);
+  const [globalNotifs, setGlobalNotifs] = useState<AppNotification[]>(() => getCache<AppNotification[]>('notifications_all') || []);
+  const [userNotifs, setUserNotifs] = useState<AppNotification[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const handler = () => {
       const all = getCache<AppNotification[]>('notifications_all') || [];
       if (isAdmin) {
-        setNotifications(all);
+        setGlobalNotifs(all);
       } else {
-        setNotifications(all.filter(n => !n.userId || n.userId === uid || n.userId === 'all'));
+        setGlobalNotifs(all.filter(n => !n.userId || n.userId === 'all'));
       }
-      setLoading(false);
+      if (!uid) setLoading(false);
     };
     eventTarget.addEventListener('data_updated', handler);
-    if (!notifications.length) {
-      fetchGlobalData().finally(() => setLoading(false));
+    if (!globalNotifs.length) {
+      fetchGlobalData().finally(() => { if (!uid) setLoading(false); });
     }
     return () => eventTarget.removeEventListener('data_updated', handler);
-  }, [uid, isAdmin, notifications.length]);
+  }, [isAdmin, uid]);
+
+  useEffect(() => {
+    if (!uid) {
+      setUserNotifs([]);
+      return;
+    }
+    
+    // Fetch user-specific notifications dynamically
+    const q = query(collection(db, 'notifications'), where('userId', '==', uid));
+    
+    let unsub = () => {};
+    const loadUserNotifs = async () => {
+      try {
+        const snap = await getDocs(q);
+        const fetched = snap.docs.map(d => ({ id: d.id, ...d.data() } as AppNotification));
+        setUserNotifs(fetched);
+        setLoading(false);
+        
+        // Listen for new ones while active
+        unsub = onSnapshot(q, (snapshot) => {
+          const updated = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as AppNotification));
+          setUserNotifs(updated);
+        }, (err) => {
+          console.warn('Notification snapshot err:', err);
+        });
+      } catch (err) {
+        console.warn('Failed to load user notifications:', err);
+        setLoading(false);
+      }
+    };
+    
+    loadUserNotifs();
+    return () => unsub();
+  }, [uid]);
+
+  const notifications = [...userNotifs, ...globalNotifs].sort((a, b) => 
+    new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+  );
 
   return { notifications, loading };
 }

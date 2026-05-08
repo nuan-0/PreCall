@@ -2027,6 +2027,18 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
                                   placeholder="Paste image link..." 
                                 />
                               </div>
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-amber-900/60 uppercase tracking-tighter">Infographic Status</label>
+                                <select 
+                                  name="infographicStatus" 
+                                  className="w-full h-10 rounded-xl border-amber-200 text-xs font-medium focus:ring-amber-500 focus:border-amber-500 bg-white" 
+                                  value={editingTopic.infographicStatus || 'premium'} 
+                                  onChange={e => setEditingTopic({...editingTopic, infographicStatus: e.target.value as any})}
+                                >
+                                  <option value="premium">Premium Only (Locked)</option>
+                                  <option value="free">Free (Unlocked)</option>
+                                </select>
+                              </div>
                             </div>
 
                             <div className="pt-2">

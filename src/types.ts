@@ -29,6 +29,7 @@ export interface Topic {
   pdfUrl?: string;
   pdfPassword?: string;
   infographicUrl?: string;
+  infographicStatus?: 'free' | 'premium';
   
   // Content Sections
   whyThisMatters?: string;

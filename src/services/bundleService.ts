@@ -77,7 +77,9 @@ export const bundleService = {
       const settingsMap: any = {};
       settingsSnap.docs.forEach(d => { settingsMap[d.id] = d.data(); });
       
-      const notifications = notificationsSnap.docs.map(d => ({ ...d.data(), id: d.id }));
+      const notifications = notificationsSnap.docs
+        .map(d => ({ ...d.data(), id: d.id }))
+        .filter((n: any) => !n.userId || n.userId === 'all');
       
       batch.set(doc(db, 'bundles', 'app_config'), sanitize({ 
         updatedAt, 
