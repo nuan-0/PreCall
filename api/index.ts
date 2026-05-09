@@ -591,6 +591,7 @@ async function startServer() {
         } else {
            console.error('[Cache] Refresh failed:', err);
         }
+        if (forceRebuild) throw err;
       } finally {
         contentCache.isRefreshing = false;
         activeRefreshPromise = null;
