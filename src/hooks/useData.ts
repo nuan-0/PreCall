@@ -88,13 +88,11 @@ export async function fetchGlobalData(force = false) {
         console.log(`[Prod Data] Fetching via Edge API endpoint (Force Refresh: ${force})...`);
         
         const res = await fetch(`/api/content/all?lastUpdated=${lastUpdated}${cacheBuster}`);
-        if (!res.ok) {
-          const text = await res.text().catch(() => 'No text');
-          console.error('[Prod Data] API Failed with status', res.status, text.slice(0, 100));
-          throw new Error('Failed to fetch from API - Status: ' + res.status);
+        const rawText = await res.text();
+        if (rawText.includes('<!DOCTYPE html>') || !res.ok) {
+            throw new Error('API routing or HTML error intercepted');
         }
         
-        const rawText = await res.text();
         let json;
         try {
           json = JSON.parse(rawText);

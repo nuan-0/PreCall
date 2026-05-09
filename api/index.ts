@@ -480,48 +480,69 @@ async function startServer() {
         };
 
         try {
-          // Fetch raw collections directly to ensure freshness (skip stale bundles)
-          const [rawSubjectsSnap, rawTopicsSnap, rawSettingsSnap, rawNotificationsSnap, adminsSnap, adminEmailsDoc] = await Promise.all([
-            fetchColWithFallback('subjects'),
-            fetchColWithFallback('topics'),
-            fetchDocWithFallback('settings', 'global'),
-            fetchColWithFallback('notifications'),
-            fetchColWithFallback('admins'),
-            fetchDocWithFallback('settings', 'admins')
-          ]);
+          if (!forceRebuild) {
+             const bundleDoc = await db.collection('bundles').doc('master_catalog').get();
+             if (bundleDoc.exists) {
+                const data = bundleDoc.data() || {};
+                subjects = data.subjects || [];
+                topics = data.topics || [];
+                settings = data.settings || null;
+                notifications = data.notifications || [];
+                adminEmails = data.adminEmails || [];
+                admins = data.admins || [];
+                contentCache.lastUpdated = data.lastUpdated || Date.now();
+             } else {
+                console.warn('[Cache] Master catalog not found! Admin needs to click Update Live.');
+             }
+          } else {
+            // Fetch raw collections directly to ensure freshness (skip stale bundles)
+            const [rawSubjectsSnap, rawTopicsSnap, rawSettingsSnap, rawNotificationsSnap, adminsSnap, adminEmailsDoc] = await Promise.all([
+              fetchColWithFallback('subjects'),
+              fetchColWithFallback('topics'),
+              fetchDocWithFallback('settings', 'global'),
+              fetchColWithFallback('notifications'),
+              fetchColWithFallback('admins'),
+              fetchDocWithFallback('settings', 'admins')
+            ]);
 
-          if (rawSubjectsSnap && rawSubjectsSnap.length > 0) {
-            rawSubjectsSnap.forEach(docData => {
-              subjects.push({ id: docData.id, slug: docData.slug || docData.id, ...docData.data() });
-            });
-            // We no longer read topics from the subjects array
-            subjects.forEach(s => {
-              s.topics = [];
-            });
-          }
+            if (rawSubjectsSnap && rawSubjectsSnap.length > 0) {
+              rawSubjectsSnap.forEach(docData => {
+                subjects.push({ id: docData.id, slug: docData.slug || docData.id, ...docData.data() });
+              });
+              // We no longer read topics from the subjects array
+              subjects.forEach(s => {
+                s.topics = [];
+              });
+            }
 
-          if (rawTopicsSnap && rawTopicsSnap.length > 0) {
-            rawTopicsSnap.forEach(docData => {
-              topics.push({ id: docData.id, slug: docData.slug || docData.id, ...docData.data() });
-            });
-            topics.sort((a,b) => (a.order||0) - (b.order||0));
-          }
+            if (rawTopicsSnap && rawTopicsSnap.length > 0) {
+              const uniqueTopicSlugs = new Set();
+              rawTopicsSnap.forEach(docData => {
+                const topic = { id: docData.id, slug: docData.slug || docData.id, ...docData.data() };
+                if (!uniqueTopicSlugs.has(topic.slug)) {
+                   uniqueTopicSlugs.add(topic.slug);
+                   topics.push(topic);
+                }
+              });
+              topics.sort((a,b) => (a.order||0) - (b.order||0));
+            }
 
-          if (rawSettingsSnap?.exists) settings = rawSettingsSnap.data();
-          if (rawNotificationsSnap && rawNotificationsSnap.length > 0) {
-            rawNotificationsSnap.forEach(docData => {
-              const data = docData.data ? docData.data() : docData;
-              if (!data.userId || data.userId === 'all') {
-                notifications.push({ id: docData.id, ...data });
-              }
-            });
-          }
+            if (rawSettingsSnap?.exists) settings = rawSettingsSnap.data();
+            if (rawNotificationsSnap && rawNotificationsSnap.length > 0) {
+              rawNotificationsSnap.forEach(docData => {
+                const data = docData.data ? docData.data() : docData;
+                if (!data.userId || data.userId === 'all') {
+                  notifications.push({ id: docData.id, ...data });
+                }
+              });
+            }
 
-          if (adminsSnap && adminsSnap.length > 0) {
-            adminsSnap.forEach(docData => admins.push(docData.id));
-          }
-          if (adminEmailsDoc?.exists) {
-            adminEmails = adminEmailsDoc.data()?.emails || [];
+            if (adminsSnap && adminsSnap.length > 0) {
+              adminsSnap.forEach(docData => admins.push(docData.id));
+            }
+            if (adminEmailsDoc?.exists) {
+              adminEmails = adminEmailsDoc.data()?.emails || [];
+            }
           }
         } catch (fallbackErr: any) {
           console.error('[Cache] Fetch failed:', fallbackErr.message);
@@ -539,7 +560,22 @@ async function startServer() {
         contentCache.notifications = notifications;
         contentCache.admins = admins;
         contentCache.adminEmails = adminEmails;
-        contentCache.lastUpdated = Date.now();
+        if (forceRebuild || contentCache.lastUpdated === 0) {
+          contentCache.lastUpdated = Date.now();
+        }
+
+        if (forceRebuild) {
+           await db.collection('bundles').doc('master_catalog').set({
+             subjects: contentCache.subjects,
+             topics: contentCache.topics,
+             admins: contentCache.admins,
+             adminEmails: contentCache.adminEmails,
+             settings: contentCache.settings,
+             notifications: contentCache.notifications,
+             lastUpdated: contentCache.lastUpdated
+           });
+        }
+
         contentCache.hasLoadedFirstTime = true;
         contentCache.isQuotaExceeded = false;
 
@@ -685,18 +721,8 @@ async function startServer() {
       // Save directly to the topics collection
       await runFirestoreOp(dbInstance => dbInstance.collection('topics').doc(topicId).set(topicData, { merge: true }), 'SaveTopicToCollection');
 
-      // Update flat topics array in cache
-      if (!contentCache.topics) contentCache.topics = [];
-      const flatTopicIdx = contentCache.topics.findIndex(t => t.id === topicId || t.slug === topic.slug);
-      
-      if (flatTopicIdx !== -1) {
-        contentCache.topics[flatTopicIdx] = { ...contentCache.topics[flatTopicIdx], ...topicData };
-      } else {
-        contentCache.topics.push(topicData);
-      }
-      contentCache.topics.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
-
-      contentCache.lastUpdated = Date.now();
+      // Rebuild entire bundle to persist cleanly
+      await refreshContentCache(true);
       
       res.json({ success: true, topicId, lastUpdated: contentCache.lastUpdated });
     } catch (err: any) {
@@ -713,12 +739,9 @@ async function startServer() {
     try {
       await runFirestoreOp(dbInstance => dbInstance.collection('topics').doc(topicId).delete(), 'DeleteTopicFromCollection');
 
-      // update RAM cache
-      if (contentCache.topics) {
-         contentCache.topics = contentCache.topics.filter(t => t.id !== topicId && t.slug !== topicId);
-      }
-
-      contentCache.lastUpdated = Date.now();
+      // Rebuild entire bundle to persist cleanly
+      await refreshContentCache(true);
+      
       res.json({ success: true, lastUpdated: contentCache.lastUpdated });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -776,34 +799,13 @@ async function startServer() {
     if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
 
     try {
-      const subjectsSnap = await db.collection('subjects').get();
       const batch = db.batch();
-      let updated = false;
-
-      for (const doc of subjectsSnap.docs) {
-         const data = doc.data();
-         if (data.topics && data.topics.some((t:any) => topicIds.includes(t.id) || topicIds.includes(t.slug))) {
-            const newTopics = data.topics.filter((t:any) => !topicIds.includes(t.id) && !topicIds.includes(t.slug));
-            batch.update(doc.ref, { topics: newTopics });
-            updated = true;
-            
-            // update RAM cache
-            const cacheSubjIdx = contentCache.subjects.findIndex(s => s.slug === data.slug);
-            if (cacheSubjIdx > -1) {
-               contentCache.subjects[cacheSubjIdx].topics = newTopics;
-            }
-            
-            if (contentCache.topics) {
-               contentCache.topics = contentCache.topics.filter(t => !topicIds.includes(t.id) && !topicIds.includes(t.slug));
-            }
-         }
+      for (const id of topicIds) {
+        batch.delete(db.collection('topics').doc(id));
       }
+      await batch.commit();
 
-      if (updated) {
-         await batch.commit();
-      }
-
-      contentCache.lastUpdated = Date.now();
+      await refreshContentCache(true);
       res.json({ success: true, lastUpdated: contentCache.lastUpdated });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -817,37 +819,13 @@ async function startServer() {
     if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
 
     try {
-      const subjectsSnap = await db.collection('subjects').get();
       const batch = db.batch();
-      let updated = false;
-
-      for (const doc of subjectsSnap.docs) {
-         const data = doc.data();
-         let changed = false;
-         let newTopics = (data.topics || []).map((t: any) => {
-            if (topicIds.includes(t.id) || topicIds.includes(t.slug)) {
-               changed = true;
-               return { ...t, status, lastUpdated: new Date().toISOString() };
-            }
-            return t;
-         });
-
-         if (changed) {
-            batch.update(doc.ref, { topics: newTopics });
-            updated = true;
-            // RAM refresh
-            const cacheSubjIdx = contentCache.subjects.findIndex(s => s.slug === data.slug);
-            if (cacheSubjIdx > -1) {
-               contentCache.subjects[cacheSubjIdx].topics = newTopics;
-            }
-         }
+      for (const id of topicIds) {
+        batch.update(db.collection('topics').doc(id), { status, lastUpdated: new Date().toISOString() });
       }
+      await batch.commit();
 
-      if (updated) {
-         await batch.commit();
-      }
-
-      contentCache.lastUpdated = Date.now();
+      await refreshContentCache(true);
       res.json({ success: true, lastUpdated: contentCache.lastUpdated });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -867,17 +845,7 @@ async function startServer() {
 
       await runFirestoreOp(dbInstance => dbInstance.collection('subjects').doc(subjectId).set(subjectData, { merge: true }), 'SaveSubjectFirestore');
 
-      const existingIdx = contentCache.subjects.findIndex(s => s.id === subjectId || s.slug === subject.slug);
-      if (existingIdx !== -1) {
-        contentCache.subjects[existingIdx] = { 
-           ...contentCache.subjects[existingIdx], 
-           ...subjectData, 
-           id: subjectId 
-        };
-      } else {
-        contentCache.subjects.push({ ...subjectData, id: subjectId, topics: [] });
-      }
-      contentCache.lastUpdated = Date.now();
+      await refreshContentCache(true);
       
       res.json({ success: true, subjectId, lastUpdated: contentCache.lastUpdated });
     } catch (err: any) {
@@ -893,8 +861,7 @@ async function startServer() {
 
     try {
       await runFirestoreOp(dbInstance => dbInstance.collection('subjects').doc(subjectId).delete(), 'DeleteSubjectFirestore');
-      contentCache.subjects = contentCache.subjects.filter(s => s.id !== subjectId);
-      contentCache.lastUpdated = Date.now();
+      await refreshContentCache(true);
       
       res.json({ success: true, lastUpdated: contentCache.lastUpdated });
     } catch (err: any) {
