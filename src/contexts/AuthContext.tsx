@@ -95,7 +95,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const updates: Promise<any>[] = [];
 
             if (isNewUser) {
-              updates.push(addDoc(collection(db, 'notifications'), {
+              updates.push(addDoc(collection(db, 'users', firebaseUser.uid, 'notifications'), {
                 userId: firebaseUser.uid,
                 title: 'Welcome to PreCall!',
                 message: `Hi ${firebaseUser.displayName?.split(' ')[0] || 'Aspirant'}, we're excited to help you master UPSC Prelims. Start by exploring high-yield topics in Polity and Modern History!`,

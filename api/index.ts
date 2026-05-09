@@ -500,7 +500,11 @@ async function startServer() {
               fetchColWithFallback('subjects'),
               fetchColWithFallback('topics'),
               fetchDocWithFallback('settings', 'global'),
-              fetchColWithFallback('notifications'),
+              db ? db.collection('notifications').where('userId', '==', 'all').get().then(snap => {
+                const res: any[] = [];
+                snap.forEach(d => res.push({ id: d.id, ...d.data() }));
+                return res;
+              }).catch(() => []) : Promise.resolve([]),
               fetchColWithFallback('admins'),
               fetchDocWithFallback('settings', 'admins')
             ]);
@@ -895,12 +899,11 @@ async function startServer() {
     try {
       if (action === 'delete') {
         await runFirestoreOp(dbInstance => dbInstance.collection('notifications').doc(notification.id).delete(), 'DeleteNotification');
-        contentCache.notifications = contentCache.notifications.filter(n => n.id !== notification.id);
       } else {
-        const ref = await runFirestoreOp(dbInstance => dbInstance.collection('notifications').add({ ...notification, createdAt: new Date().toISOString() }), 'AddNotification');
-        contentCache.notifications.push({ ...notification, id: ref.id });
+        await runFirestoreOp(dbInstance => dbInstance.collection('notifications').add({ ...notification, createdAt: new Date().toISOString() }), 'AddNotification');
       }
-      contentCache.lastUpdated = Date.now();
+      
+      await refreshContentCache(true);
 
       res.json({ success: true, lastUpdated: contentCache.lastUpdated });
     } catch (err: any) {

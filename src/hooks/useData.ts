@@ -288,13 +288,13 @@ export function useNotifications(uid?: string, isAdmin?: boolean) {
   }, [isAdmin, uid]);
 
   useEffect(() => {
-    if (!uid) {
+    if (!uid || typeof uid !== 'string' || uid.trim() === '') {
       setUserNotifs([]);
       return;
     }
     
     // Fetch user-specific notifications dynamically
-    const q = query(collection(db, 'notifications'), where('userId', '==', uid));
+    const q = query(collection(db, 'users', uid, 'notifications'));
     
     const unsub = onSnapshot(q, (snapshot) => {
       const updated = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as AppNotification));
