@@ -481,18 +481,41 @@ async function startServer() {
 
         try {
           if (!forceRebuild) {
-             const bundleDoc = await db.collection('bundles').doc('master_catalog').get();
-             if (bundleDoc.exists) {
-                const data = bundleDoc.data() || {};
+             const metaDoc = await db.collection('bundles').doc('catalog_meta').get();
+             if (metaDoc.exists) {
+                const data = metaDoc.data() || {};
                 subjects = data.subjects || [];
-                topics = data.topics || [];
                 settings = data.settings || null;
                 notifications = data.notifications || [];
                 adminEmails = data.adminEmails || [];
                 admins = data.admins || [];
                 contentCache.lastUpdated = data.lastUpdated || Date.now();
+                
+                let allTopics: any[] = [];
+                const totalChunks = data.totalChunks || 0;
+                const chunkPromises = [];
+                for (let i = 0; i < totalChunks; i++) {
+                    chunkPromises.push(db.collection('bundles').doc(`catalog_topics_${i}`).get());
+                }
+                const chunkDocs = await Promise.all(chunkPromises);
+                chunkDocs.forEach((doc: any) => {
+                    if (doc.exists) allTopics = allTopics.concat(doc.data()?.topics || []);
+                });
+                topics = allTopics;
              } else {
-                console.warn('[Cache] Master catalog not found! Admin needs to click Update Live.');
+                const bundleDoc = await db.collection('bundles').doc('master_catalog').get();
+                if (bundleDoc.exists) {
+                   const data = bundleDoc.data() || {};
+                   subjects = data.subjects || [];
+                   topics = data.topics || [];
+                   settings = data.settings || null;
+                   notifications = data.notifications || [];
+                   adminEmails = data.adminEmails || [];
+                   admins = data.admins || [];
+                   contentCache.lastUpdated = data.lastUpdated || Date.now();
+                } else {
+                   console.warn('[Cache] Master catalog not found! Admin needs to click Update Live.');
+                }
              }
           } else {
             // Fetch raw collections directly to ensure freshness (skip stale bundles)
@@ -569,15 +592,24 @@ async function startServer() {
         }
 
         if (forceRebuild) {
-           await db.collection('bundles').doc('master_catalog').set({
-             subjects: contentCache.subjects,
-             topics: contentCache.topics,
-             admins: contentCache.admins,
-             adminEmails: contentCache.adminEmails,
-             settings: contentCache.settings,
-             notifications: contentCache.notifications,
-             lastUpdated: contentCache.lastUpdated
+           const topicsArray = contentCache.topics;
+           const totalChunks = Math.ceil(topicsArray.length / 80);
+           await db.collection('bundles').doc('catalog_meta').set({
+               lastUpdated: contentCache.lastUpdated,
+               subjects: contentCache.subjects,
+               admins: contentCache.admins,
+               adminEmails: contentCache.adminEmails,
+               settings: contentCache.settings,
+               notifications: contentCache.notifications,
+               totalChunks: totalChunks
            });
+
+           const batch = db.batch();
+           for (let i = 0; i < totalChunks; i++) {
+               const chunk = topicsArray.slice(i * 80, (i + 1) * 80);
+               batch.set(db.collection('bundles').doc(`catalog_topics_${i}`), { topics: chunk });
+           }
+           await batch.commit();
         }
 
         contentCache.hasLoadedFirstTime = true;
