@@ -128,13 +128,7 @@ export async function fetchGlobalData(force = false) {
         
         setCache('subjects', normalizedSubjects);
         
-        let allTopics: Topic[] = [];
-        normalizedSubjects.forEach((subj: Subject) => {
-          if (subj.topics && Array.isArray(subj.topics)) {
-            allTopics = [...allTopics, ...subj.topics];
-          }
-        });
-        
+        const allTopics = normalizeArray(data.topics || [], 'TopicsRoot');
         setCache('topics_all', allTopics);
         if (normalizedSettings) setCache('settings', normalizedSettings);
         if (normalizedNotifications.length > 0) setCache('notifications_all', normalizedNotifications);

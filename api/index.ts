@@ -421,6 +421,7 @@ async function startServer() {
       console.log(`[Cache] Refreshing content cache (Force: ${forceRebuild})...`);
       try {
         let subjects: any[] = [];
+        let topics: any[] = [];
         let settings: any = null;
         let notifications: any[] = [];
         let adminEmails: string[] = [];
@@ -480,8 +481,9 @@ async function startServer() {
 
         try {
           // Fetch raw collections directly to ensure freshness (skip stale bundles)
-          const [rawSubjectsSnap, rawSettingsSnap, rawNotificationsSnap, adminsSnap, adminEmailsDoc] = await Promise.all([
+          const [rawSubjectsSnap, rawTopicsSnap, rawSettingsSnap, rawNotificationsSnap, adminsSnap, adminEmailsDoc] = await Promise.all([
             fetchColWithFallback('subjects'),
+            fetchColWithFallback('topics'),
             fetchDocWithFallback('settings', 'global'),
             fetchColWithFallback('notifications'),
             fetchColWithFallback('admins'),
@@ -492,10 +494,17 @@ async function startServer() {
             rawSubjectsSnap.forEach(docData => {
               subjects.push({ id: docData.id, slug: docData.slug || docData.id, ...docData.data() });
             });
-            // Sort topics inside each subject immediately and enforce them
+            // We no longer read topics from the subjects array
             subjects.forEach(s => {
-              s.topics = normalizeArray(s.topics).sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+              s.topics = [];
             });
+          }
+
+          if (rawTopicsSnap && rawTopicsSnap.length > 0) {
+            rawTopicsSnap.forEach(docData => {
+              topics.push({ id: docData.id, slug: docData.slug || docData.id, ...docData.data() });
+            });
+            topics.sort((a,b) => (a.order||0) - (b.order||0));
           }
 
           if (rawSettingsSnap?.exists) settings = rawSettingsSnap.data();
@@ -525,7 +534,7 @@ async function startServer() {
         subjects.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
 
         contentCache.subjects = subjects;
-        contentCache.topics = []; // topics are now nested inside subjects
+        contentCache.topics = topics;
         contentCache.settings = settings;
         contentCache.notifications = notifications;
         contentCache.admins = admins;
@@ -659,49 +668,33 @@ async function startServer() {
 
     try {
       const topicId = topic.id || `${topic.subjectSlug}-${topic.slug}`;
-      const topicData = { ...topic, id: topicId, lastUpdated: new Date().toISOString() };
+      const deepSanitize = (obj: any): any => {
+        return JSON.parse(JSON.stringify(obj, (key, value) => {
+          if (value === '') return null;
+          return value;
+        }));
+      };
+
+      const topicData = deepSanitize({ ...topic, id: topicId, lastUpdated: new Date().toISOString() });
       const subjectSlug = topic.subjectSlug;
 
       if (!subjectSlug) {
         return res.status(400).json({ error: 'Topic must have a subjectSlug' });
       }
 
-      // Find the subject doc ID by slug
-      const subjectDoc = await db.collection('subjects').where('slug', '==', subjectSlug).get();
-      if (subjectDoc.empty) {
-        return res.status(404).json({ error: 'Subject not found' });
-      }
+      // Save directly to the topics collection
+      await runFirestoreOp(dbInstance => dbInstance.collection('topics').doc(topicId).set(topicData, { merge: true }), 'SaveTopicToCollection');
 
-      const subjectRef = subjectDoc.docs[0].ref;
-      const subject = subjectDoc.docs[0].data();
-      let topics = normalizeArray(subject.topics);
-      const existingIdx = topics.findIndex((t: any) => t.id === topicId || (t.slug === topic.slug));
+      // Update flat topics array in cache
+      if (!contentCache.topics) contentCache.topics = [];
+      const flatTopicIdx = contentCache.topics.findIndex(t => t.id === topicId || t.slug === topic.slug);
       
-      if (existingIdx !== -1) {
-        topics[existingIdx] = { ...topics[existingIdx], ...topicData };
-      } else {
-        topics.push(topicData);
-      }
-
-      // Sort topics by order before saving
-      topics.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
-
-      await runFirestoreOp(dbInstance => subjectRef.update({ topics }), 'SaveTopicToSubject');
-
-      // Update RAM Cache directly
-      const cacheSubjIdx = contentCache.subjects.findIndex(s => s.slug === subjectSlug);
-      if (cacheSubjIdx > -1) {
-         contentCache.subjects[cacheSubjIdx].topics = topics;
-      }
-      
-      // Update flat topics array too
-      const flatTopicIdx = (contentCache.topics || []).findIndex(t => t.id === topicId || t.slug === topic.slug);
       if (flatTopicIdx !== -1) {
-        contentCache.topics![flatTopicIdx] = { ...contentCache.topics![flatTopicIdx], ...topicData };
+        contentCache.topics[flatTopicIdx] = { ...contentCache.topics[flatTopicIdx], ...topicData };
       } else {
-        if (!contentCache.topics) contentCache.topics = [];
         contentCache.topics.push(topicData);
       }
+      contentCache.topics.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
 
       contentCache.lastUpdated = Date.now();
       
@@ -718,25 +711,11 @@ async function startServer() {
     if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
 
     try {
-      // We must search all subjects to find where it is deleted from
-      const subjectsSnap = await db.collection('subjects').get();
-      for (const doc of subjectsSnap.docs) {
-         const data = doc.data();
-         if (data.topics && data.topics.some((t:any) => t.id === topicId || t.slug === topicId)) {
-            const newTopics = data.topics.filter((t:any) => t.id !== topicId && t.slug !== topicId);
-            await runFirestoreOp(dbInstance => doc.ref.update({ topics: newTopics }), 'DeleteTopicFromSubject');
-            
-            // update RAM cache
-            const cacheSubjIdx = contentCache.subjects.findIndex(s => s.slug === data.slug);
-            if (cacheSubjIdx > -1) {
-               contentCache.subjects[cacheSubjIdx].topics = newTopics;
-            }
-            
-            if (contentCache.topics) {
-               contentCache.topics = contentCache.topics.filter(t => t.id !== topicId && t.slug !== topicId);
-            }
-            break;
-         }
+      await runFirestoreOp(dbInstance => dbInstance.collection('topics').doc(topicId).delete(), 'DeleteTopicFromCollection');
+
+      // update RAM cache
+      if (contentCache.topics) {
+         contentCache.topics = contentCache.topics.filter(t => t.id !== topicId && t.slug !== topicId);
       }
 
       contentCache.lastUpdated = Date.now();
