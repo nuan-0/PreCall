@@ -501,7 +501,9 @@ async function startServer() {
                 chunkDocs.forEach((doc: any) => {
                     if (doc.exists) allTopics = allTopics.concat(doc.data()?.topics || []);
                 });
-                topics = allTopics;
+                const mergedTopics = allTopics.flat();
+                mergedTopics.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+                topics = mergedTopics;
              } else {
                 const bundleDoc = await db.collection('bundles').doc('master_catalog').get();
                 if (bundleDoc.exists) {

@@ -102,7 +102,19 @@ export async function fetchGlobalData(force = false) {
         }
         if (json.status === 'unchanged') {
           console.log('[Prod Data] API returned unchanged. Returning from Zero-Read PWA Cache!');
-          return;
+          const cachedSubjects = getCache<any[]>('subjects');
+          const cachedTopics = getCache<any[]>('topics_all');
+          
+          if (!cachedSubjects || !cachedTopics || cachedSubjects.length === 0 || cachedTopics.length === 0) {
+            localStorage.removeItem(CACHE_PREFIX + 'lastUpdated');
+            console.warn('[Deadlock Failsafe] Missing or corrupted cache despite UNCHANGED status. Forcing clean network pull.');
+            globalFetchPromise = null;
+            await fetchGlobalData(true);
+            return;
+          } else {
+            eventTarget.dispatchEvent(new Event('data_updated'));
+            return;
+          }
         }
         if (json.status === 'error') {
           console.error('[Prod Data] API returned error:', json.error);
@@ -139,6 +151,8 @@ export async function fetchGlobalData(force = false) {
       }
     } catch (err: any) {
       console.error('[Data Fetch] Error:', err.message);
+    } finally {
+      globalFetchPromise = null;
     }
   })();
   
