@@ -7,7 +7,6 @@ import { toast } from 'sonner';
 import { Button, Card, Badge, Modal } from '../components/UI';
 import { User, Mail, ShieldCheck, Crown, Save, RefreshCw, UserCircle, Venus, Mars, Transgender, Image as ImageIcon, Lock as LockIcon, Trash2, AlertTriangle } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { ShareToUnlock } from '../components/ShareToUnlock';
 import { useNavigate } from 'react-router-dom';
 
 export function ProfilePage() {
@@ -191,9 +190,6 @@ export function ProfilePage() {
 
         {/* Edit Form */}
         <div className="lg:col-span-2 space-y-8">
-          {!isUnlocked && (
-            <ShareToUnlock uid={user?.uid} />
-          )}
 
           <Card className="p-10 border-slate-200 shadow-xl shadow-slate-100/50">
             <form onSubmit={handleSave} className="space-y-8">

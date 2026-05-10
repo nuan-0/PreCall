@@ -1,7 +1,7 @@
 import { Share2, Send, MessageCircle, Link as LinkIcon, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useState } from 'react';
-import { Button } from './UI';
+import { Button } from '../components/UI';
 import { useAvatarUnlock } from '../hooks/useData';
 import { toast } from 'sonner';
 

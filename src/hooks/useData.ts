@@ -8,6 +8,7 @@ const CACHE_PREFIX = 'precall_cache_v5_';
 let memoryCache: Record<string, any> = {};
 let globalFetchPromise: Promise<void> | null = null;
 let eventTarget = new EventTarget();
+let sessionNetworkAttempts = 0;
 
 export function getCache<T>(key: string): T | null {
   if (memoryCache[key]) return memoryCache[key];
@@ -67,6 +68,12 @@ const normalizeArray = (input: any, debugLabel = 'Array'): any[] => {
 
 export async function fetchGlobalData(force = false) {
   if (globalFetchPromise && !force) return globalFetchPromise;
+  
+  sessionNetworkAttempts++;
+  if (sessionNetworkAttempts > 3) {
+      console.error("CRITICAL: Network kill-switch activated. Halting all requests.");
+      return; // Forcefully abort without modifying state or promises
+  }
   
   globalFetchPromise = (async () => {
     try {
@@ -152,7 +159,9 @@ export async function fetchGlobalData(force = false) {
     } catch (err: any) {
       console.error('[Data Fetch] Error:', err.message);
     } finally {
-      globalFetchPromise = null;
+      if (sessionNetworkAttempts <= 3) {
+        globalFetchPromise = null;
+      }
     }
   })();
   

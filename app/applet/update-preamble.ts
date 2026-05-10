@@ -1,4 +1,4 @@
-import { db } from './src/firebase';
+import { db } from '../../src/firebase';
 import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
 
 async function run() {

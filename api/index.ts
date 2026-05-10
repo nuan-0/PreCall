@@ -406,7 +406,19 @@ async function startServer() {
 
   let activeRefreshPromise: Promise<void> | null = null;
 
+  let errorCooldownUntil = 0;
+
   const refreshContentCache = async (forceRebuild = false) => {
+    if (Date.now() < errorCooldownUntil) {
+      console.error('[Cache] Backend build is in a 60s cooldown due to a previous crash.');
+      return {
+          success: false,
+          status: 'cooldown',
+          subjects: [],
+          topics: [],
+          lastUpdated: Date.now()
+      } as any;
+    }
     if (activeRefreshPromise && !forceRebuild) return activeRefreshPromise;
     
     // Strict Server-Side Caching: ONLY fetch from Firebase if cold boot or manually forced.
@@ -493,17 +505,23 @@ async function startServer() {
                 
                 let allTopics: any[] = [];
                 const totalChunks = data.totalChunks || 0;
-                const chunkPromises = [];
-                for (let i = 0; i < totalChunks; i++) {
-                    chunkPromises.push(db.collection('bundles').doc(`catalog_topics_${i}`).get());
+                
+                try {
+                  const chunkPromises = [];
+                  for (let i = 0; i < totalChunks; i++) {
+                      chunkPromises.push(db.collection('bundles').doc(`catalog_topics_${i}`).get());
+                  }
+                  const chunkDocs = await Promise.all(chunkPromises);
+                  chunkDocs.forEach((doc: any) => {
+                      if (doc.exists) allTopics = allTopics.concat(doc.data()?.topics || []);
+                  });
+                  const mergedTopics = allTopics.flat();
+                  mergedTopics.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+                  topics = mergedTopics;
+                } catch (e: any) {
+                  console.error('[Cache] Sharded array compilation failed, rejecting.', e);
+                  throw e;
                 }
-                const chunkDocs = await Promise.all(chunkPromises);
-                chunkDocs.forEach((doc: any) => {
-                    if (doc.exists) allTopics = allTopics.concat(doc.data()?.topics || []);
-                });
-                const mergedTopics = allTopics.flat();
-                mergedTopics.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
-                topics = mergedTopics;
              } else {
                 const bundleDoc = await db.collection('bundles').doc('master_catalog').get();
                 if (bundleDoc.exists) {
@@ -625,6 +643,10 @@ async function startServer() {
         } else {
            console.error('[Cache] Refresh failed:', err);
         }
+        
+        errorCooldownUntil = Date.now() + 60000;
+        activeRefreshPromise = null;
+
         if (forceRebuild) throw err;
       } finally {
         contentCache.isRefreshing = false;
@@ -632,6 +654,34 @@ async function startServer() {
       }
     })();
     return activeRefreshPromise;
+  };
+
+  const syncRamToFirestoreChunks = async () => {
+     if (!db) { throw new Error('Firestore DB not available'); }
+     
+     contentCache.topics.sort((a,b) => (a.order||0) - (b.order||0));
+     contentCache.subjects.sort((a,b) => (a.order||0) - (b.order||0));
+     contentCache.lastUpdated = Date.now();
+     
+     const topicsArray = contentCache.topics;
+     const totalChunks = Math.ceil(topicsArray.length / 80);
+     
+     const batch = db.batch();
+     batch.set(db.collection('bundles').doc('catalog_meta'), {
+         lastUpdated: contentCache.lastUpdated,
+         subjects: contentCache.subjects,
+         admins: contentCache.admins,
+         adminEmails: contentCache.adminEmails,
+         settings: contentCache.settings,
+         notifications: contentCache.notifications,
+         totalChunks: totalChunks
+     });
+
+     for (let i = 0; i < totalChunks; i++) {
+         const chunk = topicsArray.slice(i * 80, (i + 1) * 80);
+         batch.set(db.collection('bundles').doc(`catalog_topics_${i}`), { topics: chunk });
+     }
+     await batch.commit();
   };
 
   // Startup refresh
@@ -757,11 +807,13 @@ async function startServer() {
         return res.status(400).json({ error: 'Topic must have a subjectSlug' });
       }
 
-      // Save directly to the topics collection
-      await runFirestoreOp(dbInstance => dbInstance.collection('topics').doc(topicId).set(topicData, { merge: true }), 'SaveTopicToCollection');
-
-      // Rebuild entire bundle to persist cleanly
-      await refreshContentCache(true);
+      const index = contentCache.topics.findIndex(t => t.id === topicId);
+      if (index > -1) {
+          contentCache.topics[index] = { ...contentCache.topics[index], ...topicData };
+      } else {
+          contentCache.topics.push(topicData);
+      }
+      await syncRamToFirestoreChunks();
       
       res.json({ success: true, topicId, lastUpdated: contentCache.lastUpdated });
     } catch (err: any) {
@@ -776,10 +828,8 @@ async function startServer() {
     if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
 
     try {
-      await runFirestoreOp(dbInstance => dbInstance.collection('topics').doc(topicId).delete(), 'DeleteTopicFromCollection');
-
-      // Rebuild entire bundle to persist cleanly
-      await refreshContentCache(true);
+      contentCache.topics = contentCache.topics.filter(t => t.id !== topicId);
+      await syncRamToFirestoreChunks();
       
       res.json({ success: true, lastUpdated: contentCache.lastUpdated });
     } catch (err: any) {
@@ -838,13 +888,8 @@ async function startServer() {
     if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
 
     try {
-      const batch = db.batch();
-      for (const id of topicIds) {
-        batch.delete(db.collection('topics').doc(id));
-      }
-      await batch.commit();
-
-      await refreshContentCache(true);
+      contentCache.topics = contentCache.topics.filter(t => !topicIds.includes(t.id));
+      await syncRamToFirestoreChunks();
       res.json({ success: true, lastUpdated: contentCache.lastUpdated });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -858,13 +903,10 @@ async function startServer() {
     if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
 
     try {
-      const batch = db.batch();
-      for (const id of topicIds) {
-        batch.update(db.collection('topics').doc(id), { status, lastUpdated: new Date().toISOString() });
-      }
-      await batch.commit();
-
-      await refreshContentCache(true);
+      contentCache.topics.forEach(t => {
+         if (topicIds.includes(t.id)) t.status = status;
+      });
+      await syncRamToFirestoreChunks();
       res.json({ success: true, lastUpdated: contentCache.lastUpdated });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -882,9 +924,10 @@ async function startServer() {
       const subjectData = { ...subject };
       delete subjectData.id;
 
-      await runFirestoreOp(dbInstance => dbInstance.collection('subjects').doc(subjectId).set(subjectData, { merge: true }), 'SaveSubjectFirestore');
-
-      await refreshContentCache(true);
+      const subjectIndex = contentCache.subjects.findIndex(s => s.id === subjectId);
+      if (subjectIndex > -1) contentCache.subjects[subjectIndex] = { ...contentCache.subjects[subjectIndex], ...subjectData, id: subjectId };
+      else contentCache.subjects.push({ ...subjectData, id: subjectId });
+      await syncRamToFirestoreChunks();
       
       res.json({ success: true, subjectId, lastUpdated: contentCache.lastUpdated });
     } catch (err: any) {
@@ -899,8 +942,8 @@ async function startServer() {
     if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
 
     try {
-      await runFirestoreOp(dbInstance => dbInstance.collection('subjects').doc(subjectId).delete(), 'DeleteSubjectFirestore');
-      await refreshContentCache(true);
+      contentCache.subjects = contentCache.subjects.filter(s => s.id !== subjectId);
+      await syncRamToFirestoreChunks();
       
       res.json({ success: true, lastUpdated: contentCache.lastUpdated });
     } catch (err: any) {
@@ -915,9 +958,9 @@ async function startServer() {
     if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
 
     try {
-      await runFirestoreOp(dbInstance => dbInstance.collection('settings').doc('global').set(settings, { merge: true }), 'SaveSettingsFirestore');
       contentCache.settings = { ...contentCache.settings, ...settings };
       contentCache.lastUpdated = Date.now();
+      await syncRamToFirestoreChunks();
       
       res.json({ success: true, lastUpdated: contentCache.lastUpdated });
     } catch (err: any) {
@@ -933,12 +976,14 @@ async function startServer() {
 
     try {
       if (action === 'delete') {
-        await runFirestoreOp(dbInstance => dbInstance.collection('notifications').doc(notification.id).delete(), 'DeleteNotification');
+        contentCache.notifications = contentCache.notifications.filter(n => n.id !== notification.id);
       } else {
-        await runFirestoreOp(dbInstance => dbInstance.collection('notifications').add({ ...notification, createdAt: new Date().toISOString() }), 'AddNotification');
+        const notifId = notification.id || db.collection('notifications').doc().id;
+        const newNotif = { ...notification, id: notifId, createdAt: new Date().toISOString() };
+        contentCache.notifications.push(newNotif);
       }
       
-      await refreshContentCache(true);
+      await syncRamToFirestoreChunks();
 
       res.json({ success: true, lastUpdated: contentCache.lastUpdated });
     } catch (err: any) {
@@ -954,12 +999,9 @@ async function startServer() {
     if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
     
     try {
-      await runFirestoreOp(dbInstance => dbInstance.collection('settings').doc('admins').set({ emails }, { merge: true }), 'SaveAdminsFirestore');
       contentCache.adminEmails = emails;
-      contentCache.lastUpdated = Date.now();
       
-      // Implicit Rebuild on Admin list change
-      await refreshContentCache(true);
+      await syncRamToFirestoreChunks();
 
       res.json({ success: true, lastUpdated: contentCache.lastUpdated });
     } catch (err: any) {
