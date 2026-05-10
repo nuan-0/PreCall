@@ -31,7 +31,11 @@ export function getCache<T>(key: string): T | null {
 
 export function setCache<T>(key: string, data: T) {
   memoryCache[key] = data;
-  localStorage.setItem(CACHE_PREFIX + key, JSON.stringify(data));
+  try {
+    localStorage.setItem(CACHE_PREFIX + key, JSON.stringify(data));
+  } catch (e: any) {
+    console.warn(`[Cache] Storage quota exceeded when writing ${key}. Running in memory only.`);
+  }
 }
 
 const normalizeArray = (input: any, debugLabel = 'Array'): any[] => {
@@ -152,7 +156,13 @@ export async function fetchGlobalData(force = false) {
         
         // Only trigger update and save timestamp if we actually got data or if it's explicitly cleared
         if (normalizedSubjects.length > 0 || data.lastUpdated) {
-          if (data.lastUpdated) localStorage.setItem(CACHE_PREFIX + 'lastUpdated', data.lastUpdated.toString());
+          if (data.lastUpdated) {
+            try {
+              localStorage.setItem(CACHE_PREFIX + 'lastUpdated', data.lastUpdated.toString());
+            } catch (e: any) {
+              console.warn(`[Cache] Storage quota exceeded when writing lastUpdated.`);
+            }
+          }
           eventTarget.dispatchEvent(new Event('data_updated'));
         }
       }
@@ -224,7 +234,9 @@ export function useTopics(subjectSlug?: string) {
   const getFilteredTopics = () => {
     const all = getCache<Topic[]>('topics_all') || [];
     const filtered = subjectSlug ? all.filter(t => t.subjectSlug === subjectSlug) : all;
-    return filtered.sort((a, b) => (a.order || 0) - (b.order || 0));
+    return filtered
+      .filter(t => t !== null && typeof t === 'object')
+      .sort((a, b) => (a?.order || 0) - (b?.order || 0));
   };
   
   const [topics, setTopics] = useState<Topic[]>(getFilteredTopics);
@@ -399,7 +411,11 @@ export function useAvatarUnlock(uid?: string) {
 
   const unlockAvatar = () => {
     setIsUnlocked(true);
-    localStorage.setItem(cacheKey, 'true');
+    try {
+        localStorage.setItem(cacheKey, 'true');
+    } catch(e: any) {
+        console.warn(`[Avatar] Storage quota exceeded.`);
+    }
   };
 
   return { isUnlocked, unlockAvatar };

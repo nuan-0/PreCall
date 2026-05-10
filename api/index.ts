@@ -727,7 +727,7 @@ async function startServer() {
   app.get('/api/content/all', async (req, res) => {
     
     try {
-      res.set('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400');
+      res.set('Cache-Control', 'private, no-cache, no-store, must-revalidate, max-age=0');
 
       const clientLastUpdated = parseInt(req.query.lastUpdated as string || '0');
 
@@ -787,6 +787,10 @@ async function startServer() {
 
   // API: Admin Topic Save
   app.post('/api/admin/save-topic', async (req, res) => {
+    if (activeRefreshPromise) {
+      return res.status(429).json({ error: 'Conflict: Cache is currently rebuilding. Try again in a few seconds.' });
+    }
+
     const { userId, topic } = req.body || {};
     const isAdmin = await checkIsAdmin(userId);
     if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });

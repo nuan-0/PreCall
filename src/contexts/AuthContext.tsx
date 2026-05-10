@@ -78,6 +78,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // Sync user profile to Firestore - Optimized to reduce waterfalls
         const syncProfile = async () => {
+          if (sessionStorage.getItem('session_verified') === 'true') {
+            return;
+          }
+          
           try {
             const userRef = doc(db, 'users', firebaseUser.uid);
             
@@ -124,6 +128,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             updates.push(setDoc(userRef, userData, { merge: true }));
 
             await Promise.all(updates);
+            sessionStorage.setItem('session_verified', 'true');
           } catch (error: any) {
             console.error("Error syncing user profile:", error);
           }
