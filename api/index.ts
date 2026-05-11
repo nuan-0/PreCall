@@ -848,6 +848,62 @@ async function startServer() {
     }
   });
 
+  // API: Hidden route to repair subjects index from shards
+  app.get('/api/admin/repair-index', async (req, res) => {
+    if (req.query.secret !== 'restore') {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    try {
+      console.log('Starting subjects index repair from shards...');
+      
+      const metaDoc = await db.collection('bundles').doc('catalog_meta').get();
+      if (!metaDoc.exists) {
+         return res.status(404).json({ error: 'catalog_meta not found' });
+      }
+      const totalChunks = metaDoc.data()?.totalChunks || 0;
+
+      let allTopics: any[] = [];
+      for (let i = 0; i < totalChunks; i++) {
+          const chunkDoc = await db.collection('bundles').doc(`catalog_topics_${i}`).get();
+          if (chunkDoc.exists) {
+              const chunkTopics = chunkDoc.data()?.topics || [];
+              allTopics = [...allTopics, ...chunkTopics];
+          }
+      }
+
+      const subjectsMap = new Map();
+      allTopics.forEach(topic => {
+          if (topic.subjectSlug) {
+              if (!subjectsMap.has(topic.subjectSlug)) {
+                  // Reconstruct minimal subject object. Defaults provided.
+                  subjectsMap.set(topic.subjectSlug, {
+                      id: topic.subjectSlug,
+                      slug: topic.subjectSlug,
+                      name: topic.subjectSlug.charAt(0).toUpperCase() + topic.subjectSlug.slice(1).replace(/-/g, ' '),
+                      color: 'bg-indigo-500', 
+                      icon: 'BookOpen',
+                      order: subjectsMap.size,
+                      status: 'published'
+                  });
+              }
+          }
+      });
+      
+      const recoveredSubjects = Array.from(subjectsMap.values());
+      
+      await db.collection('bundles').doc('catalog_meta').update({ subjects: recoveredSubjects });
+      
+      // Force cache rebuild
+      await refreshContentCache(true);
+
+      res.json({ success: true, message: `Recovered ${recoveredSubjects.length} subjects from shards.` });
+    } catch (e: any) {
+      console.error('Repair failed:', e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   // API: Run Migration for Topics to Subjects
   app.get('/api/admin/run-migration', async (req, res) => {
     try {
