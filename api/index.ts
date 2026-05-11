@@ -493,8 +493,8 @@ async function startServer() {
 
         try {
           if (!forceRebuild) {
-             const metaDoc = await db.collection('bundles').doc('catalog_meta').get();
-             if (metaDoc.exists) {
+             const metaDoc = await fetchDocWithFallback('bundles', 'catalog_meta');
+             if (metaDoc && metaDoc.exists) {
                 const data = metaDoc.data() || {};
                 subjects = data.subjects || [];
                 settings = data.settings || null;
@@ -509,11 +509,11 @@ async function startServer() {
                 try {
                   const chunkPromises = [];
                   for (let i = 0; i < totalChunks; i++) {
-                      chunkPromises.push(db.collection('bundles').doc(`catalog_topics_${i}`).get());
+                      chunkPromises.push(fetchDocWithFallback('bundles', `catalog_topics_${i}`));
                   }
                   const chunkDocs = await Promise.all(chunkPromises);
                   chunkDocs.forEach((doc: any) => {
-                      if (doc.exists) allTopics = allTopics.concat(doc.data()?.topics || []);
+                      if (doc && doc.exists) allTopics = allTopics.concat(doc.data()?.topics || []);
                   });
                   const mergedTopics = allTopics.flat();
                   mergedTopics.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
@@ -523,8 +523,8 @@ async function startServer() {
                   throw e;
                 }
              } else {
-                const bundleDoc = await db.collection('bundles').doc('master_catalog').get();
-                if (bundleDoc.exists) {
+                const bundleDoc = await fetchDocWithFallback('bundles', 'master_catalog');
+                if (bundleDoc && bundleDoc.exists) {
                    const data = bundleDoc.data() || {};
                    subjects = data.subjects || [];
                    topics = data.topics || [];
@@ -853,6 +853,10 @@ async function startServer() {
     if (req.query.secret !== 'restore') {
       return res.status(403).json({ error: 'Unauthorized' });
     }
+    
+    if (!db) {
+       return res.status(500).json({ error: 'Firestore Admin SDK not initialized. Cannot repair index in Lite mode. Please check FIREBASE_SERVICE_ACCOUNT.' });
+    }
 
     try {
       console.log('Starting subjects index repair from shards...');
@@ -900,6 +904,20 @@ async function startServer() {
       res.json({ success: true, message: `Recovered ${recoveredSubjects.length} subjects from shards.` });
     } catch (e: any) {
       console.error('Repair failed:', e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get('/api/admin/force-rebuild', async (req, res) => {
+    if (req.query.secret !== 'force') {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+    try {
+      console.log('Forcing cache rebuild...');
+      await refreshContentCache(true);
+      res.json({ success: true, message: 'Cache rebuilt from raw collections' });
+    } catch (e: any) {
+      console.error('Rebuild failed:', e);
       res.status(500).json({ error: e.message });
     }
   });
