@@ -1,6 +1,6 @@
 import { ArrowLeft, ArrowRight, Check, Copy, HelpCircle, Info, Lightbulb, Target, Zap, ChevronLeft, ChevronRight, Lock, Sparkles, BookOpen, Clock, Calendar, Star, AlertTriangle, ListChecks, Quote } from 'lucide-react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { Badge, Button, Card, Skeleton } from '../components/UI';
 import { useTopic, useSubjects } from '../hooks/useData';
@@ -21,92 +21,7 @@ export function TopicPage() {
   const { user, profile, isAdmin, isPremium, openAuthModal, toggleTopicCompletion } = useAuth();
   const [isCompleting, setIsCompleting] = useState(false);
 
-  const defaultTopic: any = {
-    id: 'article-21-right-to-life',
-    slug: 'article-21-right-to-life',
-    subjectSlug: 'polity',
-    chapter: 'Fundamental Rights',
-    title: 'Article 21 – Right to Life and Personal Liberty',
-    teaser: 'The "Heart of Fundamental Rights". A single sentence that has been expanded by the Supreme Court to cover everything from Privacy to Sleep.',
-    status: 'free',
-    order: 1,
-    examRelevance: 'Critical - Highest frequency in both Prelims & Mains',
-    estimatedTime: '10 mins',
-    lastUpdated: new Date().toLocaleDateString(),
-    whyThisMatters: 'Article 21 is the most evolved article in the Constitution. UPSC loves testing the "Judicial Activism" aspect and the specific rights that have been included under its umbrella over the years.',
-    coreConcept: `**The Bare Text:**
-“No person shall be deprived of his life or personal liberty except according to **procedure established by law**.”
-
-**The Evolution:**
-1. **A.K. Gopalan Case (1950):** Narrow interpretation. Only protected against arbitrary *executive* action, not *legislative* action.
-2. **Maneka Gandhi Case (1978):** Revolutionary shift. Introduced the concept of **"Due Process of Law"**. Now, the law itself must be "just, fair, and reasonable".`,
-    upscGoldPoint: `**Who is covered?**
-- **Citizens:** YES
-- **Foreigners:** YES (except enemy aliens)
-- **Legal Persons (Corporations):** NO (Article 21 is for natural human beings only).
-
-**Key Doctrine:**
-The "Golden Triangle" of the Constitution consists of **Articles 14, 19, and 21**. They are not mutually exclusive but form a single protective layer.`,
-    deepUnderstanding: `**Procedure Established by Law vs. Due Process of Law**
-- **Procedure Established by Law (British Origin):** If a law is validly passed, the court won't check if the law is "fair".
-- **Due Process of Law (American Origin):** The court checks if the law is "fair, just, and non-arbitrary".
-- **Current Indian Status:** Though the text says "Procedure Established by Law", the Supreme Court (since Maneka Gandhi) interprets it as "Due Process".`,
-    linkedFacts: `**Rights declared as part of Article 21 by SC:**
-- **Right to Privacy** (K.S. Puttaswamy Case, 2017)
-- **Right to Livelihood** (Olga Tellis Case)
-- **Right to Shelter**
-- **Right to Clean Environment** (M.C. Mehta Cases)
-- **Right to Free Legal Aid**
-- **Right to Speedy Trial**
-- **Right to Sleep** (Ramlila Maidan Case)
-- **Right to Marriage of Choice** (Hadiya Case/Shakti Vahini Case)`,
-    trapZone: `**Trap 1:** "Article 21 can be suspended during Emergency." → **WRONG.** After the 44th Amendment (1978), Articles 20 and 21 **cannot** be suspended even during a National Emergency.
-**Trap 2:** "Right to Property is part of Article 21." → **WRONG.** It was a FR (Art 31) but is now only a Constitutional Right (Art 300A).
-**Trap 3:** "Article 21 protects against private individuals." → **WRONG.** Fundamental Rights are generally enforceable against the **State**, not private citizens (with some exceptions like Art 17).`,
-    memoryTrick: 'Think of Article 21 as an **"Expanding Umbrella"**. Every time a new human need arises (Privacy, Environment, Internet), the Supreme Court puts it under this umbrella.',
-    prelimsSnapshot: `**Quick Check for Prelims:**
-- **Scope:** All persons (Citizens + Foreigners).
-- **Emergency Status:** Non-suspendable (Art 359).
-- **Nature:** Negative obligation on the State.
-- **Key Case:** Maneka Gandhi (1978) - shifted from "Procedure" to "Due Process".`,
-    mcqs: `**Q1. Which of the following is NOT protected under Article 21?**
-A. Right to a speedy trial
-B. Right to travel abroad
-C. Right to strike
-D. Right to privacy
-
-**Answer:** C. Right to strike (It is a legal/statutory right, not a Fundamental Right under Art 21).
-
-**Q2. The "Due Process of Law" is a characteristic of which Article?**
-A. Article 14
-B. Article 19
-C. Article 21
-D. Article 22
-
-**Answer:** C. Article 21 (as interpreted by SC in Maneka Gandhi case).`,
-    oneLineRevision: 'Article 21 is the bedrock of individual dignity, protecting life and liberty against arbitrary state action through the "just, fair, and reasonable" test.',
-    linkedTopics: 'Article 14 (Equality), Article 19 (Freedoms), Emergency Provisions, Judicial Review'
-  };
-
-  const topic: any = fetchedTopic || defaultTopic;
-  const subject = subjects.find(s => s.slug === topic.subjectSlug);
-  const isLocked = topic.status === 'premium' && !isPremium && !isAdmin;
-  const hasPdfAccess = isPremium || isAdmin || subject?.pdfAccessType === 'free' || profile?.ownedPdfs?.includes(subject?.slug || '');
-
-  const isCompleted = profile?.completedTopics?.includes(topic.id);
-
-  const handleToggleCompletion = async () => {
-    if (!topic.id) return;
-    setIsCompleting(true);
-    try {
-      await toggleTopicCompletion(topic.id);
-      toast.success(isCompleted ? 'Marked as incomplete' : 'Marked as completed!');
-    } catch (error) {
-      toast.error('Failed to update progress');
-    } finally {
-      setIsCompleting(false);
-    }
-  };
+  const topic: any = fetchedTopic;
 
   if (loading) {
     return (
@@ -122,6 +37,42 @@ D. Article 22
       </div>
     );
   }
+
+  if (!loading && !topic) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center p-4 text-center">
+        <div className="mb-6 rounded-3xl bg-slate-50 p-6 text-slate-400 border border-slate-100 shadow-inner">
+          <BookOpen className="h-12 w-12" />
+        </div>
+        <h2 className="text-3xl font-black text-violet-950 mb-3">Topic Not Found</h2>
+        <p className="text-slate-500 mb-8 max-w-xs font-medium">The topic you are looking for might have been moved or doesn't exist.</p>
+        <Link to="/dashboard">
+          <Button size="lg" className="px-10 h-14 text-base shadow-xl shadow-violet-200/50">
+            Back to Dashboard
+          </Button>
+        </Link>
+      </div>
+    );
+  }
+
+  const subject = subjects.find(s => s.slug === topic.subjectSlug);
+  const isLocked = topic.status === 'premium' && !isPremium && !isAdmin;
+  const hasPdfAccess = isPremium || isAdmin || subject?.pdfAccessType === 'free' || profile?.ownedPdfs?.includes(subject?.slug || '');
+
+  const isCompleted = profile?.completedTopics?.includes(topic.id);
+
+  const handleToggleCompletion = async () => {
+    if (!topic?.id) return;
+    setIsCompleting(true);
+    try {
+      await toggleTopicCompletion(topic.id);
+      toast.success(isCompleted ? 'Marked as incomplete' : 'Marked as completed!');
+    } catch (error) {
+      toast.error('Failed to update progress');
+    } finally {
+      setIsCompleting(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#FDFCFE]">
@@ -401,13 +352,20 @@ D. Article 22
 
 function ContentSection({ title, icon: Icon, content, color, isHighlight, isMarkdown, canCopy }: any) {
   const [copied, setCopied] = useState(false);
+  const isMounted = useRef(true);
+  useEffect(() => {
+    return () => { isMounted.current = false; };
+  }, []);
+  
   if (!content) return null;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(content);
     setCopied(true);
     toast.success('Copied to clipboard');
-    setTimeout(() => setCopied(false), 2000);
+    setTimeout(() => {
+      if (isMounted.current) setCopied(false);
+    }, 2000);
   };
 
   const colors: any = {

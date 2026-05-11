@@ -7,7 +7,7 @@ import { cn } from '../lib/utils';
 
 export function SubjectPage() {
   const { slug } = useParams();
-  const { subjects } = useSubjects();
+  const { subjects, loading: subjectsLoading } = useSubjects();
   const { settings } = useSettings();
   const subject = subjects.find(s => s.slug === slug);
   const { user, profile, isAdmin, isPremium: userIsPremium, openAuthModal } = useAuth();
@@ -31,7 +31,19 @@ export function SubjectPage() {
     { title: 'Constitutional Bodies', teaser: 'ECI, UPSC, CAG, and Finance Commission.', status: 'coming_soon', slug: 'constitutional-bodies' },
   ];
 
-  if (!subject) {
+  const isDataLoading = subjectsLoading || (loading && topics.length === 0);
+
+  if (isDataLoading) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center p-4">
+        <Skeleton className="h-16 w-16 rounded-full mb-4" />
+        <Skeleton className="h-8 w-64 mb-2" />
+        <Skeleton className="h-4 w-48" />
+      </div>
+    );
+  }
+
+  if (!isDataLoading && !subject) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center p-4 text-center">
         <div className="mb-6 rounded-3xl bg-slate-50 p-6 text-slate-400 border border-slate-100 shadow-inner">

@@ -10,6 +10,12 @@ let globalFetchPromise: Promise<void> | null = null;
 let eventTarget = new EventTarget();
 let sessionNetworkAttempts = 0;
 
+export function resetGlobalState() {
+  memoryCache = {};
+  globalFetchPromise = null;
+  sessionNetworkAttempts = 0;
+}
+
 export function getCache<T>(key: string): T | null {
   if (memoryCache[key]) return memoryCache[key];
   const cached = localStorage.getItem(CACHE_PREFIX + key);
@@ -260,7 +266,9 @@ export function useTopics(subjectSlug?: string) {
 export function useTopic(slug?: string) {
   const getTopic = () => {
     const all = getCache<Topic[]>('topics_all') || [];
-    return all.find(t => t.slug === slug) || null;
+    if (!slug) return null;
+    const normalizedSlug = slug.toLowerCase().trim();
+    return all.find(t => t.slug?.toLowerCase().trim() === normalizedSlug) || null;
   };
 
   const [topic, setTopic] = useState<Topic | null>(getTopic);

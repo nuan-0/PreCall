@@ -15,6 +15,7 @@ import { auth, db } from '../firebase';
 import { isEmailAdmin, FOUNDER_EMAIL } from '../config/admins';
 import { UserProfile } from '../types';
 import { toast } from 'sonner';
+import { resetGlobalState } from '../hooks/useData';
 
 interface AuthContextType {
   user: User | null;
@@ -237,6 +238,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     try {
       await signOut(auth);
+      localStorage.clear();
+      sessionStorage.clear();
+      resetGlobalState();
+      window.location.reload();
     } catch (error) {
       console.error('Logout failed:', error);
       throw error;

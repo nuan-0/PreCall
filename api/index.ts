@@ -656,20 +656,21 @@ async function startServer() {
     return activeRefreshPromise;
   };
 
-  const syncRamToFirestoreChunks = async () => {
+  const syncRamToFirestoreChunks = async (updatedTopics?: any[]) => {
      if (!db) { throw new Error('Firestore DB not available'); }
      
-     contentCache.topics.sort((a,b) => (a.order||0) - (b.order||0));
-     contentCache.subjects.sort((a,b) => (a.order||0) - (b.order||0));
-     contentCache.lastUpdated = Date.now();
+     const topicsArray = updatedTopics ? [...updatedTopics] : [...contentCache.topics];
+     const subjectsArray = [...contentCache.subjects];
+     topicsArray.sort((a,b) => (a.order||0) - (b.order||0));
+     subjectsArray.sort((a,b) => (a.order||0) - (b.order||0));
+     const newTimestamp = Date.now();
      
-     const topicsArray = contentCache.topics;
      const totalChunks = Math.ceil(topicsArray.length / 80);
      
      const batch = db.batch();
      batch.set(db.collection('bundles').doc('catalog_meta'), {
-         lastUpdated: contentCache.lastUpdated,
-         subjects: contentCache.subjects,
+         lastUpdated: newTimestamp,
+         subjects: subjectsArray,
          admins: contentCache.admins,
          adminEmails: contentCache.adminEmails,
          settings: contentCache.settings,
@@ -682,6 +683,11 @@ async function startServer() {
          batch.set(db.collection('bundles').doc(`catalog_topics_${i}`), { topics: chunk });
      }
      await batch.commit();
+
+     // Apply to global cache ONLY on success
+     contentCache.topics = topicsArray;
+     contentCache.subjects = subjectsArray;
+     contentCache.lastUpdated = newTimestamp;
   };
 
   // Startup refresh
@@ -811,13 +817,14 @@ async function startServer() {
         return res.status(400).json({ error: 'Topic must have a subjectSlug' });
       }
 
-      const index = contentCache.topics.findIndex(t => t.id === topicId);
+      const updatedTopics = [...contentCache.topics];
+      const index = updatedTopics.findIndex(t => t.id === topicId);
       if (index > -1) {
-          contentCache.topics[index] = { ...contentCache.topics[index], ...topicData };
+          updatedTopics[index] = { ...updatedTopics[index], ...topicData };
       } else {
-          contentCache.topics.push(topicData);
+          updatedTopics.push(topicData);
       }
-      await syncRamToFirestoreChunks();
+      await syncRamToFirestoreChunks(updatedTopics);
       
       res.json({ success: true, topicId, lastUpdated: contentCache.lastUpdated });
     } catch (err: any) {
@@ -832,8 +839,8 @@ async function startServer() {
     if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
 
     try {
-      contentCache.topics = contentCache.topics.filter(t => t.id !== topicId);
-      await syncRamToFirestoreChunks();
+      const updatedTopics = contentCache.topics.filter(t => t.id !== topicId);
+      await syncRamToFirestoreChunks(updatedTopics);
       
       res.json({ success: true, lastUpdated: contentCache.lastUpdated });
     } catch (err: any) {
@@ -892,8 +899,8 @@ async function startServer() {
     if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
 
     try {
-      contentCache.topics = contentCache.topics.filter(t => !topicIds.includes(t.id));
-      await syncRamToFirestoreChunks();
+      const updatedTopics = contentCache.topics.filter(t => !topicIds.includes(t.id));
+      await syncRamToFirestoreChunks(updatedTopics);
       res.json({ success: true, lastUpdated: contentCache.lastUpdated });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -907,10 +914,11 @@ async function startServer() {
     if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
 
     try {
-      contentCache.topics.forEach(t => {
+      const updatedTopics = [...contentCache.topics];
+      updatedTopics.forEach(t => {
          if (topicIds.includes(t.id)) t.status = status;
       });
-      await syncRamToFirestoreChunks();
+      await syncRamToFirestoreChunks(updatedTopics);
       res.json({ success: true, lastUpdated: contentCache.lastUpdated });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
