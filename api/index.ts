@@ -812,13 +812,31 @@ async function startServer() {
     if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
 
     try {
-      const topicId = topic.id || `${topic.subjectSlug}-${topic.slug}`;
-      const topicData = { ...topic, id: topicId, lastUpdated: new Date().toISOString() };
-      const subjectSlug = topic.subjectSlug;
+      let subjectSlug = topic.subjectSlug;
+      let subjectId = topic.subjectId;
 
-      if (!subjectSlug) {
-        return res.status(400).json({ error: 'Topic must have a subjectSlug' });
+      // Fallback binding between slug and id
+      if (!subjectSlug && subjectId) {
+        const subj = contentCache.subjects.find(s => s.id === subjectId);
+        if (subj) subjectSlug = subj.slug;
+      } else if (!subjectId && subjectSlug) {
+        const subj = contentCache.subjects.find(s => s.slug === subjectSlug);
+        if (subj) subjectId = subj.id;
       }
+
+      if (!subjectSlug || !subjectId) {
+        return res.status(400).json({ error: 'Topic must map to a valid subject (missing subjectSlug or subjectId)' });
+      }
+
+      const topicId = topic.id || (subjectSlug && topic.slug ? `${subjectSlug}-${topic.slug}` : `topic-${Date.now()}`);
+      
+      const topicData = { 
+        ...topic, 
+        id: topicId, 
+        subjectSlug,
+        subjectId,
+        lastUpdated: new Date().toISOString() 
+      };
 
       const updatedTopics = JSON.parse(JSON.stringify(contentCache.topics));
       const index = updatedTopics.findIndex((t: any) => t.id === topicId);
