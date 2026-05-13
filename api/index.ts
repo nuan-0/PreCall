@@ -687,7 +687,11 @@ async function startServer() {
 
      for (let i = 0; i < totalChunks; i++) {
          const chunk = topicsArray.slice(i * 35, (i + 1) * 35);
-         batch.set(db.collection('bundles').doc(`catalog_topics_${i}`), { topics: chunk });
+         // TARGETED BATCH WRITE: Only update the chunk if its contents actually changed!
+         const oldChunk = contentCache.topics ? contentCache.topics.slice(i * 35, (i + 1) * 35) : [];
+         if (JSON.stringify(chunk) !== JSON.stringify(oldChunk)) {
+             batch.set(db.collection('bundles').doc(`catalog_topics_${i}`), { topics: chunk });
+         }
      }
      await batch.commit();
 
