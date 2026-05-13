@@ -849,7 +849,13 @@ async function startServer() {
       
       res.json({ success: true, topicId, lastUpdated: contentCache.lastUpdated });
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      console.error('[LIVE RUNTIME TRACE] Save execution failed:', err);
+      res.status(500).json({ 
+        error: err.name || 'Error', 
+        message: err.message || 'Unknown server error',
+        stack: err.stack,
+        details: err.toString()
+      });
     }
   });
 

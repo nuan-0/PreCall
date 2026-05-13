@@ -1635,10 +1635,12 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
           setEditingTopic(null);
           await fetchGlobalData(true);
         } else {
-          throw new Error(data.error);
+          console.error('[LIVE RUNTIME TRACE] Server payload:', data);
+          throw new Error(data.message || data.details || data.error || 'Server returned failure without a specific message');
         }
-      } catch (e) {
-        toast.error('Failed to save topic via API');
+      } catch (e: any) {
+        console.error('[LIVE RUNTIME TRACE] Frontend catch triggered:', e);
+        toast.error(`Save failed: ${e.message}`);
       } finally {
         setIsSaving(false);
       }
