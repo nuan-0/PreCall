@@ -673,7 +673,7 @@ async function startServer() {
     return activeRefreshPromise;
   };
 
-  const syncRamToFirestoreChunks = async (updatedTopics?: any[], updatedSubjects?: any[], updatedSettings?: any, updatedNotifications?: any[], updatedAdminEmails?: string[]) => {
+  const syncRamToFirestoreChunks = async (updatedTopics?: any[], updatedSubjects?: any[], updatedSettings?: any, updatedNotifications?: any[], updatedAdminEmails?: string[], explicitWrites?: { collection: string, id: string, data: any | null }[]) => {
      if (!db) { throw new Error('Firestore DB not available'); }
      
      if (!contentCache.hasLoadedFirstTime) {
@@ -714,6 +714,18 @@ async function startServer() {
              batch.set(db.collection('bundles').doc(`catalog_topics_${i}`), { topics: chunk });
          }
      }
+
+     if (explicitWrites && explicitWrites.length > 0) {
+         for (const write of explicitWrites) {
+             const ref = db.collection(write.collection).doc(write.id);
+             if (write.data === null) {
+                 batch.delete(ref);
+             } else {
+                 batch.set(ref, sanitize(write.data), { merge: true });
+             }
+         }
+     }
+
      await batch.commit();
 
      // Apply to global cache ONLY on success
@@ -899,7 +911,14 @@ async function startServer() {
       } else {
           updatedTopics.push(topicData);
       }
-      await syncRamToFirestoreChunks(updatedTopics);
+      await syncRamToFirestoreChunks(
+          updatedTopics, 
+          undefined, 
+          undefined, 
+          undefined, 
+          undefined, 
+          [{ collection: 'topics', id: topicId, data: updatedTopics[index > -1 ? index : updatedTopics.length - 1] }]
+      );
       
       res.json({ success: true, topicId, lastUpdated: contentCache.lastUpdated });
     } catch (err: any) {
@@ -921,7 +940,14 @@ async function startServer() {
 
     try {
       const updatedTopics = contentCache.topics.filter(t => t.id !== topicId);
-      await syncRamToFirestoreChunks(updatedTopics);
+      await syncRamToFirestoreChunks(
+          updatedTopics,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          [{ collection: 'topics', id: topicId, data: null }]
+      );
       
       res.json({ success: true, lastUpdated: contentCache.lastUpdated });
     } catch (err: any) {
@@ -982,7 +1008,15 @@ async function startServer() {
 
     try {
       const updatedTopics = contentCache.topics.filter(t => !topicIds.includes(t.id));
-      await syncRamToFirestoreChunks(updatedTopics);
+      const explicitWrites = topicIds.map((id: string) => ({ collection: 'topics', id, data: null }));
+      await syncRamToFirestoreChunks(
+          updatedTopics,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          explicitWrites
+      );
       res.json({ success: true, lastUpdated: contentCache.lastUpdated });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -997,10 +1031,21 @@ async function startServer() {
 
     try {
       const updatedTopics = JSON.parse(JSON.stringify(contentCache.topics));
+      const explicitWrites: any[] = [];
       updatedTopics.forEach((t: any) => {
-         if (topicIds.includes(t.id)) t.status = status;
+         if (topicIds.includes(t.id)) {
+             t.status = status;
+             explicitWrites.push({ collection: 'topics', id: t.id, data: t });
+         }
       });
-      await syncRamToFirestoreChunks(updatedTopics);
+      await syncRamToFirestoreChunks(
+          updatedTopics,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          explicitWrites
+      );
       res.json({ success: true, lastUpdated: contentCache.lastUpdated });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -1023,7 +1068,14 @@ async function startServer() {
       if (subjectIndex > -1) updatedSubjects[subjectIndex] = { ...updatedSubjects[subjectIndex], ...subjectData, id: subjectId };
       else updatedSubjects.push({ ...subjectData, id: subjectId });
       
-      await syncRamToFirestoreChunks(undefined, updatedSubjects);
+      await syncRamToFirestoreChunks(
+          undefined, 
+          updatedSubjects,
+          undefined,
+          undefined,
+          undefined,
+          [{ collection: 'subjects', id: subjectId, data: updatedSubjects[subjectIndex > -1 ? subjectIndex : updatedSubjects.length - 1] }]
+      );
       
       res.json({ success: true, subjectId, lastUpdated: contentCache.lastUpdated });
     } catch (err: any) {
@@ -1039,7 +1091,14 @@ async function startServer() {
 
     try {
       const updatedSubjects = contentCache.subjects.filter(s => s.id !== subjectId);
-      await syncRamToFirestoreChunks(undefined, updatedSubjects);
+      await syncRamToFirestoreChunks(
+          undefined, 
+          updatedSubjects,
+          undefined,
+          undefined,
+          undefined,
+          [{ collection: 'subjects', id: subjectId, data: null }]
+      );
       
       res.json({ success: true, lastUpdated: contentCache.lastUpdated });
     } catch (err: any) {
@@ -1313,7 +1372,14 @@ async function startServer() {
       updatedTopics[index].lastUpdated = new Date().toISOString();
 
       // No activeRefreshPromise lock! Clean direct sync.
-      await syncRamToFirestoreChunks(updatedTopics);
+      await syncRamToFirestoreChunks(
+          updatedTopics,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          [{ collection: 'topics', id: topicId, data: updatedTopics[index] }]
+      );
 
       res.json({ success: true, url: publicUrl, topicId, message: 'Upload and cache patch complete' });
     } catch (err: any) {
