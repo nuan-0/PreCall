@@ -830,26 +830,41 @@ async function startServer() {
     if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
 
     try {
-      let subjectSlug = topic.subjectSlug;
-      let subjectId = topic.subjectId;
+      let finalTopic = { ...topic };
+      if (finalTopic.id) {
+        const existingTopic = contentCache.topics.find((t: any) => t.id === finalTopic.id);
+        if (existingTopic) {
+          // Remove null/undefined from incoming edits so existing values are preserved
+          const cleanEdits = Object.fromEntries(Object.entries(finalTopic).filter(([_, v]) => v != null));
+          finalTopic = { ...existingTopic, ...cleanEdits };
+        }
+      }
+
+      let subjectSlug = finalTopic.subjectSlug;
+      let subjectId = finalTopic.subjectId;
 
       // Fallback binding between slug and id
       if (!subjectSlug && subjectId) {
-        const subj = contentCache.subjects.find(s => s.id === subjectId);
+        const subj = contentCache.subjects.find((s: any) => s.id === subjectId || s.slug === subjectId);
         if (subj) subjectSlug = subj.slug;
       } else if (!subjectId && subjectSlug) {
-        const subj = contentCache.subjects.find(s => s.slug === subjectSlug);
-        if (subj) subjectId = subj.id;
+        const subj = contentCache.subjects.find((s: any) => s.slug === subjectSlug || s.id === subjectSlug);
+        if (subj) subjectId = subj.id || subj.slug;
+      }
+
+      // If still missing subjectId, fallback to slug just in case
+      if (!subjectId && subjectSlug) {
+        subjectId = subjectSlug;
       }
 
       if (!subjectSlug || !subjectId) {
         return res.status(400).json({ error: 'Topic must map to a valid subject (missing subjectSlug or subjectId)' });
       }
 
-      const topicId = topic.id || (subjectSlug && topic.slug ? `${subjectSlug}-${topic.slug}` : `topic-${Date.now()}`);
+      const topicId = finalTopic.id || (subjectSlug && finalTopic.slug ? `${subjectSlug}-${finalTopic.slug}` : `topic-${Date.now()}`);
       
       const topicData = { 
-        ...topic, 
+        ...finalTopic, 
         id: topicId, 
         subjectSlug,
         subjectId,

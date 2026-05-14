@@ -12,12 +12,14 @@ export interface Subject {
   pdfAccessType?: 'free' | 'premium';
   topics?: Topic[]; // Added for Bundle Architecture
   subjectSlug?: string;
+  subjectId?: string;
 }
 
 export interface Topic {
   id: string;
   slug: string;
   subjectSlug?: string;
+  subjectId?: string;
   chapter?: string;
   title: string;
   teaser: string;

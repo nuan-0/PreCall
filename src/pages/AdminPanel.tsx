@@ -3946,14 +3946,16 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
           <Button
             icon={Plus}
             size="lg"
-            onClick={() =>
+            onClick={() => {
+              const defaultSlug = filterSubject !== "all" ? filterSubject : subjects[0]?.slug;
+              const matchedSubject = subjects.find(s => s.slug === defaultSlug);
               setEditingTopic({
                 status: "free",
                 order: 0,
-                subjectSlug:
-                  filterSubject !== "all" ? filterSubject : subjects[0]?.slug,
-              })
-            }
+                subjectSlug: defaultSlug,
+                subjectId: matchedSubject?.id || defaultSlug
+              });
+            }}
             className="shadow-lg shadow-violet-200"
           >
             Create New Topic
@@ -4191,12 +4193,15 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
                           name="subjectSlug"
                           className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500"
                           value={editingTopic.subjectSlug}
-                          onChange={(e) =>
+                          onChange={(e) => {
+                            const newSlug = e.target.value;
+                            const matchedSubject = subjects.find(s => s.slug === newSlug);
                             setEditingTopic({
                               ...editingTopic,
-                              subjectSlug: e.target.value,
-                            })
-                          }
+                              subjectSlug: newSlug,
+                              subjectId: matchedSubject?.id || newSlug
+                            });
+                          }}
                         >
                           {subjects.map((s) => (
                             <option key={s.slug} value={s.slug}>
