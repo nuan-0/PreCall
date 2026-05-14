@@ -3014,8 +3014,20 @@ function AdminSubjects({ showConfirm }: { showConfirm: any }) {
 
         if (data.success) {
           toast.success("Subject saved and RAM cache updated!");
+          
+          const currentSubjects = getCache<Subject[]>('subjects') || [];
+          const subjectIdToUpdate = editingSubject.id || data.subjectId;
+          const index = currentSubjects.findIndex((s: any) => s.id === subjectIdToUpdate);
+          if (index > -1) {
+            currentSubjects[index] = { ...currentSubjects[index], ...editingSubject, id: subjectIdToUpdate };
+          } else {
+            currentSubjects.push({ ...editingSubject, id: subjectIdToUpdate } as Subject);
+          }
+          setCache('subjects', currentSubjects);
+          eventTarget.dispatchEvent(new Event('data_updated'));
+
           setEditingSubject(null);
-          await fetchGlobalData(true);
+          fetchGlobalData(true).catch(console.error);
         } else {
           throw new Error(data.error);
         }
@@ -3743,8 +3755,21 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
 
         if (data.success) {
           toast.success("Topic saved and RAM cache updated!");
+          
+          // Immediately mutate RAM state using imported cache methods
+          const currentTopics = getCache<Topic[]>('topics_all') || [];
+          const topicIdToUpdate = editingTopic.id || data.topicId;
+          const index = currentTopics.findIndex(t => t.id === topicIdToUpdate);
+          if (index > -1) {
+            currentTopics[index] = { ...currentTopics[index], ...payload, id: topicIdToUpdate };
+          } else {
+            currentTopics.push({ ...payload, id: topicIdToUpdate });
+          }
+          setCache('topics_all', currentTopics);
+          eventTarget.dispatchEvent(new Event('data_updated'));
+
           setEditingTopic(null);
-          await fetchGlobalData(true);
+          fetchGlobalData(true).catch(console.error);
         } else {
           console.error("[LIVE RUNTIME TRACE] Server payload:", data);
           throw new Error(

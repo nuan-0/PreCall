@@ -759,6 +759,24 @@ async function startServer() {
         } else {
           await refreshContentCache();
         }
+      } else {
+        // ALWAYS check live Firestore to ensure this Serverless instance RAM isn't stale
+        try {
+          const metaSnap = await db.collection('bundles').doc('catalog_meta').get();
+          if (metaSnap.exists) {
+            const liveData = metaSnap.data();
+            if (liveData && liveData.lastUpdated && liveData.lastUpdated > contentCache.lastUpdated) {
+              console.log(`[API] Live DB is fresh (${liveData.lastUpdated}) vs RAM (${contentCache.lastUpdated}). Forcing validation update...`);
+              if (activeRefreshPromise) {
+                await activeRefreshPromise;
+              } else {
+                await refreshContentCache();
+              }
+            }
+          }
+        } catch (e) {
+             console.warn('[API] Could not fetch catalog_meta for freshness validation', e);
+        }
       }
 
       // Check if client version is still valid
