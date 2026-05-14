@@ -524,6 +524,11 @@ async function startServer() {
                   console.error('[Cache] Sharded array compilation failed, rejecting.', e);
                   throw e;
                 }
+
+                if (!subjects || subjects.length === 0) {
+                   console.log('[Cache] bundles/catalog_meta exists, but subjects array is corrupted/empty. Forcing rebuild from raw collections.');
+                   shouldForceRebuild = true;
+                }
              } else {
                 const bundleDoc = await fetchDocWithFallback('bundles', 'master_catalog');
                 if (bundleDoc && bundleDoc.exists) {
@@ -535,11 +540,17 @@ async function startServer() {
                    adminEmails = data.adminEmails || [];
                    admins = data.admins || [];
                    contentCache.lastUpdated = data.lastUpdated || Date.now();
+                   
+                   if (!subjects || subjects.length === 0) {
+                      console.log('[Cache] bundles/master_catalog exists, but subjects array is corrupted/empty. Forcing rebuild from raw collections.');
+                      shouldForceRebuild = true;
+                   }
                 } else {
                    console.warn('[Cache] Master catalog not found! Falling back to raw collections...');
                    shouldForceRebuild = true;
                 }
              }
+
           }
           
           if (shouldForceRebuild) {
@@ -665,7 +676,7 @@ async function startServer() {
   const syncRamToFirestoreChunks = async (updatedTopics?: any[], updatedSubjects?: any[], updatedSettings?: any, updatedNotifications?: any[], updatedAdminEmails?: string[]) => {
      if (!db) { throw new Error('Firestore DB not available'); }
      
-     if (!contentCache.hasLoadedFirstTime && !updatedSubjects && !updatedTopics) {
+     if (!contentCache.hasLoadedFirstTime) {
        console.error('[CRITICAL] Prevented RAM to Firestore sync because memory cache has not loaded yet! This would wipe out subjects/topics.');
        throw new Error('Memory cache unhydrated. Cannot sync to Firestore right now.');
      }
