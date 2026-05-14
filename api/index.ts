@@ -825,10 +825,6 @@ async function startServer() {
 
   // API: Admin Topic Save
   app.post('/api/admin/save-topic', async (req, res) => {
-    if (activeRefreshPromise) {
-      return res.status(429).json({ error: 'Conflict: Cache is currently rebuilding. Try again in a few seconds.' });
-    }
-
     const { userId, topic } = req.body || {};
     const isAdmin = await checkIsAdmin(userId);
     if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
