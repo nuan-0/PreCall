@@ -7,7 +7,7 @@ const CACHE_PREFIX = 'precall_cache_v5_';
 // Add in-memory cache to prevent multiple renders
 let memoryCache: Record<string, any> = {};
 let globalFetchPromise: Promise<void> | null = null;
-let eventTarget = new EventTarget();
+export let eventTarget = new EventTarget();
 let sessionNetworkAttempts = 0;
 
 export function resetGlobalState() {

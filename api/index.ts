@@ -1198,6 +1198,80 @@ async function startServer() {
     });
   });
 
+  // API: Upload Infographic and seamlessly update RAM cache and Firestore without active locks
+  app.post('/api/admin/upload-topic-infographic', upload.single('file'), async (req: any, res) => {
+    try {
+      const { userId, topicId, folder = 'infographics' } = req.body;
+      const file = req.file;
+      const authHeader = req.headers.authorization;
+
+      if (!file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+      }
+
+      let isAdmin = false;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.split('Bearer ')[1];
+        try {
+          const decodedToken = await admin.auth().verifyIdToken(token);
+          if (ADMIN_EMAILS.includes(decodedToken.email || '')) {
+            isAdmin = true;
+          }
+        } catch (e) {}
+      }
+      if (!isAdmin && userId) {
+        isAdmin = await checkIsAdmin(userId);
+      }
+      if (!isAdmin) {
+        return res.status(403).json({ error: 'Unauthorized: Only admins can upload' });
+      }
+
+      const configBucket = (admin.app().options as any).storageBucket;
+      const bucket = admin.storage().bucket(configBucket);
+      
+      if (!bucket.name) {
+        return res.status(500).json({ error: 'Storage not configured properly on server' });
+      }
+
+      const fileName = `${folder}/${Date.now()}-${file.originalname.replace(/\s+/g, '_')}`;
+      const blob = bucket.file(fileName);
+
+      await blob.save(file.buffer, {
+        metadata: { contentType: file.mimetype },
+        resumable: false
+      });
+
+      try {
+        await blob.makePublic();
+      } catch (pubErr) {}
+
+      const publicUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
+
+      if (!topicId) {
+        return res.json({ url: publicUrl, message: 'Uploaded without topic binding' });
+      }
+
+      // Quick RAM patch targeting array index only!
+      const updatedTopics = JSON.parse(JSON.stringify(contentCache.topics || []));
+      const index = updatedTopics.findIndex((t: any) => t.id === topicId);
+      
+      if (index === -1) {
+        return res.status(404).json({ error: 'Topic not found in cache' });
+      }
+      
+      updatedTopics[index].infographicUrl = publicUrl;
+      updatedTopics[index].lastUpdated = new Date().toISOString();
+
+      // No activeRefreshPromise lock! Clean direct sync.
+      await syncRamToFirestoreChunks(updatedTopics);
+
+      res.json({ success: true, url: publicUrl, topicId, message: 'Upload and cache patch complete' });
+    } catch (err: any) {
+      console.error('[Upload Infographic] ERROR:', err);
+      res.status(500).json({ error: 'Upload failed: ' + (err.message || err.toString()) });
+    }
+  });
+
   // API: Proxy Upload to Storage (Bypass CORS issues)
   app.post('/api/upload', upload.single('file'), async (req: any, res) => {
     try {
