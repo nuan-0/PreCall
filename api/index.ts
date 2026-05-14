@@ -408,7 +408,7 @@ async function startServer() {
 
   let errorCooldownUntil = 0;
 
-  const refreshContentCache = async (forceRebuild = false) => {
+  const refreshContentCache = async (forceRebuild = false, bypassFirstTimeCheck = false) => {
     if (Date.now() < errorCooldownUntil) {
       console.error('[Cache] Backend build is in a 60s cooldown due to a previous crash.');
       return {
@@ -422,7 +422,7 @@ async function startServer() {
     if (activeRefreshPromise && !forceRebuild) return activeRefreshPromise;
     
     // Strict Server-Side Caching: ONLY fetch from Firebase if cold boot or manually forced.
-    if (!forceRebuild && contentCache.hasLoadedFirstTime) {
+    if (!forceRebuild && !bypassFirstTimeCheck && contentCache.hasLoadedFirstTime) {
       console.log('[Cache] Using persistent RAM cache. No auto-refresh.');
       return;
     }
@@ -491,8 +491,10 @@ async function startServer() {
           }
         };
 
+        let shouldForceRebuild = forceRebuild;
+
         try {
-          if (!forceRebuild) {
+          if (!shouldForceRebuild) {
              const metaDoc = await fetchDocWithFallback('bundles', 'catalog_meta');
              if (metaDoc && metaDoc.exists) {
                 const data = metaDoc.data() || {};
@@ -534,10 +536,13 @@ async function startServer() {
                    admins = data.admins || [];
                    contentCache.lastUpdated = data.lastUpdated || Date.now();
                 } else {
-                   console.warn('[Cache] Master catalog not found! Admin needs to click Update Live.');
+                   console.warn('[Cache] Master catalog not found! Falling back to raw collections...');
+                   shouldForceRebuild = true;
                 }
              }
-          } else {
+          }
+          
+          if (shouldForceRebuild) {
             // Fetch raw collections directly to ensure freshness (skip stale bundles)
             const [rawSubjectsSnap, rawTopicsSnap, rawSettingsSnap, rawNotificationsSnap, adminsSnap, adminEmailsDoc] = await Promise.all([
               fetchColWithFallback('subjects'),
@@ -607,11 +612,11 @@ async function startServer() {
         contentCache.notifications = notifications;
         contentCache.admins = admins;
         contentCache.adminEmails = adminEmails;
-        if (forceRebuild || contentCache.lastUpdated === 0) {
+        if (shouldForceRebuild || contentCache.lastUpdated === 0) {
           contentCache.lastUpdated = Date.now();
         }
 
-        if (forceRebuild) {
+        if (shouldForceRebuild) {
            const topicsArray = JSON.parse(JSON.stringify(contentCache.topics, (k, v) => v === '' ? null : v));
            const subjectsArray = JSON.parse(JSON.stringify(contentCache.subjects, (k, v) => v === '' ? null : v));
            const totalChunks = Math.ceil(topicsArray.length / 35);
@@ -659,6 +664,11 @@ async function startServer() {
 
   const syncRamToFirestoreChunks = async (updatedTopics?: any[], updatedSubjects?: any[], updatedSettings?: any, updatedNotifications?: any[], updatedAdminEmails?: string[]) => {
      if (!db) { throw new Error('Firestore DB not available'); }
+     
+     if (!contentCache.hasLoadedFirstTime && !updatedSubjects && !updatedTopics) {
+       console.error('[CRITICAL] Prevented RAM to Firestore sync because memory cache has not loaded yet! This would wipe out subjects/topics.');
+       throw new Error('Memory cache unhydrated. Cannot sync to Firestore right now.');
+     }
      
      const sanitize = (obj: any) => JSON.parse(JSON.stringify(obj, (k, v) => v === '' ? null : v));
 
@@ -752,12 +762,12 @@ async function startServer() {
       const clientLastUpdated = parseInt(req.query.lastUpdated as string || '0');
 
       // Wait for initial load if necessary
-      if (!contentCache.hasLoadedFirstTime) {
-        console.log(`[API] Cold boot detected, ensuring cache is loaded...`);
+      if (!contentCache.hasLoadedFirstTime || !contentCache.subjects || contentCache.subjects.length === 0 || !contentCache.topics || contentCache.topics.length === 0) {
+        console.log(`[API] Cold boot or empty cache detected, ensuring cache is fully loaded...`);
         if (activeRefreshPromise) {
           await activeRefreshPromise;
         } else {
-          await refreshContentCache();
+          await refreshContentCache(false, true);
         }
       } else {
         // ALWAYS check live Firestore to ensure this Serverless instance RAM isn't stale
@@ -770,7 +780,7 @@ async function startServer() {
               if (activeRefreshPromise) {
                 await activeRefreshPromise;
               } else {
-                await refreshContentCache();
+                await refreshContentCache(false, true);
               }
             }
           }
