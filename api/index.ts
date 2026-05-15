@@ -677,8 +677,12 @@ async function startServer() {
      if (!db) { throw new Error('Firestore DB not available'); }
      
      if (!contentCache.hasLoadedFirstTime) {
-       console.error('[CRITICAL] Prevented RAM to Firestore sync because memory cache has not loaded yet! This would wipe out subjects/topics.');
-       throw new Error('Memory cache unhydrated. Cannot sync to Firestore right now.');
+       console.log('[CRITICAL] syncRamToFirestoreChunks called but memory cache unhydrated. Run inline recovery.');
+       await autoHydratePreflight();
+       if ((updatedTopics && updatedTopics.length < contentCache.topics.length / 2) || 
+           (updatedSubjects && updatedSubjects.length < contentCache.subjects.length / 2)) {
+          throw new Error('Arguments safely rejected. The arrays passed to syncRamToFirestoreChunks were generated from an empty state.');
+       }
      }
      
      const sanitize = (obj: any) => JSON.parse(JSON.stringify(obj, (k, v) => v === '' ? null : v));
@@ -856,6 +860,20 @@ async function startServer() {
     }
   });
 
+  const autoHydratePreflight = async () => {
+    if (!contentCache.hasLoadedFirstTime || !contentCache.topics || contentCache.topics.length === 0 || !contentCache.subjects || contentCache.subjects.length === 0) {
+      console.log('[API] Cold Boot / Cache Unhydrated. Executing inline recovery...');
+      if (activeRefreshPromise) {
+        await activeRefreshPromise;
+      } else {
+        await refreshContentCache(false, true);
+      }
+      if (!contentCache.topics || contentCache.topics.length === 0 || !contentCache.subjects || contentCache.subjects.length === 0) {
+        throw new Error('Memory cache hydration failed. Cannot safely perform write.');
+      }
+    }
+  };
+
   // API: Admin Topic Save
   app.post('/api/admin/save-topic', async (req, res) => {
     const { userId, topic } = req.body || {};
@@ -863,6 +881,7 @@ async function startServer() {
     if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
 
     try {
+      await autoHydratePreflight();
       let finalTopic = { ...topic };
       if (finalTopic.id) {
         const existingTopic = contentCache.topics.find((t: any) => t.id === finalTopic.id);
@@ -939,6 +958,7 @@ async function startServer() {
     if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
 
     try {
+      await autoHydratePreflight();
       const updatedTopics = contentCache.topics.filter(t => t.id !== topicId);
       await syncRamToFirestoreChunks(
           updatedTopics,
@@ -1007,6 +1027,7 @@ async function startServer() {
     if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
 
     try {
+      await autoHydratePreflight();
       const updatedTopics = contentCache.topics.filter(t => !topicIds.includes(t.id));
       const explicitWrites = topicIds.map((id: string) => ({ collection: 'topics', id, data: null }));
       await syncRamToFirestoreChunks(
@@ -1030,6 +1051,7 @@ async function startServer() {
     if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
 
     try {
+      await autoHydratePreflight();
       const updatedTopics = JSON.parse(JSON.stringify(contentCache.topics));
       const explicitWrites: any[] = [];
       updatedTopics.forEach((t: any) => {
@@ -1059,6 +1081,7 @@ async function startServer() {
     if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
 
     try {
+      await autoHydratePreflight();
       const subjectId = subject.id || subject.slug;
       const subjectData = { ...subject };
       delete subjectData.id;
@@ -1090,6 +1113,7 @@ async function startServer() {
     if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
 
     try {
+      await autoHydratePreflight();
       const updatedSubjects = contentCache.subjects.filter(s => s.id !== subjectId);
       await syncRamToFirestoreChunks(
           undefined, 
@@ -1113,6 +1137,7 @@ async function startServer() {
     if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
 
     try {
+      await autoHydratePreflight();
       const updatedSettings = { ...contentCache.settings, ...settings };
       await syncRamToFirestoreChunks(undefined, undefined, updatedSettings);
       
@@ -1129,6 +1154,7 @@ async function startServer() {
     if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
 
     try {
+      await autoHydratePreflight();
       let updatedNotifications = [...contentCache.notifications];
       if (action === 'delete') {
         updatedNotifications = updatedNotifications.filter(n => n.id !== notification.id);
@@ -1310,6 +1336,7 @@ async function startServer() {
   // API: Upload Infographic and seamlessly update RAM cache and Firestore without active locks
   app.post('/api/admin/upload-topic-infographic', upload.single('file'), async (req: any, res) => {
     try {
+      await autoHydratePreflight();
       const { userId, topicId, folder = 'infographics' } = req.body;
       const file = req.file;
       const authHeader = req.headers.authorization;
