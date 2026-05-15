@@ -68,7 +68,7 @@ export function NotificationsPage() {
                   <p className="text-slate-600 font-medium leading-relaxed mb-4">{notification.message}</p>
                   <div className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                     <Clock className="h-3 w-3" />
-                    {new Date(notification.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    {notification.createdAt && !isNaN(new Date(notification.createdAt).getTime()) ? new Date(notification.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Unknown'}
                   </div>
                 </div>
               </div>

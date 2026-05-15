@@ -158,7 +158,7 @@ export function ProfilePage() {
                     </Badge>
                     {profile.premiumExpiry && (
                       <p className="text-[10px] font-black text-slate-400 mt-2 uppercase tracking-widest">
-                        Valid until: {new Date(profile.premiumExpiry).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        Valid until: {profile.premiumExpiry && !isNaN(new Date(profile.premiumExpiry).getTime()) ? new Date(profile.premiumExpiry).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Unknown'}
                       </p>
                     )}
                   </div>

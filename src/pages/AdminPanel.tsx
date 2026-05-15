@@ -2200,7 +2200,7 @@ function AdminNotifications({ showConfirm }: { showConfirm: any }) {
                     {n.message}
                   </p>
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2">
-                    {new Date(n.createdAt).toLocaleDateString()}
+                    {n.createdAt && !isNaN(new Date(n.createdAt).getTime()) ? new Date(n.createdAt).toLocaleDateString() : 'N/A'}
                   </p>
                 </div>
               </div>
@@ -4335,7 +4335,7 @@ function AdminTopics({ showConfirm }: { showConfirm: any }) {
                           name="lastUpdated"
                           className="w-full h-12 rounded-xl border-slate-200 font-bold focus:ring-violet-500 focus:border-violet-500"
                           value={
-                            editingTopic.lastUpdated
+                            editingTopic.lastUpdated && !isNaN(new Date(editingTopic.lastUpdated).getTime())
                               ? new Date(editingTopic.lastUpdated)
                                   .toISOString()
                                   .split("T")[0]
