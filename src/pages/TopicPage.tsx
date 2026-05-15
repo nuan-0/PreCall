@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { Badge, Button, Card, Skeleton } from '../components/UI';
 import { useTopic, useSubjects } from '../hooks/useData';
 import { useAuth } from '../contexts/AuthContext';
-import { cn } from '../lib/utils';
+import { cn, convertDriveUrlToDirectStream } from '../lib/utils';
 import ReactMarkdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import remarkMath from 'remark-math';
@@ -244,14 +244,14 @@ export function TopicPage() {
                 {topic.infographicStatus === 'free' || isPremium || isAdmin ? (
                   <div className="rounded-[2rem] overflow-hidden border border-slate-100 shadow-xl shadow-slate-200/50 bg-white">
                     <img 
-                      src={topic.infographicUrl} 
+                      src={convertDriveUrlToDirectStream(topic.infographicUrl) || topic.infographicUrl} 
                       alt={`${topic.title} Infographic`} 
                       className="w-full h-auto object-contain"
                       referrerPolicy="no-referrer"
                     />
                     <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end">
                       <a 
-                        href={topic.infographicUrl} 
+                        href={convertDriveUrlToDirectStream(topic.infographicUrl) || topic.infographicUrl} 
                         download={`${topic.slug}-infographic.jpg`}
                         target="_blank" 
                         rel="noopener noreferrer"
