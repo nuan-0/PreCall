@@ -31,6 +31,7 @@ import {
   RefreshCw,
   Image,
   Cpu,
+  Download
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Link, Route, Routes, useLocation } from "react-router-dom";
@@ -2823,6 +2824,25 @@ D. Article 22
                   </span>
                 </div>
               </Link>
+
+              <a
+                href={`/api/admin/export-prelims-csv?userId=${user?.uid}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-4 p-5 rounded-2xl border border-violet-100 bg-slate-50 hover:bg-white hover:shadow-xl hover:shadow-violet-200/50 transition-all group"
+              >
+                <div className="h-12 w-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300">
+                  <Download className="h-6 w-6" />
+                </div>
+                <div>
+                  <span className="block text-sm font-bold text-slate-900">
+                    Download Prelims Achievers Data (CSV)
+                  </span>
+                  <span className="text-[10px] font-medium text-slate-500">
+                    Export student rollup for refund
+                  </span>
+                </div>
+              </a>
 
               <Link
                 to="/dashboard"

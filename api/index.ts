@@ -1020,6 +1020,82 @@ async function startServer() {
     }
   });
 
+  // API: UPSCRefundCampaign - Submit Prelims Data
+  app.post('/api/submit-prelims-data', async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'Missing or invalid authorization header' });
+      }
+
+      const token = authHeader.split('Bearer ')[1];
+      const decodedToken = await admin.auth().verifyIdToken(token);
+      const userId = decodedToken.uid;
+
+      const { realName, mobileNo, upscRollNumber } = req.body;
+      
+      if (!realName || !mobileNo || !upscRollNumber) {
+        return res.status(400).json({ error: 'Missing required fields' });
+      }
+
+      const userDoc = await db.collection('users').doc(userId).get();
+      if (!userDoc.exists || !userDoc.data()?.isPremium) {
+        return res.status(403).json({ error: 'Premium status required' });
+      }
+
+      const updateData = {
+        realName,
+        mobileNo,
+        upscRollNumber,
+        prelimsDataSubmittedAt: new Date().toISOString()
+      };
+
+      await db.collection('users').doc(userId).update(updateData);
+      
+      return res.json({ success: true });
+    } catch (error) {
+      console.error('[API] Error in /api/submit-prelims-data:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // API: UPSCRefundCampaign - Export CSV
+  app.get('/api/admin/export-prelims-csv', async (req, res) => {
+    try {
+      const userId = req.query.userId as string;
+      const isAdmin = await checkIsAdmin(userId);
+      
+      if (!isAdmin) {
+        return res.status(403).json({ error: 'Unauthorized' });
+      }
+
+      const usersSnap = await db.collection('users').where('upscRollNumber', '!=', null).get();
+      
+      const rows = [['Name', 'Mobile', 'Roll Number', 'Email', 'Submitted At']];
+      
+      usersSnap.forEach(doc => {
+        const data = doc.data();
+        if (data.upscRollNumber) {
+          rows.push([
+             `"${String(data.realName || '').replace(/"/g, '""')}"`,
+             `"${String(data.mobileNo || '').replace(/"/g, '""')}"`,
+             `"${String(data.upscRollNumber || '').replace(/"/g, '""')}"`,
+             `"${String(data.email || '').replace(/"/g, '""')}"`,
+             `"${String(data.prelimsDataSubmittedAt || '').replace(/"/g, '""')}"`
+          ]);
+        }
+      });
+      
+      const csvString = rows.map(r => r.join(',')).join('\\n');
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="prelims_achievers.csv"');
+      res.send(csvString);
+    } catch (err: any) {
+      console.error('CSV Export Error:', err);
+      res.status(500).json({ error: 'Failed to generate CSV' });
+    }
+  });
+
   // API: Admin Bulk Delete Topics
   app.post('/api/admin/bulk-delete-topics', async (req, res) => {
     const { userId, topicIds } = req.body || {};

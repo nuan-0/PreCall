@@ -4,6 +4,7 @@ import { Badge, Card, Skeleton, Button } from '../components/UI';
 import { useDashboardData, useSettings } from '../hooks/useData';
 import { useAuth } from '../contexts/AuthContext';
 import { cn } from '../lib/utils';
+import { UPSCRefundCampaign } from '../components/UPSCRefundCampaign';
 
 export function Dashboard() {
   const { subjects, topics, loading: dataLoading } = useDashboardData();
@@ -17,6 +18,7 @@ export function Dashboard() {
 
   return (
     <div className="container-wide py-12">
+      <UPSCRefundCampaign />
       <header className="mb-12 flex flex-col sm:flex-row sm:items-end justify-between gap-8">
         <div>
           <div className="flex items-center gap-3 mb-4">

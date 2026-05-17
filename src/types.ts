@@ -92,6 +92,7 @@ export interface UserProfile {
   ownedPdfs?: string[];
   completedTopics?: string[];
   lastLogin: string;
+  upscRollNumber?: string;
 }
 
 export interface Coupon {
