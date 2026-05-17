@@ -2225,6 +2225,30 @@ function AdminOverview({ showConfirm }: { showConfirm: any }) {
   const { subjects } = useSubjects();
   const { settings } = useSettings();
 
+  const handleDownloadCSV = async () => {
+    const toastId = toast.loading("Preparing CSV download...");
+    try {
+      const response = await fetch(`/api/admin/export-prelims-csv?userId=${user?.uid}`, {
+        method: 'GET',
+      });
+      if (!response.ok) {
+        throw new Error("Failed to download CSV");
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'prelims_achievers.csv';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast.success("Download started", { id: toastId });
+    } catch (e) {
+      toast.error("Download failed", { id: toastId });
+    }
+  };
+
   const refreshServerCache = async (rebuild = false) => {
     const toastId = toast.loading(
       rebuild ? "Rebuilding & Refreshing..." : "Refreshing server cache...",
@@ -2825,11 +2849,9 @@ D. Article 22
                 </div>
               </Link>
 
-              <a
-                href={`/api/admin/export-prelims-csv?userId=${user?.uid}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-4 p-5 rounded-2xl border border-violet-100 bg-slate-50 hover:bg-white hover:shadow-xl hover:shadow-violet-200/50 transition-all group"
+              <button
+                onClick={handleDownloadCSV}
+                className="flex w-full items-center text-left gap-4 p-5 rounded-2xl border border-violet-100 bg-slate-50 hover:bg-white hover:shadow-xl hover:shadow-violet-200/50 transition-all group"
               >
                 <div className="h-12 w-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300">
                   <Download className="h-6 w-6" />
@@ -2842,7 +2864,7 @@ D. Article 22
                     Export student rollup for refund
                   </span>
                 </div>
-              </a>
+              </button>
 
               <Link
                 to="/dashboard"

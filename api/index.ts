@@ -1086,7 +1086,7 @@ async function startServer() {
         }
       });
       
-      const csvString = rows.map(r => r.join(',')).join('\\n');
+      const csvString = rows.map(r => r.join(',')).join('\n');
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', 'attachment; filename="prelims_achievers.csv"');
       res.send(csvString);
